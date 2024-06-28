@@ -23,7 +23,8 @@ class Request:
 	__request_arguments: Optional[List[RequestArgument]]
 
 	def make_request(self, url: str, request_payload: Optional[Dict[str, str]],
-					 *, strictly_match_request_arguments = True) -> requests.Response:
+					 *, strictly_match_request_arguments: bool = True,
+					 headers: Optional[Dict[str, str]] = None) -> requests.Response:
 		"""Makes a GET request to the predefined endpoint and returns the response
 
 		Arguments:
@@ -33,7 +34,11 @@ class Request:
 		Keyword Arguments:
 		strictly_match_request_arguments -- If True, raises a ValueError if
 		request_payload contains undefined arguments (default True)
+		headers -- Headers to pass to requests.get() (default {})
 		"""
+		if headers is None:
+			headers = {}
+
 		if strictly_match_request_arguments:
 			self.__check_arguments(request_payload)
 
@@ -47,7 +52,7 @@ class Request:
 		if self.__request_arguments is not None and request_payload is not None:
 			arguments = json.dumps(request_payload)
 
-		return requests.get(final_url, params = {"body": arguments}, timeout = 10)
+		return requests.get(final_url, params = {"body": arguments}, timeout = 10.0, headers = headers)
 
 	def __check_arguments(self, request_payload: Optional[Dict[str, str]]):
 		"""Raises a ValueError if request_payload contains undefined arguments"""
@@ -69,14 +74,15 @@ class API:
 
 	_base_url -- The URL of the website
 	_api_url -- The relative URL of the API
-	_requests_list --
+	_requests_list -- Dictionary of requests that can be made
 	"""
 	_base_url: str
 	_api_url: str
 	_requests_list: Dict[str, Request]
 
 	def make_request(self, endpoint: str, request_payload: Optional[Dict[str, str]],
-					 *, strictly_match_request_arguments = True) -> requests.Response:
+					 *, strictly_match_request_arguments: bool = True,
+					 headers: Optional[Dict[str, str]] = None) -> requests.Response:
 		"""Makes a request at one of the predefined endpoints
 
 		Arguments:
@@ -86,10 +92,14 @@ class API:
 		Keyword Arguments:
 		strictly_match_request_arguments -- If True, raises a ValueError if
 		request_payload contains undefined arguments (default True)
+		headers -- Headers to pass to requests.get() (default {})
 		"""
+		if headers is None:
+			headers = {}
 
 		final_url = ''.join((self._base_url, self._api_url))
 		return self._requests_list.get(endpoint).make_request(
 			final_url, request_payload,
-			strictly_match_request_arguments = strictly_match_request_arguments
+			strictly_match_request_arguments = strictly_match_request_arguments,
+			headers = headers
 		)
