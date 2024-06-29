@@ -1,9 +1,18 @@
+# Copyright (C) 2024 McAwesome (https://github.com/McAwesome123)
+# This script is licensed under the GNU Affero General Public License version 3 or later.
+# For more information, view the LICENSE file provided with this project
+# or visit: https://www.gnu.org/licenses/agpl-3.0.en.html
+
+# fractalthorns is a website created by Pierce Smith (https://github.com/pierce-smith1).
+# View it here: https://fractalthorns.com
+
 """Module for accessing the fractalthorns API"""
 
 import json
 import datetime as dt
+import re
 
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
 from enum import StrEnum
 from io import BytesIO
 from os import getenv
@@ -95,16 +104,20 @@ class FractalthornsAPI(API):
 		self.__valid_image_urls: Optional[Tuple[List[str], dt.datetime]] = None
 		self.__valid_record_urls: Optional[Tuple[List[str], dt.datetime]] = None
 		self.__cached_news_items: Optional[Tuple[List[Dict[str, str]], dt.datetime]] = None
-		self.__cached_images: Dict[str, Tuple[Dict[str, str], dt.datetime]] = {}
-		self.__cached_image_contents = {}
-		self.__cached_image_descriptions = {}
-		self.__cached_records = {}
-		self.__cached_record_contents = {}
+		self.__cached_images: Dict[str, Tuple[Dict[str, Union[str, int, bool, List[str], None]],
+											  dt.datetime]] = {}
+		self.__cached_image_contents: Dict[str, Tuple[Tuple[Image.Image, Image.Image], dt.datetime]] = {}
+		self.__cached_image_descriptions: Dict[str, Tuple[Optional[str], dt.datetime]] = {}
+		self.__cached_chapters: Optional[Tuple[Dict[str, List[Dict[str, Union[str, bool, None]]]],
+											   dt.datetime]] = None
+		self.__cached_records: Dict[str, Tuple[Dict[str, Union[str, bool, None]], dt.datetime]] = {}
+		self.__cached_record_contents: \
+			Dict[str, Tuple[Dict[str, Union[bool, str, List[str],List[Optional[str]], None]],
+							dt.datetime]] = {}
 		self.__cache_purge_allowed: Tuple[dt.datetime, str] = (dt.datetime.now(dt.UTC),)
 
 	__CACHE_DURATION: dt.timedelta = dt.timedelta(days = 1)
 	__CACHE_PURGE_COOLDOWN: dt.timedelta = dt.timedelta(hours = 2)
-	__CACHE_PURGE_ALL_IMAGES_COOLDOWN: dt.timedelta = dt.timedelta(minutes = 30)
 	__REQUEST_TIMEOUT: float = 10.0
 	__NOT_FOUND_ERROR: str = "Item not found"
 	__DEFAULT_HEADERS: Dict[str, str] = {"User-Agent": getenv("FRACTALTHORNS_USER_AGENT")}
@@ -140,6 +153,7 @@ class FractalthornsAPI(API):
 			self.__cached_images = {}
 			self.__cached_image_contents = {}
 			self.__cached_image_descriptions = {}
+			self.__cached_chapters = {}
 			self.__cached_records = {}
 			self.__cached_record_contents = {}
 			new_time = dt.datetime.now(dt.UTC) + self.__CACHE_PURGE_COOLDOWN
@@ -230,10 +244,10 @@ class FractalthornsAPI(API):
 		return (image_info, image_contents)
 
 	def get_image_description(self, name: str) -> str:
-		"""Get image description from fractalthorns
+		"""Get image description from fractalthorns.
 
 		Arguments:
-		name -- Identifying name of the image
+		name -- Identifying name of the image.
 		"""
 		image_title = self.__get_single_image(name)["title"]
 		image_description = self.__get_image_description(name)
@@ -245,11 +259,11 @@ class FractalthornsAPI(API):
 		return "\n".join((image_title, image_description))
 
 	def get_all_images(self, *, start_index = 0, amount = 10) -> str:
-		"""Get all images from fractalthorns
+		"""Get all images from fractalthorns.
 
 		Keyword Arguments:
-		start_index -- Which image to start at (default 0)
-		amount -- How many images to show (default 10)
+		start_index -- Which image to start at (default 0).
+		amount -- How many images to show (default 10).
 		"""
 		image_join_list = []
 
@@ -270,17 +284,64 @@ class FractalthornsAPI(API):
 			image_join_list.append(image_str)
 		return "\n".join(image_join_list)
 
-	def get_full_episodic(self):
-		"""not implemented"""
-		return self.make_request("full_episodic", None)
+	def get_full_episodic(self, *, display_chapters: List[str] = None) -> str:
+		"""Get the full episodic from fractalthorns
 
-	def get_single_record(self, name: str):
-		"""not implemented"""
-		return self.make_request("single_record", {"name": name})
+		Keyword Arguments:
+		display_chapters -- Names of chapters to display (default: latest one)
+		"""
+		if display_chapters is None:
+			display_chapters = []
+			display_chapters.append(list(self.__get_full_episodic().keys())[-1])
+
+		chapters = self.__get_full_episodic()
+		chapters_dict = {}
+
+		for chapter in chapters:
+			if chapter in display_chapters:
+				chapters_dict.update({chapter: chapters[chapter]})
+
+		return self.__format_full_episodic(chapters_dict)
+
+	def get_single_record(self, name: str, *, formatting: Dict[str, bool] = None) -> str:
+		"""Get a record from fractalthorns.
+
+		Arguments:
+		name -- Identifying name of the record.
+
+		Keyword Arguments:
+		formatting -- Items set to True appear in the order they're defined in.
+		Valid items (default): "title" (True), "name" (True),
+		"iteration" (True), "chapter" (True), "solved" (False)
+		"""
+		if formatting is None:
+			formatting = {
+				"title": True,
+				"name": True,
+				"iteration": True,
+				"chapter": True,
+				"solved": False,
+			}
+
+		record = self.__get_single_record(name)
+
+		return self.__format_single_record(record, formatting)
 
 	def get_record_text(self, name: str):
-		"""not implemented"""
-		return self.make_request("record_text", {"name": name})
+		"""Get the contents of a record from fractalthorns.
+
+		Arguments:
+		name -- Identifying name of the record.
+		"""
+		record = self.__get_single_record(name)
+		if record["solved"]:
+			title = record["title"]
+		else:
+			title = "??????"
+
+		record_text = self.__get_record_text(name)
+
+		return self.__format_record_text((title, record_text))
 
 	def get_domain_search(self, term: str, type_: str):
 		"""not implemented"""
@@ -289,25 +350,13 @@ class FractalthornsAPI(API):
 
 	def __get_images_list(self) -> List[str]:
 		if self.__valid_image_urls is None or dt.datetime.now(dt.UTC) > self.__valid_image_urls[1]:
-			r = self.make_request(self.ValidRequests.ALL_IMAGES.value, None)
-			r.raise_for_status()
-
-			images = [i["name"] for i in json.loads(r.text)["images"]]
-			self.__valid_image_urls = (images, dt.datetime.now(dt.UTC) + self.__CACHE_DURATION)
+			self.__get_all_images()
 
 		return self.__valid_image_urls[0]
 
 	def __get_records_list(self) -> List[str]:
 		if self.__valid_record_urls is None or dt.datetime.now(dt.UTC) > self.__valid_record_urls[1]:
-			r = self.make_request(self.ValidRequests.FULL_EPISODIC.value, None)
-			r.raise_for_status()
-
-			records = []
-			for chapter in json.loads(r.text)["chapters"]:
-				for record in chapter["records"]:
-					if record["solved"]:
-						records.append(record["name"])
-			self.__valid_record_urls = (records, dt.datetime.now(dt.UTC) + self.__CACHE_DURATION)
+			self.__get_full_episodic()
 
 		return self.__valid_record_urls[0]
 
@@ -374,12 +423,15 @@ class FractalthornsAPI(API):
 
 		return self.__cached_image_descriptions[image][0]
 
-	def __get_all_images(self) -> List[Dict[str, str]]:
-		outdated = False
-		for image in self.__get_images_list():
-			if image not in self.__cached_images or dt.datetime.now(dt.UTC) > self.__cached_images[image][1]:
-				outdated = True
-				break
+	def __get_all_images(self) -> List[Dict[str, Union[str, int, bool, List[str], None]]]:
+		outdated = (self.__valid_image_urls is None
+					or dt.datetime.now(dt.UTC) > self.__valid_image_urls[1])
+		if not outdated:
+			for image in self.__get_images_list():
+				if image not in self.__cached_images \
+						or dt.datetime.now(dt.UTC) > self.__cached_images[image][1]:
+					outdated = True
+					break
 
 		if outdated:
 			r = self.make_request(self.ValidRequests.ALL_IMAGES.value, None)
@@ -388,15 +440,69 @@ class FractalthornsAPI(API):
 			images = json.loads(r.text)["images"]
 			cache_time = dt.datetime.now(dt.UTC) + self.__CACHE_DURATION
 
+			image_urls = []
 			for image in images:
 				self.__cached_images.update({image["name"]: (image, cache_time)})
+				image_urls.append(image["name"])
 
-			cache_purge_time = dt.datetime.now(dt.UTC) + self.__CACHE_PURGE_ALL_IMAGES_COOLDOWN
-			if self.__cache_purge_allowed[0] < cache_purge_time:
-				self.__cache_purge_allowed = (cache_purge_time,
-											  self.InvalidPurgeReasons.ALL_IMAGES_REQUEST.value)
+			self.__valid_image_urls = (image_urls, cache_time)
 
 		return [i[0] for i in self.__cached_images.values()]
+
+	def __get_full_episodic(self) -> Dict[str, List[Dict[str, Union[str, bool, None]]]]:
+		if self.__cached_chapters is None or dt.datetime.now(dt.UTC) > self.__cached_chapters[1] \
+			or self.__valid_record_urls is None or dt.datetime.now(dt.UTC) > self.__valid_record_urls[1]:
+			r = self.make_request(self.ValidRequests.FULL_EPISODIC.value, None)
+			r.raise_for_status()
+
+			chapters_list = json.loads(r.text)["chapters"]
+			cache_time = dt.datetime.now(dt.UTC) + self.__CACHE_DURATION
+
+			chapters = {}
+			for chapter in chapters_list:
+				chapters.update({chapter["name"]: chapter["records"]})
+
+			self.__cached_chapters = (chapters, cache_time)
+
+			record_urls = []
+			for chapter in chapters.values():
+				for record in chapter:
+					if record["solved"]:
+						self.__cached_records.update({record["name"]: (record, cache_time)})
+						record_urls.append(record["name"])
+
+			self.__valid_record_urls = (record_urls, cache_time)
+
+		return self.__cached_chapters[0]
+
+	def __get_single_record(self, name: str) -> Dict[str, Union[str, bool, None]]:
+		if name not in self.__get_records_list():
+			raise ValueError(self.__NOT_FOUND_ERROR)
+
+		if name not in self.__cached_records or dt.datetime.now(dt.UTC) > self.__cached_records[name][1]:
+			r = self.make_request(self.ValidRequests.SINGLE_RECORD, {"name": name})
+			r.raise_for_status()
+
+			record = json.loads(r.text)
+			if record["solved"]:
+				self.__cached_records.update({record["name"]: (record, dt.datetime.now(dt.UTC))})
+
+		return self.__cached_records[name][0]
+
+	def __get_record_text(self, name: str) \
+		-> Dict[str, Union[bool, str, List[str], List[Optional[str]], None]]:
+		if name not in self.__get_records_list():
+			raise ValueError(self.__NOT_FOUND_ERROR)
+
+		if name not in self.__cached_record_contents \
+				or dt.datetime.now(dt.UTC) > self.__cached_record_contents[name][1]:
+			r = self.make_request(self.ValidRequests.RECORD_TEXT.value, {"name": name})
+			r.raise_for_status()
+
+			record_contents = json.loads(r.text)
+			self.__cached_record_contents.update({name: (record_contents, dt.datetime.now(dt.UTC))})
+
+		return self.__cached_record_contents[name][0]
 
 	def __format_news_item(self, item: Dict[str, str], formatting: Dict[str, bool]) -> str:
 		news_join_list = []
@@ -491,5 +597,155 @@ class FractalthornsAPI(API):
 
 		return "\n".join(image_join_list)
 
+	def __format_full_episodic(self, item: Dict[str, List[Dict[str, Union[str, bool, None]]]]) -> str:
+		episodic_join_list = []
+
+		for chapter in item.keys():
+			chapter_string = "".join(("\n> ## ", chapter))
+			episodic_join_list.append(chapter_string)
+
+			for record in item[chapter]:
+				if record["solved"]:
+					name = record["name"]
+					title = record["title"]
+					iteration = record["iteration"]
+					record_string = "".join(("> **", title, "** (_", name, ", in ", iteration, "_)"))
+					episodic_join_list.append(record_string)
+				else:
+					episodic_join_list.append("> **??????**")
+
+		return ("\n".join(episodic_join_list)).lstrip()
+
+	def __format_single_record(self, item: Dict[str, Union[str, bool, None]], \
+							   formatting: Dict[str, bool]) -> str:
+		record_join_list = []
+		name_done = False
+		iteration_done = False
+
+		for format_ in formatting.keys():
+			if format_ == "chapter" and formatting[format_]:
+				chapter = "".join(("> _chapter ", item["chapter"], "_"))
+				record_join_list.append(chapter)
+
+			if format_ == "name" and formatting[format_] and not iteration_done and item["solved"]:
+				name = "".join(("> (_", item["name"]))
+				if "iteration" in formatting:
+					name = "".join((name, ", in ", item["iteration"]))
+				name = "".join((name, "_)"))
+				record_join_list.append(name)
+				name_done = True
+
+			if format_ == "title" and formatting[format_] and item["solved"]:
+				title = "".join(("> ## ", item["title"]))
+				record_join_list.append(title)
+			elif format_ == "title" and formatting[format_] and not item["solved"]:
+				title = "> ## ??????"
+				record_join_list.append(title)
+
+			if format_ == "solved" and formatting[format_]:
+				solved = "".join(("> _solved: ", "yes" if item["solved"] else "no", "_"))
+				record_join_list.append(solved)
+
+			if format_ == "iteration" and formatting[format_] and not name_done and item["solved"]:
+				iteration = "".join(("> (_in ", item["iteration"]))
+				if "name" in formatting:
+					iteration = "".join((iteration, ", ", item["name"]))
+				iteration = "".join((iteration, "_)"))
+				record_join_list.append(iteration)
+				iteration_done = True
+
+		return "\n".join(record_join_list)
+
+	def __format_record_text(self, item: Tuple[str, Dict[str, Union[bool, str, List[str],
+																	List[Optional[str]], None]]]) -> str:
+		record_title = item[0]
+		record_contents = item[1]
+
+		record_join_list = []
+
+		requested = True
+		for line in record_contents["header_lines"]:
+			if "unrequested" in line:
+				requested = False
+				break
+
+		if requested:
+			record_join_list.append("> NSIrP")
+		record_join_list.append("".join(("> ## ", record_title)))
+
+		pre_header = "".join(("> (_iteration: ", record_contents["iteration"], "; language(s): "))
+
+		languages_list = []
+		for language in record_contents["languages"]:
+			languages_list.append(language)
+		languages = ", ".join(languages_list)
+		pre_header = "".join((pre_header, languages, "; character(s): "))
+
+		characters_list = []
+		for character in record_contents["characters"]:
+			characters_list.append(character)
+		characters = ", ".join(characters_list)
+		pre_header = "".join((pre_header, characters, "_)"))
+
+		record_join_list.append(pre_header)
+
+		record_join_list.append("> _ _\n> ```")
+		for line in record_contents["header_lines"]:
+			record_join_list.append("".join(("> ", line)))
+		record_join_list.append("> ```")
+
+		first = True
+		last_character = None
+		for line in record_contents["lines"]:
+			text: str = line["text"]
+			if not re.search(r"\n +\*", text):
+				text = text.replace("\n", " ")
+				text = re.sub(r" {2,}", " ", text)
+
+			if line.get("character") is None:
+				if text == "...":
+					line_string = "".join(("`< ", text, " >`"))
+				else:
+					line_string = "".join(("`< ", text, ">`"))
+				last_character = None
+			else:
+				speaker = []
+
+				if line.get("language") is not None:
+					speaker.append("".join(("(in ", line["language"], ")")))
+
+				if line["character"] != last_character:
+					speaker.append(line["character"])
+					last_character = line["character"]
+
+				if line.get("emphasis") is not None:
+					speaker.append("".join(("(", line["emphasis"], ")")))
+
+				line_string = " ".join(speaker)
+				if text.startswith("*"):
+					line_string = "".join((line_string, ":\n", text))
+				else:
+					line_string = "".join((line_string, ": ", text))
+
+			if first:
+				first = False
+				line_string = "".join((">>> ", line_string))
+
+			record_join_list.append(line_string)
+
+		full_text = "\n".join(record_join_list)
+
+		return full_text
+
 
 api = FractalthornsAPI()
+
+print("")
+print("# Copyright (C) 2024 McAwesome (https://github.com/McAwesome123)")
+print("# This script is licensed under the GNU Affero General Public License version 3 or later.")
+print("# For more information, view the LICENSE file provided with this project")
+print("# or visit: https://www.gnu.org/licenses/agpl-3.0.en.html")
+print("")
+print("# fractalthorns is a website created by Pierce Smith (https://github.com/pierce-smith1).")
+print("# View it here: https://fractalthorns.com")
+print("")
