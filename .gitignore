@@ -161,3 +161,8 @@ cython_debug/
 
 # Pylint config file
 .pylintrc
+
+# Visual Studio Code workspace
+*.code-workspace
+
+.env.bak

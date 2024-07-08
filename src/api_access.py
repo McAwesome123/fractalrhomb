@@ -88,7 +88,7 @@ class API:
 	_api_url: str
 	_requests_list: Dict[str, Request]
 
-	def make_request(self, endpoint: str, request_payload: Optional[Dict[str, str]],
+	def _make_request(self, endpoint: str, request_payload: Optional[Dict[str, str]],
 					 *, strictly_match_request_arguments: bool = True,
 					 headers: Optional[Dict[str, str]] = None) -> requests.Response:
 		"""Makes a request at one of the predefined endpoints

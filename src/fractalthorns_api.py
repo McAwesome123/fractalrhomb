@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 
 import requests
 
-from api_access import RequestArgument, Request, API
+from .api_access import RequestArgument, Request, API
 
 load_dotenv()
 
@@ -114,29 +114,33 @@ class FractalthornsAPI(API):
 		self.__cached_record_contents: \
 			Dict[str, Tuple[Dict[str, Union[bool, str, List[str],List[Optional[str]], None]],
 							dt.datetime]] = {}
-		self.__cache_purge_allowed: Tuple[dt.datetime, str] = (dt.datetime.now(dt.UTC),)
+		self.__metadata_cache_purge_allowed: Tuple[dt.datetime, str] = (dt.datetime.now(dt.UTC),)
+		self.__contents_cache_purge_allowed: Tuple[dt.datetime, str] = (dt.datetime.now(dt.UTC),)
 
-	__CACHE_DURATION: dt.timedelta = dt.timedelta(days = 1)
-	__CACHE_PURGE_COOLDOWN: dt.timedelta = dt.timedelta(hours = 2)
+	__METADATA_CACHE_DURATION: dt.timedelta = dt.timedelta(days = 1)
+	__CONTENTS_CACHE_DURATION: dt.timedelta = dt.timedelta(days = 7)
+	__METADATA_CACHE_PURGE_COOLDOWN: dt.timedelta = dt.timedelta(hours = 2)
+	__CONTENTS_CACHE_PURGE_COOLDOWN: dt.timedelta = dt.timedelta(hours = 12)
 	__REQUEST_TIMEOUT: float = 10.0
 	__NOT_FOUND_ERROR: str = "Item not found"
 	__DEFAULT_HEADERS: Dict[str, str] = {"User-Agent": getenv("FRACTALTHORNS_USER_AGENT")}
 
-	def make_request(self, endpoint: str, request_payload: Optional[Dict[str, str]],
+	def _make_request(self, endpoint: str, request_payload: Optional[Dict[str, str]],
 					 *, strictly_match_request_arguments: bool = True,
 					 headers: Optional[Dict[str, str]] = None):
 		if headers is None:
 			headers = self.__DEFAULT_HEADERS
 
-		return super().make_request(
+		return super()._make_request(
 			endpoint,
 			request_payload,
 			strictly_match_request_arguments = strictly_match_request_arguments,
 			headers = headers
 		)
 
-	def purge_cache(self, *, force_purge: bool = False):
-		"""Purges stored cache items unless it's too soon since last purge
+	def purge_metadata_cache(self, *, force_purge: bool = False):
+		"""Purges stored metadata cache items unless it's too soon since last purge.
+		This includes: valid urls, news items, image and episodic metadata.
 
 		Keyword Arguments:
 		force_purge -- Forces a cache purge regardless of time
@@ -146,29 +150,49 @@ class FractalthornsAPI(API):
 			datetime.datetime -- When a purge will be allowed.
 			str -- Reason
 		"""
-		if force_purge or dt.datetime.now(dt.UTC) > self.__cache_purge_allowed[0]:
+		if force_purge or dt.datetime.now(dt.UTC) > self.__metadata_cache_purge_allowed[0]:
 			self.__valid_image_urls = None
 			self.__valid_record_urls = None
 			self.__cached_news_items = None
 			self.__cached_images = {}
-			self.__cached_image_contents = {}
-			self.__cached_image_descriptions = {}
 			self.__cached_chapters = {}
 			self.__cached_records = {}
-			self.__cached_record_contents = {}
-			new_time = dt.datetime.now(dt.UTC) + self.__CACHE_PURGE_COOLDOWN
-			if self.__cache_purge_allowed[0] < new_time:
-				self.__cache_purge_allowed = (new_time,
+			new_time = dt.datetime.now(dt.UTC) + self.__METADATA_CACHE_PURGE_COOLDOWN
+			if self.__metadata_cache_purge_allowed[0] < new_time:
+				self.__metadata_cache_purge_allowed = (new_time,
 											  self.InvalidPurgeReasons.CACHE_PURGE.value)
 		else:
-			raise PermissionError(self.__cache_purge_allowed)
+			raise PermissionError(self.__metadata_cache_purge_allowed)
 
-	def get_news_items(
+	def purge_contents_cache(self, *, force_purge: bool = False):
+		"""Purges stored contents cache items unless it's too soon since last purge.
+		This includes: images, image descriptions, record texts.
+
+		Keyword Arguments:
+		force_purge -- Forces a cache purge regardless of time
+
+		Raises:
+		PermissionError -- Cannot purge now. Try again later. Contains:
+			datetime.datetime -- When a purge will be allowed.
+			str -- Reason
+		"""
+		if force_purge or dt.datetime.now(dt.UTC) > self.__contents_cache_purge_allowed[0]:
+			self.__cached_image_contents = {}
+			self.__cached_image_descriptions = {}
+			self.__cached_record_contents = {}
+			new_time = dt.datetime.now(dt.UTC) + self.__CONTENTS_CACHE_PURGE_COOLDOWN
+			if self.__contents_cache_purge_allowed[0] < new_time:
+				self.__contents_cache_purge_allowed = (new_time,
+											  self.InvalidPurgeReasons.CACHE_PURGE.value)
+		else:
+			raise PermissionError(self.__contents_cache_purge_allowed)
+
+	def get_all_news(
 			self,
 			*,
 			formatting: Dict[str, bool] = None,
 			start_index = 0,
-			amount = 1
+			amount = 3
 	) -> str:
 		"""Get news items from fractalthorns.
 
@@ -176,8 +200,8 @@ class FractalthornsAPI(API):
 		formatting -- Items set to True appear in the order they're defined in.
 		Valid items (default): "title" (True), "date" (True),
 		"changes" (True), "version" (True).
-		start_index -- Which news item to start at (default 0)
-		amount -- How many news items to display (default 1)
+		start_index -- Which news item to start at (default 0).
+		amount -- How many news items to display (default 3).
 		"""
 		if formatting is None:
 			formatting = {
@@ -191,18 +215,22 @@ class FractalthornsAPI(API):
 		news_list = []
 
 		if start_index >= 0:
-			if amount < 0:
-				news_items = self.__get_news_items()[start_index::1]
-			else:
-				news_items = self.__get_news_items()[start_index:start_index+amount:1]
+			news_items = self.__get_news_items()[start_index::1]
 		else:
-			if amount < 0:
-				news_items = self.__get_news_items()[start_index::-1]
-			else:
-				news_items = self.__get_news_items()[start_index:start_index-amount:-1]
+			news_items = self.__get_news_items()[start_index::-1]
+
+		total_items = len(news_items)
+
+		if amount >= 0:
+			news_items = news_items[:amount]
 
 		for i in news_items:
 			news_list.append(self.__format_news_item(i, formatting))
+
+		if amount in range(0, total_items):
+			news_list.append(
+				f"the rest of the {total_items} news items were truncated (limit was {amount})."
+			)
 
 		return "\n\n".join(news_list)
 
@@ -222,7 +250,7 @@ class FractalthornsAPI(API):
 		Valid items (default): "title" (True), "name" (False),
 		"ordinal" (False), "date" (False), "image_url" (False),
 		"thumb_url" (False), "canon" (True), "has_description" (False),
-		"characters" (True), "speedpaint_video_url" (True)
+		"characters" (True), "speedpaint_video_url" (True).
 		"""
 		if formatting is None:
 			formatting = {
@@ -268,27 +296,32 @@ class FractalthornsAPI(API):
 		image_join_list = []
 
 		if start_index >= 0:
-			if amount < 0:
-				images = self.__get_all_images()[start_index::1]
-			else:
-				images = self.__get_all_images()[start_index:start_index+amount:1]
+			images = self.__get_all_images()[start_index::1]
 		else:
-			if amount < 0:
-				images = self.__get_all_images()[start_index::-1]
-			else:
-				images = self.__get_all_images()[start_index:start_index-amount:-1]
+			images = self.__get_all_images()[start_index::-1]
+
+		total_items = len(images)
+
+		if amount >= 0:
+			images = images[:amount]
 
 		for image in images:
 			image_str = "".join(("> **", image["title"], "** (_#",
 								 str(image["ordinal"]), ", ", image["name"], "_)"))
 			image_join_list.append(image_str)
+
+		if amount in range(0, total_items):
+			image_join_list.append(
+				f"\nthe rest of the {total_items} images were truncated (limit was {amount})."
+			)
+
 		return "\n".join(image_join_list)
 
 	def get_full_episodic(self, *, display_chapters: List[str] = None) -> str:
-		"""Get the full episodic from fractalthorns
+		"""Get the full episodic from fractalthorns.
 
 		Keyword Arguments:
-		display_chapters -- Names of chapters to display (default: latest one)
+		display_chapters -- Names of chapters to display (default: latest one).
 		"""
 		if display_chapters is None:
 			display_chapters = []
@@ -312,7 +345,7 @@ class FractalthornsAPI(API):
 		Keyword Arguments:
 		formatting -- Items set to True appear in the order they're defined in.
 		Valid items (default): "title" (True), "name" (True),
-		"iteration" (True), "chapter" (True), "solved" (False)
+		"iteration" (True), "chapter" (True), "solved" (False).
 		"""
 		if formatting is None:
 			formatting = {
@@ -343,9 +376,85 @@ class FractalthornsAPI(API):
 
 		return self.__format_record_text((title, record_text))
 
-	def get_domain_search(self, term: str, type_: str):
-		"""not implemented"""
-		return self.make_request("domain_search", {"term": term, "type": type_})
+	def get_domain_search(self, term: str, type_: str, *,
+						  start_index: int = 0, amount:int = 10):
+		"""Get domain search results from fractalthorns.
+
+		Arguments:
+		term -- The term to search for.
+		type_ -- Type of search (valid: "image", "episodic-item", "episodic-line").
+
+		Keyword Arguments:
+		start_index -- Which search result to start at (default: 0).
+		amount -- How many search results to show (default: 10,
+		hard capped at 100 if search type is "episodic-line").
+		"""
+		if type_ not in ["image", "episodic-item", "episodic-line"]:
+			raise ValueError("Invalid search type")
+
+		if type_ == "episodic-line" and amount not in range(0, 100 - start_index):
+			amount = 100 - start_index
+
+		search_results: List = self.__get_domain_search(term, type_)
+		if len(search_results) < 1:
+			return "nothing was found"
+
+		if start_index >= 0:
+			search_results = search_results[start_index::1]
+		else:
+			search_results = search_results[start_index::-1]
+
+		total_results = len(search_results)
+
+		search_results = search_results[:amount]
+
+		results_join_list = []
+
+		for item in search_results:
+			match item["type"]:
+				case "image":
+					image = item["image"]
+					image_str = "".join(("> **", image["title"], "** (_#",
+										 str(image["ordinal"]), ", ", image["name"], "_)"))
+					results_join_list.append(image_str)
+
+				case "episodic-item":
+					results_join_list.append(self.__format_single_record_inline(item["record"]))
+
+				case "episodic-line":
+					record_str = self.__format_single_record_inline(
+						item["record"], show_iteration = False, show_chapter = False
+					)
+					results_join_list.append(record_str)
+
+					if item["record"]["solved"]:
+						matching_line = (self.__get_record_text(item["record"]["name"]))\
+								["lines"][item["record_line_index"]]
+						matching_text = matching_line["text"]
+						matching_text = matching_text.replace(
+							item["record_matched_text"], f"**{item['record_matched_text']}**"
+						)
+						matching_line["text"] = matching_text
+						record_text = self.__format_record_line(matching_line, None, None)[0]
+						record_text = record_text.replace("\n", "\n> ")
+						record_text = record_text.removesuffix("\n> ")
+						results_join_list.append(f"> {record_text}\n")
+
+		if type_ != "episodic-line":
+			results_join_list.append("")
+
+		if type_ == "episodic-line" and total_results >= 100 - start_index:
+			results_join_list.append(
+				f"the rest of the {total_results}+ results were truncated (limit was {amount})."
+			)
+		elif amount in range(0, total_results):
+			results_join_list.append(
+				f"the rest of the {total_results} results were truncated (limit was {amount})."
+			)
+
+		results_text = ("\n".join(results_join_list)).rstrip()
+		results_text = results_text.replace(">\n", "")
+		return ("\n".join(results_join_list)).rstrip()
 
 
 	def __get_images_list(self) -> List[str]:
@@ -362,11 +471,11 @@ class FractalthornsAPI(API):
 
 	def __get_news_items(self) -> List[Dict[str, str]]:
 		if self.__cached_news_items is None or dt.datetime.now(dt.UTC) > self.__cached_news_items[1]:
-			r = self.make_request(self.ValidRequests.ALL_NEWS.value, None)
+			r = self._make_request(self.ValidRequests.ALL_NEWS.value, None)
 			r.raise_for_status()
 
 			self.__cached_news_items = (json.loads(r.text)["items"],
-										dt.datetime.now(dt.UTC) + self.__CACHE_DURATION)
+										dt.datetime.now(dt.UTC) + self.__METADATA_CACHE_DURATION)
 
 		return self.__cached_news_items[0]
 
@@ -375,12 +484,12 @@ class FractalthornsAPI(API):
 			raise ValueError(self.__NOT_FOUND_ERROR)
 
 		if image not in self.__cached_images or dt.datetime.now(dt.UTC) > self.__cached_images[image][1]:
-			r = self.make_request(self.ValidRequests.SINGLE_IMAGE.value, {"name": image})
+			r = self._make_request(self.ValidRequests.SINGLE_IMAGE.value, {"name": image})
 			r.raise_for_status()
 			image_metadata = json.loads(r.text)
 
 			self.__cached_images.update({image: (image_metadata,
-												 dt.datetime.now(dt.UTC) + self.__CACHE_DURATION)})
+												 dt.datetime.now(dt.UTC) + self.__METADATA_CACHE_DURATION)})
 
 		return self.__cached_images[image][0]
 
@@ -403,7 +512,7 @@ class FractalthornsAPI(API):
 			image_thumbnail = Image.open(BytesIO(thumb_req.content))
 
 			self.__cached_image_contents.update({image: ((image_contents, image_thumbnail),
-														 dt.datetime.now(dt.UTC) + self.__CACHE_DURATION)})
+														 dt.datetime.now(dt.UTC) + self.__CONTENTS_CACHE_DURATION)})
 
 		return self.__cached_image_contents[image][0]
 
@@ -413,13 +522,13 @@ class FractalthornsAPI(API):
 
 		if image not in self.__cached_image_descriptions \
 				or dt.datetime.now(dt.UTC) > self.__cached_image_descriptions[image][1]:
-			r = self.make_request(self.ValidRequests.IMAGE_DESCRIPTION.value, {"name": image})
+			r = self._make_request(self.ValidRequests.IMAGE_DESCRIPTION.value, {"name": image})
 			r.raise_for_status()
 
 			image_description = json.loads(r.text)
 
 			self.__cached_image_descriptions.update({image: (image_description.get("description"),
-															 dt.datetime.now(dt.UTC) + self.__CACHE_DURATION)})
+															 dt.datetime.now(dt.UTC) + self.__CONTENTS_CACHE_DURATION)})
 
 		return self.__cached_image_descriptions[image][0]
 
@@ -434,11 +543,11 @@ class FractalthornsAPI(API):
 					break
 
 		if outdated:
-			r = self.make_request(self.ValidRequests.ALL_IMAGES.value, None)
+			r = self._make_request(self.ValidRequests.ALL_IMAGES.value, None)
 			r.raise_for_status()
 
 			images = json.loads(r.text)["images"]
-			cache_time = dt.datetime.now(dt.UTC) + self.__CACHE_DURATION
+			cache_time = dt.datetime.now(dt.UTC) + self.__METADATA_CACHE_DURATION
 
 			image_urls = []
 			for image in images:
@@ -452,11 +561,11 @@ class FractalthornsAPI(API):
 	def __get_full_episodic(self) -> Dict[str, List[Dict[str, Union[str, bool, None]]]]:
 		if self.__cached_chapters is None or dt.datetime.now(dt.UTC) > self.__cached_chapters[1] \
 			or self.__valid_record_urls is None or dt.datetime.now(dt.UTC) > self.__valid_record_urls[1]:
-			r = self.make_request(self.ValidRequests.FULL_EPISODIC.value, None)
+			r = self._make_request(self.ValidRequests.FULL_EPISODIC.value, None)
 			r.raise_for_status()
 
 			chapters_list = json.loads(r.text)["chapters"]
-			cache_time = dt.datetime.now(dt.UTC) + self.__CACHE_DURATION
+			cache_time = dt.datetime.now(dt.UTC) + self.__METADATA_CACHE_DURATION
 
 			chapters = {}
 			for chapter in chapters_list:
@@ -480,12 +589,14 @@ class FractalthornsAPI(API):
 			raise ValueError(self.__NOT_FOUND_ERROR)
 
 		if name not in self.__cached_records or dt.datetime.now(dt.UTC) > self.__cached_records[name][1]:
-			r = self.make_request(self.ValidRequests.SINGLE_RECORD, {"name": name})
+			r = self._make_request(self.ValidRequests.SINGLE_RECORD, {"name": name})
 			r.raise_for_status()
 
 			record = json.loads(r.text)
 			if record["solved"]:
-				self.__cached_records.update({record["name"]: (record, dt.datetime.now(dt.UTC))})
+				self.__cached_records.update(
+					{record["name"]: (record, dt.datetime.now(dt.UTC) + self.__METADATA_CACHE_DURATION)}
+				)
 
 		return self.__cached_records[name][0]
 
@@ -496,13 +607,24 @@ class FractalthornsAPI(API):
 
 		if name not in self.__cached_record_contents \
 				or dt.datetime.now(dt.UTC) > self.__cached_record_contents[name][1]:
-			r = self.make_request(self.ValidRequests.RECORD_TEXT.value, {"name": name})
+			r = self._make_request(self.ValidRequests.RECORD_TEXT.value, {"name": name})
 			r.raise_for_status()
 
 			record_contents = json.loads(r.text)
-			self.__cached_record_contents.update({name: (record_contents, dt.datetime.now(dt.UTC))})
+			self.__cached_record_contents.update(
+				{name: (record_contents, dt.datetime.now(dt.UTC) + self.__CONTENTS_CACHE_DURATION)}
+			)
 
 		return self.__cached_record_contents[name][0]
+
+	def __get_domain_search(self, term, type_) \
+		-> List[Dict[str, Union[str,
+								Dict[str, Union[str, int, bool, List[str], None]],
+								Dict[str, Union[str, bool, None]], int, None]]]:
+		r = self._make_request(self.ValidRequests.DOMAIN_SEARCH.value, {"term": term, "type": type_})
+		r.raise_for_status()
+
+		return json.loads(r.text)["results"]
 
 	def __format_news_item(self, item: Dict[str, str], formatting: Dict[str, bool]) -> str:
 		news_join_list = []
@@ -535,16 +657,13 @@ class FractalthornsAPI(API):
 
 		for format_ in formatting.keys():
 			if format_ == "name" and formatting[format_]:
-				name = "".join(("> ___", item["name"], "___"))
-				image_join_list.append(name)
+				image_join_list.append("".join(("> ___", item["name"], "___")))
 
 			if format_ == "title" and formatting[format_]:
-				title = " ".join(("> ##", item["name"]))
-				image_join_list.append(title)
+				image_join_list.append(" ".join(("> ##", item["name"])))
 
 			if format_ == "ordinal" and formatting[format_]:
-				ordinal = "".join(("> _(image #", str(item["ordinal"]), ")_"))
-				image_join_list.append(ordinal)
+				image_join_list.append("".join(("> _(image #", str(item["ordinal"]), ")_")))
 
 			if format_ == "date" and formatting[format_]:
 				date = " ".join(("on", item["date"]))
@@ -605,16 +724,27 @@ class FractalthornsAPI(API):
 			episodic_join_list.append(chapter_string)
 
 			for record in item[chapter]:
-				if record["solved"]:
-					name = record["name"]
-					title = record["title"]
-					iteration = record["iteration"]
-					record_string = "".join(("> **", title, "** (_", name, ", in ", iteration, "_)"))
-					episodic_join_list.append(record_string)
-				else:
-					episodic_join_list.append("> **??????**")
+				episodic_join_list.append(self.__format_single_record_inline(record, show_chapter = False))
 
 		return ("\n".join(episodic_join_list)).lstrip()
+
+	def __format_single_record_inline(self, record: Dict[str, Union[str, bool, None]], *,
+									  show_iteration: bool = True, show_chapter: bool = True) -> str:
+		if record["solved"]:
+			name = record["name"]
+			title = record["title"]
+			iteration = f"in {record['iteration']}"
+			chapter = f"chapter {record['chapter']}"
+
+			parentheses = [name]
+			if show_iteration:
+				parentheses.append(iteration)
+			if show_chapter:
+				parentheses.append(chapter)
+
+			return f"> **{title}** (_{', '.join(parentheses)}_)"
+
+		return "> **??????**"
 
 	def __format_single_record(self, item: Dict[str, Union[str, bool, None]], \
 							   formatting: Dict[str, bool]) -> str:
@@ -696,36 +826,10 @@ class FractalthornsAPI(API):
 
 		first = True
 		last_character = None
+		last_language = None
 		for line in record_contents["lines"]:
-			text: str = line["text"]
-			if not re.search(r"\n +\*", text):
-				text = text.replace("\n", " ")
-				text = re.sub(r" {2,}", " ", text)
-
-			if line.get("character") is None:
-				if text == "...":
-					line_string = "".join(("`< ", text, " >`"))
-				else:
-					line_string = "".join(("`< ", text, ">`"))
-				last_character = None
-			else:
-				speaker = []
-
-				if line.get("language") is not None:
-					speaker.append("".join(("(in ", line["language"], ")")))
-
-				if line["character"] != last_character:
-					speaker.append(line["character"])
-					last_character = line["character"]
-
-				if line.get("emphasis") is not None:
-					speaker.append("".join(("(", line["emphasis"], ")")))
-
-				line_string = " ".join(speaker)
-				if text.startswith("*"):
-					line_string = "".join((line_string, ":\n", text))
-				else:
-					line_string = "".join((line_string, ": ", text))
+			line_string, last_character, last_language = \
+				self.__format_record_line(line, last_character, last_language)
 
 			if first:
 				first = False
@@ -737,8 +841,50 @@ class FractalthornsAPI(API):
 
 		return full_text
 
+	def __format_record_line(self, line: Dict[str, Optional[str]], \
+							 last_character: Optional[str], last_language: Optional[str]) \
+			-> Tuple[str, str]:
+		text: str = line["text"]
+		if not re.search(r"\n +\*", text):
+			text = text.replace("\n", " ")
+			text = re.sub(r" {2,}", " ", text)
 
-api = FractalthornsAPI()
+		if line.get("character") is None:
+			if text == "...":
+				line_string = "".join(("`< ", text, " >`"))
+			else:
+				line_string = "".join(("`< ", text, ">`"))
+		else:
+			speaker = []
+
+			if line.get("language") != last_language:
+				if line.get("language") is None:
+					speaker.append("(in unknown language)")
+				else:
+					speaker.append("".join(("(in ", line["language"], ")")))
+
+			if line["character"] != last_character:
+				if line["character"] == "Narrator":
+					speaker.append(line["character"])
+				else:
+					speaker.append("".join(("`", line["character"], "`")))
+
+			if line.get("emphasis") is not None:
+				speaker.append("".join(("(", line["emphasis"], ")")))
+
+			line_string = " ".join(speaker)
+			if text.startswith("*"):
+				line_string = "".join((line_string, " :\n", text))
+			else:
+				line_string = "".join((line_string, " **:** ", text))
+
+			last_character = line.get("character")
+			last_language = line.get("language")
+
+		return (line_string, last_character, last_language)
+
+
+fractalthorns_api = FractalthornsAPI()
 
 print("")
 print("# Copyright (C) 2024 McAwesome (https://github.com/McAwesome123)")
