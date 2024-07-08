@@ -14,11 +14,13 @@ from dataclasses import dataclass
 import json
 import requests
 
+
 @dataclass(frozen = True)
 class RequestArgument:
 	"""Contains the name of the argument and whether it's optional"""
 	name: str
 	optional: bool
+
 
 @dataclass(frozen = True)
 class Request:
@@ -65,15 +67,16 @@ class Request:
 	def __check_arguments(self, request_payload: Optional[Dict[str, str]]):
 		"""Raises a ValueError if request_payload contains undefined arguments"""
 		if self.__request_arguments is None and request_payload is not None:
-			raise ValueError("Too many request arguments specified" \
+			raise ValueError("Too many request arguments specified"
 				f"(expected: 0, got {len(request_payload)}).")
 
 		if request_payload is not None:
 			for i in request_payload.keys():
 				arguments = [i.name for i in self.__request_arguments]
 				if i not in arguments:
-					raise ValueError("Too many request arguments specified" \
+					raise ValueError("Too many request arguments specified"
 						f"(expected: {len(arguments)}, got {len(request_payload)}).")
+
 
 @dataclass(frozen = True)
 class API:

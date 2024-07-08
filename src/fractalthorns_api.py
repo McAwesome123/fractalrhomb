@@ -25,6 +25,7 @@ from .api_access import RequestArgument, Request, API
 
 load_dotenv()
 
+
 class FractalthornsAPI(API):
 	"""A class for accessing the fractalthorns API"""
 	class ValidRequests(StrEnum):
@@ -112,7 +113,7 @@ class FractalthornsAPI(API):
 											   dt.datetime]] = None
 		self.__cached_records: Dict[str, Tuple[Dict[str, Union[str, bool, None]], dt.datetime]] = {}
 		self.__cached_record_contents: \
-			Dict[str, Tuple[Dict[str, Union[bool, str, List[str],List[Optional[str]], None]],
+			Dict[str, Tuple[Dict[str, Union[bool, str, List[str], List[Optional[str]], None]],
 							dt.datetime]] = {}
 		self.__metadata_cache_purge_allowed: Tuple[dt.datetime, str] = (dt.datetime.now(dt.UTC),)
 		self.__contents_cache_purge_allowed: Tuple[dt.datetime, str] = (dt.datetime.now(dt.UTC),)
@@ -282,7 +283,7 @@ class FractalthornsAPI(API):
 
 		image_title = "".join((">>> ## ", image_title))
 		image_description = image_description.rstrip() if image_description is not None \
-				else "no description"
+			else "no description"
 
 		return "\n".join((image_title, image_description))
 
@@ -377,7 +378,7 @@ class FractalthornsAPI(API):
 		return self.__format_record_text((title, record_text))
 
 	def get_domain_search(self, term: str, type_: str, *,
-						  start_index: int = 0, amount:int = 10):
+						  start_index: int = 0, amount: int = 10):
 		"""Get domain search results from fractalthorns.
 
 		Arguments:
@@ -455,7 +456,6 @@ class FractalthornsAPI(API):
 		results_text = ("\n".join(results_join_list)).rstrip()
 		results_text = results_text.replace(">\n", "")
 		return ("\n".join(results_join_list)).rstrip()
-
 
 	def __get_images_list(self) -> List[str]:
 		if self.__valid_image_urls is None or dt.datetime.now(dt.UTC) > self.__valid_image_urls[1]:
@@ -560,7 +560,7 @@ class FractalthornsAPI(API):
 
 	def __get_full_episodic(self) -> Dict[str, List[Dict[str, Union[str, bool, None]]]]:
 		if self.__cached_chapters is None or dt.datetime.now(dt.UTC) > self.__cached_chapters[1] \
-			or self.__valid_record_urls is None or dt.datetime.now(dt.UTC) > self.__valid_record_urls[1]:
+				or self.__valid_record_urls is None or dt.datetime.now(dt.UTC) > self.__valid_record_urls[1]:
 			r = self._make_request(self.ValidRequests.FULL_EPISODIC.value, None)
 			r.raise_for_status()
 
@@ -601,7 +601,7 @@ class FractalthornsAPI(API):
 		return self.__cached_records[name][0]
 
 	def __get_record_text(self, name: str) \
-		-> Dict[str, Union[bool, str, List[str], List[Optional[str]], None]]:
+			-> Dict[str, Union[bool, str, List[str], List[Optional[str]], None]]:
 		if name not in self.__get_records_list():
 			raise ValueError(self.__NOT_FOUND_ERROR)
 
@@ -746,7 +746,7 @@ class FractalthornsAPI(API):
 
 		return "> **??????**"
 
-	def __format_single_record(self, item: Dict[str, Union[str, bool, None]], \
+	def __format_single_record(self, item: Dict[str, Union[str, bool, None]],
 							   formatting: Dict[str, bool]) -> str:
 		record_join_list = []
 		name_done = False
@@ -841,7 +841,7 @@ class FractalthornsAPI(API):
 
 		return full_text
 
-	def __format_record_line(self, line: Dict[str, Optional[str]], \
+	def __format_record_line(self, line: Dict[str, Optional[str]],
 							 last_character: Optional[str], last_language: Optional[str]) \
 			-> Tuple[str, str]:
 		text: str = line["text"]
