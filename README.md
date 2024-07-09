@@ -5,7 +5,7 @@ A discord bot\* that uses the API of https://fractalthorns.com/ \
 
 ## Usage
 
-To use, it is recommended to activate the venv (from `.venv\scripts`) and run the following command in the repository's root directory.
+To use, it is recommended to activate the venv (from `.venv\scripts` or `.\venv\bin`) and run the following command in the repository's root directory.
 
 ```bat
 python -i -m src.fractalthorns_api
