@@ -361,7 +361,7 @@ class FractalthornsAPI(API):
 
 		return self.__format_single_record(record, formatting)
 
-	def get_record_text(self, name: str):
+	def get_record_text(self, name: str) -> str:
 		"""Get the contents of a record from fractalthorns.
 
 		Arguments:

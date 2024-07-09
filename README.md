@@ -46,93 +46,7 @@ print(records)
 
 ## Setup
 
-**Note!** The below instructions assume your Python installation can be found under `PATH`.
-If it is not, open a command prompt and use this before following the instructions below (if the location of your Python install is different, you will need to change the paths):
-
-(Windows)
-
-```bat
-set PATH=C:\Program Files\Python312;C:\Program Files\Python312\Scripts;%PATH%
-```
-
-(Linux)
-
-```bash
-export PATH=/usr/bin/python3:/usr/lib/python3:$PATH
-```
-
-Afterwards, run the script and/or commands using this command prompt window. If you close it, you will need to enter the above command again.\
-Before following the below instructions, verify that your version of Python is at least 3.12.4 by using:
-
-(Windows)
-
-```bat
-python -V
-```
-
-(Linux)
-
-```bash
-python3 -V
-```
-
-(Linux note: The commands listed may or may not be incorrect. I am not a Linux user.)
-
-### Option 1 (Automatic, Windows Only):
-
-1. Run the `setup.bat`
-2. Verify there are no errors
-
-Note: The script will not clear an existing `.venv`. If a `.env` file already exists, it will attempt to rename it to `.env.bak`. If that file already exists, you will be prompted to overwrite it. Choosing no will not stop it from overwriting the `.env` file.
-
-### Option 2 (Manual):
-
-(The below commands assume you are running them from the repository's root directory. If you are not, change the paths to lead to the directory.)
-
-1. Create a virtual environment
-	
- 	(Windows)
-
-	```bat
-	python -m venv .venv
-	```
-
-	(Linux)
- 
- 	```bash
-  	python3 -m venv .venv
-	```
-  
-2. Activate the virtual environment
-
- 	(Windows)
-
-	```bat
-	.venv\Scripts\activate.bat
-	```
-
-	(Linux)
- 
-	```bash
-	source .venv/bin/activate
-	```
- 
-3. Install the required packages
-	
- 	```bat
-	pip install -r requirements.txt
-	```
- 
-	**OR**
-   
-	```bat
-	pip install [package from the requirements list below]==[required version]
-	```
- 
-	_(Note: Python does not need to be installed using pip)_
-
-4. Create a `.env` file containing the following:
-	- `FRACTALTHORNS_USER_AGENT`: The user agent to display when making requests (e.g: `"Fractal-RHOMB"`).
+See [Windows Setup](https://github.com/McAwesome123/fractal-rhomb/wiki/Windows-Setup) or [Linux Setup](https://github.com/McAwesome123/fractal-rhomb/wiki/Linux-Setup).
 
 ## Requirements
 
@@ -150,3 +64,7 @@ Newer versions may be used as long as they are backward compatible.
 
 I don't have hard rules for contributing to this project, just open an issue or pull request.\
 When making changes, I ask that you maintain the same (or a similar) style, at least in already existing files.
+
+## Changelog
+
+See [Changelog](CHANGELOG.md)
