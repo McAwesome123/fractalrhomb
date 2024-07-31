@@ -13,36 +13,59 @@ python -i -m src.fractalthorns_api
 
 Afterwards, access the methods provided by the `fractalthorns_api` singleton, such as:
 
-```
-news = fractalthorns_api.get_all_news()
-image = fractalthorns_api.get_single_image("vertigo")
-records = fractalthorns_api.get_full_episodic(display_chapters = ["i", "ii", "iii"])
-```
-
-Most of the methods return text, which can just be printed out:
-
-```
-print(news)
-print(image[0])
-print(records)
+```py
+>>> news = fractalthorns_api.get_all_news()
+>>> record = fractalthorns_api.get_single_record("canopy-i")
+>>> image = fractalthorns_api.get_single_image("vertigo")
 ```
 
-`get_single_image` is the main exception as it returns the image metadata, and an image tuple.
+Most of the single item methods return a dataclass and most of the multi item methods return a list of dataclasses. The dataclasses can either be printed directly or using the `format` method.
+
+```py
+>>> print(news)
+>>> print(news[0])
+title: an impressive background
+items: ['(feat) replaced time-of-day based backgrounds', "the new backgrounds change color depending on the page you're on, and the image switches every day of the week", 'highly experimental, might delete later', '(feat) added a "primary_color" and "secondary_color" field to image objects from the api']
+date: 07/28/24
+version: beta.release.07-28-24.1
+```
+
+```py
+>>> print(record.format())
+> ## canopy i
+> (_canopy-i, in 265404_)
+> _chapter iii_
+```
+
+`get_single_image` is the main exception as, while it's for a single item, it actually returns a tuple
+
+```py
+>>> print(image)
+(Image(name='vertigo', title='vertigo', date='2023-08-01', ordinal=92, image_url='https://fractalthorns.com/serve/image/vertigo', thumb_url='https://fractalthorns.com/serve/thumb/vertigo', canon=None, has_description=False, characters=['romal'], speedpaint_video_url=None, primary_color='#f23487', secondary_color='#9d2e9d'), (<PIL.PngImagePlugin.PngImageFile image mode=RGBA size=768x1024 at 0x1EC9C148920>, <PIL.PngImagePlugin.PngImageFile image mode=RGBA size=300x60 at 0x1EC9C148950>))
+```
+
+So you will probably want to do something like this instead
+
+```py
+>>> print(image[0].format())
+> ## vertigo
+> _canon: none_
+> characters: romal
+> no speedpaint video
+```
 
 ## Features
 
 ### Implemented:
 
 - Access to all currently available API endpoints at https://fractalthorns.com/api/v1/docs
-- Text returned by the public functions contains discord formatting
-- `all_news`, `single_image`, and `single_record` allow for customizing what information is shown
-- `all_news`, `all_images`, `full_episodic`, and `domain_search` allow for choosing which/how many items are shown
+- Text returned by the dataclasses' `format` methods contains discord formatting
+- `NewsEntry`, `Image`, and `Record` allow for customizing what information is shown
 
 ### To do:
 
 - Add the discord bot
 - Add useful logging
-- Make the cache persistent
 
 ## Setup
 
