@@ -1,78 +1,93 @@
 # Fractal RHOMB
-A discord bot\* that uses the API of https://fractalthorns.com/
 
-To use, activate the venv and run this in the repository's root directory.
+A discord bot\* that uses the API of https://fractalthorns.com/ \
+\* Bot functionality has yet to be implemented.
+
+## Usage
+
+To use, it is recommended to activate the venv (from `.venv\scripts` or `.\venv\bin`) and run the following command in the repository's root directory.
+
 ```bat
 python -i -m src.fractalthorns_api
 ```
-Afterwards, access the methods provided by the `fractalthorns_api` singleton.
 
-\* see below
+Afterwards, access the methods provided by the `fractalthorns_api` singleton, such as:
+
+```py
+>>> news = fractalthorns_api.get_all_news()
+>>> record = fractalthorns_api.get_single_record("canopy-i")
+>>> image = fractalthorns_api.get_single_image("vertigo")
+```
+
+Most of the single item methods return a dataclass and most of the multi item methods return a list of dataclasses. The dataclasses can either be printed directly or using the `format` method.
+
+```py
+>>> print(news)
+>>> print(news[0])
+title: an impressive background
+items: ['(feat) replaced time-of-day based backgrounds', "the new backgrounds change color depending on the page you're on, and the image switches every day of the week", 'highly experimental, might delete later', '(feat) added a "primary_color" and "secondary_color" field to image objects from the api']
+date: 07/28/24
+version: beta.release.07-28-24.1
+```
+
+```py
+>>> print(record.format())
+> ## canopy i
+> (_canopy-i, in 265404_)
+> _chapter iii_
+```
+
+`get_single_image` is the main exception as, while it's for a single item, it actually returns a tuple
+
+```py
+>>> print(image)
+(Image(name='vertigo', title='vertigo', date='2023-08-01', ordinal=92, image_url='https://fractalthorns.com/serve/image/vertigo', thumb_url='https://fractalthorns.com/serve/thumb/vertigo', canon=None, has_description=False, characters=['romal'], speedpaint_video_url=None, primary_color='#f23487', secondary_color='#9d2e9d'), (<PIL.PngImagePlugin.PngImageFile image mode=RGBA size=768x1024 at 0x1EC9C148920>, <PIL.PngImagePlugin.PngImageFile image mode=RGBA size=300x60 at 0x1EC9C148950>))
+```
+
+So you will probably want to do something like this instead
+
+```py
+>>> print(image[0].format())
+> ## vertigo
+> _canon: none_
+> characters: romal
+> no speedpaint video
+```
 
 ## Features
+
 ### Implemented:
+
 - Access to all currently available API endpoints at https://fractalthorns.com/api/v1/docs
-- Discord formatting for the above
-- The ability to customize the information shown for most endpoints
+- Text returned by the dataclasses' `format` methods contains discord formatting
+- `NewsEntry`, `Image`, and `Record` allow for customizing what information is shown
 
 ### To do:
+
 - Add the discord bot
 - Add useful logging
 
-## Setup (Windows)
-**Note!** The below instructions assume your python installation can be found under `PATH`.
-If it is not, open a command prompt window and use this prior to following the instructions below (if the location of your python install is different, you will need to change the paths):
-```bat
-set PATH=C:\Program Files\Python312;C:\Program Files\Python312\Scripts;%PATH%
-```
-Afterwards, run the script and/or commands using this command prompt window. If you close it, you will need to enter the above command again.
+## Setup
 
-Before following the below instructions, verify that your version of python is at least 3.12.4 by using
-```bat
-python -V
-```
-### Option 1 (Automatic):
-1. Run the `setup.bat`
-2. Verify there are no errors
-
-Note: The script will not clear an existing `.venv`. If a `.env` file already exists, it will attempt to rename it to `.env.bak`. If that file already exists, you will be prompted to overwrite it. Choosing no will not stop it from overwriting the `.env` file.
-
-### Option 2 (Manual):
-(The below commands assume you are running them from the repository's root directory. If you are not, change the paths to lead to the directory.)
-
-1. Create a virtual environment
-```bat
-python -m venv .venv
-```
-2. Activate the virtual environment
-```bat
-.venv\Scripts\activate.bat
-```
-3. Install the required packages
-```bat
-pip install -r requirements.txt
-```
-**OR**
-```bat
-pip install [package from the requirements list below]==[required version]
-```
-_(Note: Python does not need to be installed using pip)_
-
-4. Create a `.env` file in `src` containing the following:
-	- `FRACTALTHORNS_USER_AGENT`: The user agent to display when making requests (e.g: `"Fractal-RHOMB"`).
+See [Windows Setup](https://github.com/McAwesome123/fractal-rhomb/wiki/Windows-Setup) or [Linux Setup](https://github.com/McAwesome123/fractal-rhomb/wiki/Linux-Setup).
 
 ## Requirements
+
 - [Python (3.12.4)](https://www.python.org/downloads/)
 - [Requests (2.32.3)](https://pypi.org/project/requests/2.32.3/)
 - [Discord.py (2.4.0)](https://pypi.org/project/discord.py/2.4.0/)
 - [Pillow (10.4.0)](https://pypi.org/project/pillow/10.4.0/)
 - [Python-dotenv (1.0.1)](https://pypi.org/project/python-dotenv/1.0.1/)
 
-_(and any dependencies for the above)_
+	_(and any dependencies for the above)_
 
-Newer versions may be used as long as they are backwards compatible.
+Newer versions may be used as long as they are backward compatible.
 
 ## Contributing
-I don't have hard rules for contributing to this project, but [please avoid making the world's most descriptive issues/pull requests](https://github.com/McAwesome123/fractal-rhomb/assets/49949995/15c2d33f-1275-4145-b840-bbb0a5a7f7b6).
 
+I don't have hard rules for contributing to this project, just open an issue or pull request.\
 When making changes, I ask that you maintain the same (or a similar) style, at least in already existing files.
+
+## Changelog
+
+See [Changelog](CHANGELOG.md)

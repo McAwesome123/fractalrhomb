@@ -1,18 +1,21 @@
-@echo off
+#!/bin/bash
 
 echo Creating venv
-python -m venv .venv
+python3 -m venv .venv
 
 echo Activating venv
-call .venv\Scripts\activate.bat
+source .venv/bin/activate
 
 echo Installing requirements
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 
 echo Creating .env
-if exist .env move /-Y .env .env.bak
+if [ ! -f ./.env ]; then
+	mv -ib .env .env.bak
+fi
 echo FRACTALTHORNS_USER_AGENT="Fractal-RHOMB" > .env
 
 echo Setup complete
-pause
+read -n1 -r -s -p "Press any key to continue..."
+echo

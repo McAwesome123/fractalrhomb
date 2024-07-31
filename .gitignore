@@ -164,5 +164,7 @@ cython_debug/
 
 # Visual Studio Code workspace
 *.code-workspace
+.vscode/
 
 .env.bak
+__apicache__/
