@@ -13,6 +13,7 @@ pip install -r requirements.txt
 echo Creating .env
 if exist .env move /-Y .env .env.bak
 echo FRACTALTHORNS_USER_AGENT="Fractal-RHOMB" > .env
+echo DISCORD_BOT_TOKEN="Replace me!" >> .env
 
 echo Setup complete
 pause

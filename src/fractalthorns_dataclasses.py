@@ -34,7 +34,7 @@ class NewsEntry:
 		"""
 		return NewsEntry(
 			obj["title"],
-			obj["items"],
+			obj.get("items"),
 			obj["date"],
 			obj.get("version"),
 		)
@@ -94,9 +94,15 @@ class NewsEntry:
 				changes_list = [f"> - {i}" for i in self.items]
 				changes = "\n".join(changes_list)
 				news_join_list.append(changes)
+			elif format_ == "items":
+				changes = "> no changes"
+				news_join_list.append(changes)
 
 			if format_ == "version" and self.version is not None:
 				version = f"> _{self.version}_"
+				news_join_list.append(version)
+			elif format_ == "version":
+				version = "> _no version change_"
 				news_join_list.append(version)
 
 		return "\n".join(news_join_list)
@@ -584,9 +590,12 @@ class RecordLine:
 		last_language -- The language returned by the last formatted line (or None).
 		"""
 		text = self.text
-		if not re.search(r"\n +\*", text):
+		if not (re.search(r"\n +\*", text) or re.search(r"\n +-", text)):
 			text = text.replace("\n", " ")
 			text = re.sub(r" {2,}", " ", text)
+
+		if text.startswith("- ") or text.startswith("* "):
+			text = f"\n{text}"
 
 		if self.character is None:
 			line_string = f"`< {text} >`" if text == "..." else f"`< {text}>`"
@@ -617,6 +626,9 @@ class RecordLine:
 			last_character = self.character
 			last_language = self.language
 
+		line_string = f"> {line_string}"
+		line_string = line_string.replace("\n", "\n> ")
+		line_string = line_string.removesuffix("\n> ")
 		return (line_string, last_character, last_language)
 
 
@@ -693,17 +705,12 @@ class RecordText:
 		record_join_list.extend(f"> {line}" for line in self.header_lines)
 		record_join_list.append("> ```")
 
-		first = True
 		last_character = None
 		last_language = None
 		for line in self.lines:
 			line_string, last_character, last_language = line.format(
 				last_character, last_language
 			)
-
-			if first:
-				first = False
-				line_string = f">>> {line_string}"
 
 			record_join_list.append(line_string)
 
@@ -787,8 +794,6 @@ class SearchResult:
 						matching_text,
 					)
 					record_text = edited_line.format(None, None)[0]
-					record_text = record_text.replace("\n", "\n> ")
-					record_text = record_text.removesuffix("\n> ")
-					results_join_list.append(f"> {record_text}\n")
+					results_join_list.append(f"{record_text}\n")
 
 				return "\n".join(results_join_list)

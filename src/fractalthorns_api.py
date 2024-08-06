@@ -54,7 +54,7 @@ class FractalthornsAPI(API):
 	class CacheTypes(Enum):
 		"""An enum containing cache types."""
 
-		NEWS_ITEMS = "news items"
+		NEWS_ITEMS = "news"
 		IMAGES = "images"
 		IMAGE_CONTENTS = "image contents"
 		IMAGE_DESCRIPTIONS = "image descriptions"
@@ -282,7 +282,7 @@ class FractalthornsAPI(API):
 
 	def get_single_image(
 		self, name: str | None
-	) -> tuple[str, tuple[Image.Image, Image.Image]]:
+	) -> tuple[ftd.Image, tuple[Image.Image, Image.Image]]:
 		"""Get an image from fractalthorns.
 
 		Arguments:
@@ -574,9 +574,8 @@ class FractalthornsAPI(API):
 			self.__last_all_images_cache = cache_time
 
 			self.__save_cache(self.CacheTypes.IMAGES)
-			self.__save_cache(self.CacheTypes.CACHE_METADATA)
 
-		return [i[0] for i in self.__cached_images.values()]
+		return [j[0] for i, j in self.__cached_images.items() if i is not None]
 
 	def __get_full_episodic(self) -> list[ftd.Chapter]:
 		"""Get the full episodic.
@@ -618,7 +617,6 @@ class FractalthornsAPI(API):
 
 			self.__save_cache(self.CacheTypes.CHAPTERS)
 			self.__save_cache(self.CacheTypes.RECORDS)
-			self.__save_cache(self.CacheTypes.CACHE_METADATA)
 
 		return list(self.__cached_chapters[0].values())
 
@@ -867,6 +865,9 @@ class FractalthornsAPI(API):
 						self.__last_full_episodic_cache = cache_contents.get(
 							"__last_full_episodic_cache"
 						)
+						self.__last_cache_purge = cache_contents.get(
+							"__last_cache_purge"
+						)
 
 						if self.__last_all_images_cache is not None:
 							self.__last_all_images_cache = dt.datetime.fromtimestamp(
@@ -877,7 +878,7 @@ class FractalthornsAPI(API):
 								self.__last_full_episodic_cache, tz=dt.UTC
 							)
 						self.__last_cache_purge = {
-							i: dt.datetime.fromtimestamp(j, tz=dt.UTC)
+							self.CacheTypes(i): dt.datetime.fromtimestamp(j, tz=dt.UTC)
 							for i, j in self.__last_cache_purge.items()
 						}
 
@@ -1001,7 +1002,7 @@ class FractalthornsAPI(API):
 					cache_contents.update(
 						{
 							"__last_cache_purge": {
-								i: j.timestamp()
+								i.value: j.timestamp()
 								for i, j in self.__last_cache_purge.items()
 							}
 						}
@@ -1009,6 +1010,9 @@ class FractalthornsAPI(API):
 
 			with Path.open(cache_path, "w", encoding="utf-8") as f:
 				json.dump(cache_contents, f, indent=4)
+
+				if cache != self.CacheTypes.CACHE_METADATA:
+					self.__save_cache(self.CacheTypes.CACHE_METADATA)
 
 	@staticmethod
 	def __raise_for_status(response: requests.Response) -> None:

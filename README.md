@@ -75,7 +75,7 @@ See [Windows Setup](https://github.com/McAwesome123/fractal-rhomb/wiki/Windows-S
 
 - [Python (3.12.4)](https://www.python.org/downloads/)
 - [Requests (2.32.3)](https://pypi.org/project/requests/2.32.3/)
-- [Discord.py (2.4.0)](https://pypi.org/project/discord.py/2.4.0/)
+- [Py-cord (2.6.0)](https://pypi.org/project/py-cord/2.6.0/)
 - [Pillow (10.4.0)](https://pypi.org/project/pillow/10.4.0/)
 - [Python-dotenv (1.0.1)](https://pypi.org/project/python-dotenv/1.0.1/)
 
