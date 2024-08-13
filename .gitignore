@@ -168,3 +168,5 @@ cython_debug/
 
 .env.bak
 __apicache__/
+bot_data.*
+*.log*

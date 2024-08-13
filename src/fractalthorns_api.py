@@ -17,7 +17,7 @@ from enum import Enum, StrEnum
 from io import BytesIO
 from os import getenv
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 import requests
 from dotenv import load_dotenv
@@ -54,7 +54,7 @@ class FractalthornsAPI(API):
 	class CacheTypes(Enum):
 		"""An enum containing cache types."""
 
-		NEWS_ITEMS = "news items"
+		NEWS_ITEMS = "news"
 		IMAGES = "images"
 		IMAGE_CONTENTS = "image contents"
 		IMAGE_DESCRIPTIONS = "image descriptions"
@@ -132,7 +132,8 @@ class FractalthornsAPI(API):
 			],
 		] = {}
 		self.__cached_search_results: dict[
-			tuple[str, str], tuple[list[ftd.SearchResult], dt.datetime]
+			tuple[str, Literal["image", "episodic-item", "episodic-line"]],
+			tuple[list[ftd.SearchResult], dt.datetime],
 		] = {}
 		self.__cached_full_record_contents: (
 			tuple[dict[str, ftd.RecordText], dt.datetime] | None
@@ -268,6 +269,114 @@ class FractalthornsAPI(API):
 
 		self.__last_cache_purge.update({cache: dt.datetime.now(dt.UTC)})
 
+	def get_cached_items(
+		self, cache: CacheTypes, *, ignore_stale: bool = False
+	) -> (
+		list[ftd.NewsEntry]
+		| list[ftd.Image]
+		| list[tuple[Image.Image, Image.Image]]
+		| list[ftd.ImageDescription]
+		| list[ftd.Chapter]
+		| list[ftd.Record]
+		| list[ftd.RecordText]
+		| dict[
+			tuple[str, Literal["image", "episodic-item", "episodic-line"]],
+			ftd.SearchResult,
+		]
+		| list
+		| None
+	):
+		"""Get items currently stored in the cache without making requests.
+
+		Arguments:
+		---------
+		cache -- Which cache to fetch
+
+		Keyword Arguments:
+		-----------------
+		ignore_stale -- If true, stale cache entries are still returned.
+
+		Raises:
+		------
+		fractalthorns_exceptions.CacheFetchError -- Cannot fetch the cache.
+		"""
+		now = dt.datetime.now(dt.UTC)
+
+		match cache:
+			case self.CacheTypes.NEWS_ITEMS:
+				if self.__cached_news_items is None or (
+					now > self.__cached_news_items[1] + self.__CACHE_DURATION[cache]
+					and not ignore_stale
+				):
+					return None
+				return self.__cached_news_items[0]
+
+			case self.CacheTypes.IMAGES:
+				return [
+					i[0]
+					for i in self.__cached_images.values()
+					if not (
+						now > i[1] + self.__CACHE_DURATION[cache] and not ignore_stale
+					)
+				]
+
+			case self.CacheTypes.IMAGE_CONTENTS:
+				return [
+					i[0]
+					for i in self.__cached_image_contents.values()
+					if not (
+						now > i[1] + self.__CACHE_DURATION[cache] and not ignore_stale
+					)
+				]
+
+			case self.CacheTypes.IMAGE_DESCRIPTIONS:
+				return [
+					i[0]
+					for i in self.__cached_image_descriptions.values()
+					if not (
+						now > i[1] + self.__CACHE_DURATION[cache] and not ignore_stale
+					)
+				]
+
+			case self.CacheTypes.CHAPTERS:
+				if self.__cached_chapters is None or (
+					now > self.__cached_chapters[1] + self.__CACHE_DURATION[cache]
+					and not ignore_stale
+				):
+					return None
+				return list(self.__cached_chapters[0].values())
+
+			case self.CacheTypes.RECORDS:
+				return [
+					i[0]
+					for i in self.__cached_records.values()
+					if not (
+						now > i[1] + self.__CACHE_DURATION[cache] and not ignore_stale
+					)
+				]
+
+			case self.CacheTypes.RECORD_CONTENTS:
+				return [
+					i[0]
+					for i in self.__cached_record_contents.values()
+					if not (
+						now > i[1] + self.__CACHE_DURATION[cache] and not ignore_stale
+					)
+				]
+
+			case self.CacheTypes.SEARCH_RESULTS:
+				return {
+					i: j[0]
+					for i, j in self.__cached_search_results.items()
+					if not (
+						now > j[1] + self.__CACHE_DURATION[cache] and not ignore_stale
+					)
+				}
+
+			case _:
+				msg = f"Cannot fetch this cache: {cache}"
+				raise fte.CacheFetchError(msg)
+
 	def get_all_news(self) -> list[ftd.NewsEntry]:
 		"""Get news items from fractalthorns.
 
@@ -282,7 +391,7 @@ class FractalthornsAPI(API):
 
 	def get_single_image(
 		self, name: str | None
-	) -> tuple[str, tuple[Image.Image, Image.Image]]:
+	) -> tuple[ftd.Image, tuple[Image.Image, Image.Image]]:
 		"""Get an image from fractalthorns.
 
 		Arguments:
@@ -372,7 +481,9 @@ class FractalthornsAPI(API):
 		"""
 		return self.__get_record_text(name)
 
-	def get_domain_search(self, term: str, type_: str) -> list[ftd.SearchResult]:
+	def get_domain_search(
+		self, term: str, type_: Literal["image", "episodic-item", "episodic-line"]
+	) -> list[ftd.SearchResult]:
 		"""Get domain search results from fractalthorns.
 
 		Arguments:
@@ -457,6 +568,15 @@ class FractalthornsAPI(API):
 					)
 				}
 			)
+			if image is None:
+				self.__cached_images.update(
+					{
+						self.__cached_images[image][0].name: (
+							ftd.Image.from_obj(image_metadata),
+							dt.datetime.now(dt.UTC),
+						)
+					}
+				)
 			self.__save_cache(self.CacheTypes.IMAGES)
 
 		return self.__cached_images[image][0]
@@ -530,10 +650,13 @@ class FractalthornsAPI(API):
 
 			image_description = json.loads(r.text)
 
+			image_title = self.__get_single_image(image).title
+			image_description.update({"title": image_title})
+
 			self.__cached_image_descriptions.update(
 				{
 					image: (
-						ftd.ImageDescription(image_description.get("description")),
+						ftd.ImageDescription.from_obj(image_description),
 						dt.datetime.now(dt.UTC),
 					)
 				}
@@ -564,6 +687,8 @@ class FractalthornsAPI(API):
 			images = json.loads(r.text)["images"]
 			cache_time = dt.datetime.now(dt.UTC)
 
+			self.purge_cache(self.CacheTypes.IMAGES, force_purge=True)
+
 			for image in images:
 				image["image_url"] = f"{self._base_url}{image["image_url"]}"
 				image["thumb_url"] = f"{self._base_url}{image["thumb_url"]}"
@@ -571,12 +696,15 @@ class FractalthornsAPI(API):
 					{image["name"]: (ftd.Image.from_obj(image), cache_time)}
 				)
 
+			self.__cached_images.update(
+				{None: next(iter(self.__cached_images.values()))}
+			)
+
 			self.__last_all_images_cache = cache_time
 
 			self.__save_cache(self.CacheTypes.IMAGES)
-			self.__save_cache(self.CacheTypes.CACHE_METADATA)
 
-		return [i[0] for i in self.__cached_images.values()]
+		return [j[0] for i, j in self.__cached_images.items() if i is not None]
 
 	def __get_full_episodic(self) -> list[ftd.Chapter]:
 		"""Get the full episodic.
@@ -600,6 +728,9 @@ class FractalthornsAPI(API):
 			chapters_list = json.loads(r.text)["chapters"]
 			cache_time = dt.datetime.now(dt.UTC)
 
+			self.purge_cache(self.CacheTypes.CHAPTERS, force_purge=True)
+			self.purge_cache(self.CacheTypes.RECORDS, force_purge=True)
+
 			chapters = {
 				chapter["name"]: ftd.Chapter.from_obj(chapter)
 				for chapter in chapters_list
@@ -618,7 +749,6 @@ class FractalthornsAPI(API):
 
 			self.__save_cache(self.CacheTypes.CHAPTERS)
 			self.__save_cache(self.CacheTypes.RECORDS)
-			self.__save_cache(self.CacheTypes.CACHE_METADATA)
 
 		return list(self.__cached_chapters[0].values())
 
@@ -687,7 +817,9 @@ class FractalthornsAPI(API):
 
 		return self.__cached_record_contents[name][0]
 
-	def __get_domain_search(self, term: str, type_: str) -> list[ftd.SearchResult]:
+	def __get_domain_search(
+		self, term: str, type_: Literal["image", "episodic-item", "episodic-line"]
+	) -> list[ftd.SearchResult]:
 		"""Get a domain search.
 
 		Raises
@@ -809,7 +941,7 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.IMAGE_DESCRIPTIONS:
 						cache_contents = {
 							i: (
-								ftd.ImageDescription(j[0]["description"]),
+								ftd.ImageDescription.from_obj(j[0]),
 								dt.datetime.fromtimestamp(j[1], tz=dt.UTC),
 							)
 							for i, j in cache_contents.items()
@@ -867,6 +999,9 @@ class FractalthornsAPI(API):
 						self.__last_full_episodic_cache = cache_contents.get(
 							"__last_full_episodic_cache"
 						)
+						self.__last_cache_purge = cache_contents.get(
+							"__last_cache_purge"
+						)
 
 						if self.__last_all_images_cache is not None:
 							self.__last_all_images_cache = dt.datetime.fromtimestamp(
@@ -877,7 +1012,7 @@ class FractalthornsAPI(API):
 								self.__last_full_episodic_cache, tz=dt.UTC
 							)
 						self.__last_cache_purge = {
-							i: dt.datetime.fromtimestamp(j, tz=dt.UTC)
+							self.CacheTypes(i): dt.datetime.fromtimestamp(j, tz=dt.UTC)
 							for i, j in self.__last_cache_purge.items()
 						}
 
@@ -1001,7 +1136,7 @@ class FractalthornsAPI(API):
 					cache_contents.update(
 						{
 							"__last_cache_purge": {
-								i: j.timestamp()
+								i.value: j.timestamp()
 								for i, j in self.__last_cache_purge.items()
 							}
 						}
@@ -1009,6 +1144,9 @@ class FractalthornsAPI(API):
 
 			with Path.open(cache_path, "w", encoding="utf-8") as f:
 				json.dump(cache_contents, f, indent=4)
+
+				if cache != self.CacheTypes.CACHE_METADATA:
+					self.__save_cache(self.CacheTypes.CACHE_METADATA)
 
 	@staticmethod
 	def __raise_for_status(response: requests.Response) -> None:

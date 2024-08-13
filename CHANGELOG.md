@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.2.0] - 2024-08-13
+
+### Added
+
+- Discord bot functionality
+  - Includes the following fractalthorns slash commands: /news, /image, /description, /all_images, /chapter, /record, /record_text, /domain_search
+  - As well as some miscellaneous slash commands: /license, /purge, /botchannel
+- `DISCORD_BOT_TOKEN` to .env file (and setup)
+- Retrieving cached items (`FractalthornsAPI.get_cached_items()`)
+- A `CacheFetchError` if the above fails
+- Title to ImageDescription objects
+
+### Changed
+
+- **Replaced Discord.py (2.4.0) with Py-cord (2.6.0)**
+- `NEWS_ITEMS` value is now `"news"` instead of `"news items"`
+  - Clearing `/__apicache__` is recommended to avoid errors
+  - Although it might fix itself eventually
+- Cache metadata is now saved whenever any other cache type is saved
+- Certain other cache save/load details
+- Search results cache dict keys are now tuple[str, Literal]
+- `FractalthornsAPI.__get_all_images()` now purges the images cache
+- `FractalthornsAPI.__get_full_episodic()` now purges the chapters and records caches
+
+### Fixed
+
+- Return type hinting for `FractalthornsAPI.get_single_image()`
+- `FractalthornsAPI.__get_all_images()` no longer returns the `None` image
+- `NewsEntry.from_obj()` making items `None` if it doesn't exist
+- A few discord formatting issues
+
 ## [0.1.0] - 2024-07-31
 
 ### Added
@@ -20,7 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Exceptions for the API handler (`fractalthorns_exceptions`)
 - A persistent cache (this is mainly dev qol)
 - `primary_color` and `secondary_color` from `single_image`
-- Various new bugs probably (tell me if you find any!)
 
 ### Changed
 

@@ -34,7 +34,7 @@ class NewsEntry:
 		"""
 		return NewsEntry(
 			obj["title"],
-			obj["items"],
+			obj.get("items", []),
 			obj["date"],
 			obj.get("version"),
 		)
@@ -94,9 +94,15 @@ class NewsEntry:
 				changes_list = [f"> - {i}" for i in self.items]
 				changes = "\n".join(changes_list)
 				news_join_list.append(changes)
+			elif format_ == "items":
+				changes = "> no changes listed"
+				news_join_list.append(changes)
 
 			if format_ == "version" and self.version is not None:
 				version = f"> _{self.version}_"
+				news_join_list.append(version)
+			elif format_ == "version":
+				version = "> _no version change_"
 				news_join_list.append(version)
 
 		return "\n".join(news_join_list)
@@ -331,28 +337,54 @@ class Image:
 	def format_inline(self) -> str:
 		"""Return a string with discord formatting (without linebreaks)."""
 		if self.speedpaint_video_url is None:
-			return f"**{self.title}** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, [image url](<{self.image_url}>), no speedpaint video_)"
+			return f"> **{self.title}** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, [image url](<{self.image_url}>), no speedpaint video_)"
 
-		return f"**{self.title}** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, [image url](<{self.image_url}>), [speedpaint video](<{self.speedpaint_video_url}>)_)"
+		return f"> **{self.title}** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, [image url](<{self.image_url}>), [speedpaint video](<{self.speedpaint_video_url}>)_)"
 
 
 @dataclass
 class ImageDescription:
 	"""Data class containing an image description."""
 
+	title: str
 	description: str | None
+
+	type ImageDescriptionType = dict[str, str | None]
+
+	@staticmethod
+	def from_obj(obj: ImageDescriptionType) -> "ImageDescription":
+		"""Create an ImageDescription from an object.
+
+		Argument: obj -- The object to create a ImageDescription from.
+		(Expected: image_description with an added title.
+		image_description needs to be converted from json first.)
+		"""
+		return ImageDescription(
+			obj["title"],
+			obj.get("description"),
+		)
 
 	def __str__(self) -> str:
 		"""Return the class' contents, separated by newlines."""
-		return f"description: {self.description}"
+		str_list = []
+
+		str_list.append(f"title: {self.title}")
+		str_list.append(f"description: {self.description}")
+
+		return "\n".join(str_list)
 
 	def format(self) -> str:
 		"""Return a string with discord formatting."""
-		return (
-			self.description.rstrip()
+		description_join_list = []
+
+		description_join_list.append(f"> # {self.title}")
+		description_join_list.append(
+			f">>> {self.description.rstrip()}"
 			if self.description is not None
 			else "no description"
 		)
+
+		return "\n".join(description_join_list)
 
 
 @dataclass
@@ -584,9 +616,12 @@ class RecordLine:
 		last_language -- The language returned by the last formatted line (or None).
 		"""
 		text = self.text
-		if not re.search(r"\n +\*", text):
+		if not (re.search(r"\n +\*", text) or re.search(r"\n +-", text)):
 			text = text.replace("\n", " ")
 			text = re.sub(r" {2,}", " ", text)
+
+		if text.startswith(("- ", "* ")):
+			text = f"\n{text}"
 
 		if self.character is None:
 			line_string = f"`< {text} >`" if text == "..." else f"`< {text}>`"
@@ -617,6 +652,9 @@ class RecordLine:
 			last_character = self.character
 			last_language = self.language
 
+		line_string = f"> {line_string}"
+		line_string = line_string.replace("\n", "\n> ")
+		line_string = line_string.removesuffix("\n> ")
 		return (line_string, last_character, last_language)
 
 
@@ -676,7 +714,12 @@ class RecordText:
 				break
 
 		if requested:
-			record_join_list.append("> NSIrP")
+			record_join_list.append(
+				"> <:nsirp_11:1271772847806877727><:nsirp_12:1271772877300957247>"
+			)
+			record_join_list.append(
+				"> <:nsirp_21:1271772902915706943><:nsirp_22:1271772919286206495>"
+			)
 		record_join_list.append(f"> ## {self.title}")
 
 		pre_header = f"> (_iteration: {self.iteration}; language(s): "
@@ -693,17 +736,12 @@ class RecordText:
 		record_join_list.extend(f"> {line}" for line in self.header_lines)
 		record_join_list.append("> ```")
 
-		first = True
 		last_character = None
 		last_language = None
 		for line in self.lines:
 			line_string, last_character, last_language = line.format(
 				last_character, last_language
 			)
-
-			if first:
-				first = False
-				line_string = f">>> {line_string}"
 
 			record_join_list.append(line_string)
 
@@ -787,8 +825,6 @@ class SearchResult:
 						matching_text,
 					)
 					record_text = edited_line.format(None, None)[0]
-					record_text = record_text.replace("\n", "\n> ")
-					record_text = record_text.removesuffix("\n> ")
-					results_join_list.append(f"> {record_text}\n")
+					results_join_list.append(f"{record_text}\n")
 
 				return "\n".join(results_join_list)

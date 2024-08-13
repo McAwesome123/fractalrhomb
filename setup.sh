@@ -15,6 +15,7 @@ if [ ! -f ./.env ]; then
 	mv -ib .env .env.bak
 fi
 echo FRACTALTHORNS_USER_AGENT="Fractal-RHOMB" > .env
+echo DISCORD_BOT_TOKEN="Replace me!" >> .env
 
 echo Setup complete
 read -n1 -r -s -p "Press any key to continue..."
