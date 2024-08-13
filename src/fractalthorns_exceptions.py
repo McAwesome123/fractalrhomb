@@ -21,5 +21,9 @@ class CachePurgeError(APIError):
 	"""Cannot purge the cache."""
 
 
+class CacheFetchError(APIError):
+	"""Invalid cache to fetch."""
+
+
 class InvalidSearchTypeError(APIError):
 	"""Not a valid search type."""

@@ -10,211 +10,113 @@
 
 import logging
 import logging.handlers
-import math
 from io import BytesIO
-from typing import Literal
 
 import discord
+import discord.utils
 import requests.exceptions as req
-from discord.ext import commands
 
+import src.fractalrhomb_globals as frf
 from src.fractalthorns_api import fractalthorns_api
 
-MAX_MESSAGE_LENGTH = 1950
-EMPTY_MESSAGE = "give me something to show"
 
-
-def sign(x: int) -> int:
-	"""Return 1 if x is positive or -1 if x is negative."""
-	return round(math.copysign(1, x))
-
-
-def truncated_message(
-	total_items: int, shown_items: int, amount: int, start_index: int, items: str = "items"
-) -> str | None:
-	"""Get truncation message."""
-	message = None
-
-	if amount >= 0 and shown_items < total_items:
-		if start_index == 0:
-			message = f"the rest of the {total_items} {items} were truncated (limit was {amount})"
-		elif start_index < 0:
-			message = f"the rest of the {total_items} {items} were truncated (limit was {amount}, starting backwards from {total_items+start_index+1})"
-		else:
-			message = f"the rest of the {total_items} {items} were truncated (limit was {amount}, starting from {start_index+1})"
-
-	return message
-
-
-def get_formatting(args: list[str] | tuple[str]) -> dict[str, bool] | None:
-	"""Get formatting parameters."""
-	formatting = {}
-	custom_formatting = False
-
-	for i in args:
-		if i is None:
-			continue
-
-		arg = i.lower()
-
-		if custom_formatting:
-			formatting.update({arg: True})
-
-		if arg == "show":
-			custom_formatting = True
-
-	if not custom_formatting:
-		return None
-
-	return formatting
-
-
-def split_message(message: list[str], join_str: str) -> list[str]:
-	"""Split a message that's too long into multiple messages.
-
-	Tries to split by items, then newlines, then spaces, and finally, characters.
-
-	Splitting by anything other than items may eat formatting.
-	"""
-	split_messages = []
-	message_current = ""
-
-	i = 0
-	max_loop = 100000
-	while i < len(message):
-		max_loop -= 1
-		if max_loop < 0:  # infinite loop safeguard
-			msg = "Loop running for too long."
-			raise RuntimeError(msg)
-
-		if len(message[i]) <= MAX_MESSAGE_LENGTH:
-			i += 1
-			continue
-
-		max_message_length_formatting = MAX_MESSAGE_LENGTH
-		if message[i].rfind("\n", 0, max_message_length_formatting) != -1:
-			message.insert(
-				i + 1,
-				message[i][
-					message[i].rfind("\n", 0, max_message_length_formatting) + 1 :
-				],
-			)
-			message[i] = message[i][
-				: message[i].rfind("\n", 0, max_message_length_formatting)
-			]
-		elif message[i].rfind(" ", 0, max_message_length_formatting) != -1:
-			message.insert(
-				i + 1,
-				message[i][
-					message[i].rfind(" ", 0, max_message_length_formatting) + 1 :
-				],
-			)
-			message[i] = message[i][
-				: message[i].rfind(" ", 0, max_message_length_formatting)
-			]
-		else:
-			message.insert(i + 1, message[i][max_message_length_formatting - 1 :])
-			message[i] = message[i][: max_message_length_formatting - 1] + "-"
-
-		i += 1
-
-	for i in range(len(message)):
-		if len(message_current) + len(message[i]) + len(join_str) > MAX_MESSAGE_LENGTH:
-			split_messages.append(message_current)
-			message_current = ""
-
-		message_current = join_str.join((message_current, message[i]))
-
-	split_messages.append(message_current)
-
-	return split_messages
-
-
-async def standard_exception_handler(
-	ctx: commands.Context, logger: logging.Logger, exc: Exception, cmd: str
-) -> None:
-	"""Handle standard requests exceptions."""
-	msg = f"An exception occurred in command {cmd}"
-	logger.warning(msg, exc_info=True)
-
-	response = ""
-	if isinstance(exc, req.HTTPError):
-		response = f"```\n{exc!s}\n```"
-	elif isinstance(exc, req.Timeout):
-		response = "```\nserver request timed out\n```"
-	elif isinstance(exc, req.ConnectionError | req.TooManyRedirects):
-		response = "```\na connection error occurred\n```"
-
-	await ctx.send(response)
-
-
-class Fractalthorns(commands.Cog):
+class Fractalthorns(discord.Cog):
 	"""Class defining the fractalthorns cog."""
 
-	def __init__(self, bot: commands.Bot) -> "Fractalthorns":
+	def __init__(self, bot: discord.Bot) -> "Fractalthorns":
 		"""Initialize the cog."""
-		self.bot: commands.Bot = bot
+		self.bot: discord.Bot = bot
 		self.logger = logging.getLogger("discord.cogs.fractalthorns")
 
-	@commands.command(
-		name="news",
-		usage="[amount] [start] [show [title | date | items | version]...]",
+	@staticmethod
+	async def all_news_show(ctx: discord.AutocompleteContext) -> list[str]:
+		"""Give available items for show."""
+		options = ["title", "date", "items", "version"]
+
+		used_options = ctx.value.split()
+		if (
+			len(used_options) > 0
+			and not ctx.value.endswith(" ")
+			and used_options[-1] not in options
+		):
+			used_options.pop()
+
+		if len(used_options) > 0:
+			possible_options = [" ".join(used_options)]
+			possible_options += [
+				" ".join([*used_options, i]) for i in options if i not in used_options
+			]
+			return possible_options
+
+		return options
+
+	@discord.slash_command(name="news")
+	@discord.option("limit", int, description="How much news to show (default: 1)")
+	@discord.option(
+		"start",
+		int,
+		description="Where to start (negative numbers start from the end) (default: 1)",
+		parameter_name="start_index",
+	)
+	@discord.option(
+		"show",
+		str,
+		description="What information to show and in what order (default: title date items version)",
+		autocomplete=discord.utils.basic_autocomplete(all_news_show),
 	)
 	async def all_news(
 		self,
-		ctx: commands.Context,
-		*args: str,
+		ctx: discord.ApplicationContext,
+		limit: int = 1,
+		start_index: int = 1,
+		show: str | None = None,
 	) -> None:
-		"""Show the latest news.
-
-		Arguments:
-		---------
-		  amount How much news to show (-1 for all) (default: 1)
-		  start  Where to start (negative numbers start from the end) (default: 1)
-		  show   Add "show ..." to specify what to show and the order.
-		         The following may be specified: title, date, items, version
-		         (default: "show title date items version")
-		"""
-		try:
-			amount = int(args[0])
-		except (ValueError, IndexError):
-			amount = 1
-
-		try:
-			start_index = int(args[1])
-		except (ValueError, IndexError):
-			start_index = 1
+		"""Show the latest news."""
+		if not await frf.bot_channel_warning(ctx):
+			return
 
 		if start_index > 0:
 			start_index = start_index - 1
 
-		formatting = get_formatting(args)
+		if show is not None:
+			show = show.split()
+
+		formatting = frf.get_formatting(show)
 
 		try:
 			news = fractalthorns_api.get_all_news()
 
 			total_items = len(news)
-			news = news[start_index :: sign(start_index)]
+			news = news[start_index :: frf.sign(start_index)]
 
-			if amount >= 0:
-				news = news[:amount]
+			if limit >= 0:
+				news = news[:limit]
 
 			response = [i.format(formatting) for i in news]
 
-			if amount != 1:
-				too_many = truncated_message(
-					total_items, len(response), amount, start_index, "news items"
+			if limit != 1:
+				too_many = frf.truncated_message(
+					total_items, len(response), limit, start_index, "news items"
 				)
 				if too_many is not None:
 					response.append(too_many)
 
-			responses = split_message(response, "\n\n")
+			responses = frf.split_message(response, "\n\n")
 
+			if not await frf.message_length_warning(ctx, responses, 1000):
+				return
+
+			if len(responses[0].strip()) < 1:
+				await ctx.respond(frf.EMPTY_MESSAGE)
+				return
+
+			user = f"<@{ctx.author.id}>\n"
 			for i in responses:
-				if len(i) > 0:
-					await ctx.send(i)
+				if not ctx.response.is_done():
+					await ctx.respond(i)
 				else:
-					await ctx.send(EMPTY_MESSAGE)
+					await ctx.send(f"{user}{i.strip()}", silent=True)
+					user = ""
 
 		except (
 			req.HTTPError,
@@ -222,63 +124,118 @@ class Fractalthorns(commands.Cog):
 			req.ConnectionError,
 			req.TooManyRedirects,
 		) as exc:
-			await standard_exception_handler(ctx, self.logger, exc, "all_news")
+			await frf.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.all_news"
+			)
 
-	@commands.command(name="image", usage="[name] [image] [show [...]...]")
+	@staticmethod
+	async def single_image_name(_: discord.AutocompleteContext) -> list[str]:
+		"""Give available image names."""
+		images = fractalthorns_api.get_cached_items(
+			fractalthorns_api.CacheTypes.IMAGES, ignore_stale=True
+		)
+
+		if images is None:
+			return []
+
+		non_duplicate = []
+		for i in images:
+			if i.name not in non_duplicate:
+				non_duplicate.append(i.name)
+
+		return non_duplicate
+
+	@staticmethod
+	async def single_image_show(ctx: discord.AutocompleteContext) -> list[str]:
+		"""Give available items for show."""
+		options = [
+			"title",
+			"name",
+			"ordinal",
+			"date",
+			"image",
+			"thumb",
+			"canon",
+			"has_desc",
+			"characters",
+			"speedpaint",
+			"primary",
+			"secondary",
+		]
+
+		used_options = ctx.value.split()
+		if (
+			len(used_options) > 0
+			and not ctx.value.endswith(" ")
+			and used_options[-1] not in options
+		):
+			used_options.pop()
+
+		if len(used_options) > 0:
+			possible_options = [" ".join(used_options)]
+			possible_options += [
+				" ".join([*used_options, i]) for i in options if i not in used_options
+			]
+			return possible_options
+
+		return options
+
+	@discord.slash_command(name="image")
+	@discord.option(
+		"name",
+		str,
+		description="The (URL) name of the image (default: (latest))",
+		autocomplete=discord.utils.basic_autocomplete(single_image_name),
+	)
+	@discord.option(
+		"image",
+		str,
+		description="Which kind of image to show (default: image)",
+		choices=["image", "thumbnail", "none"],
+	)
+	@discord.option(
+		"show",
+		str,
+		description="What information to show and in what order (default: title canon characters speedpaint)",
+		autocomplete=discord.utils.basic_autocomplete(single_image_show),
+	)
 	async def single_image(
 		self,
-		ctx: commands.Context,
+		ctx: discord.ApplicationContext,
 		name: str | None = None,
-		image: str | None = None,
-		*args: str,
+		image: str = "image",
+		show: str | None = None,
 	) -> None:
-		"""Show an image.
+		"""Show an image."""
+		if not await frf.bot_channel_warning(ctx):
+			return
 
-		Arguments:
-		---------
-		  name  Name of the image to show (default: (latest))
-		  image What to show. Can be: image, thumbnail, none.
-		        Must specify a name first (default: image)
-		  show  Add "show ..." to specify what to show and the order.
-		        The following may be specified: title, name, ordinal, date,
-		        image | image_url, thumb | thumb_url, canon, description
-		        has_description, characters, speedpaint | speedpaint_video_url,
-		        primary | primary_color, secondary | secondary_color
-		        (default: "show title canon characters speedpaint_video_url")
-		"""
+		deferred = False
+		if not ctx.response.is_done():
+			await ctx.defer()
+			deferred = True
+
 		if name is not None:
 			name = name.lower()
 
-		args = list(args)
-		if name == "show":
-			args.insert(0, name)
-			args.insert(1, image)
-			name = None
-			image = "image"
-		elif image == "show":
-			args.insert(0, image)
-			image = "image"
+		if show is not None:
+			show = show.split()
+			for i in range(len(show)):
+				match show[i]:
+					case "image":
+						show[i] = "image_url"
+					case "thumb":
+						show[i] = "thumb_url"
+					case "has_desc":
+						show[i] = "has_description"
+					case "speedpaint":
+						show[i] = "speedpaint_video_url"
+					case "primary":
+						show[i] = "primary_color"
+					case "secondary":
+						show[i] = "secondary_color"
 
-		if image is None:
-			image = "image"
-		image = image.lower()
-
-		for i in range(len(args)):
-			match args[i]:
-				case "image":
-					args[i] = "image_url"
-				case "thumb":
-					args[i] = "thumb_url"
-				case "description":
-					args[i] = "has_description"
-				case "speedpaint":
-					args[i] = "speedpaint_video_url"
-				case "primary":
-					args[i] = "primary_color"
-				case "secondary":
-					args[i] = "secondary_color"
-
-		formatting = get_formatting(args)
+		formatting = frf.get_formatting(show)
 
 		try:
 			response = fractalthorns_api.get_single_image(name)
@@ -289,18 +246,21 @@ class Fractalthorns(commands.Cog):
 			elif image == "thumbnail" or image == "thumb":
 				response_image = response[1][1]
 
+			file = None
 			if response_image is not None:
 				io = BytesIO()
 				response_image.save(io, "PNG")
 				io.seek(0)
-				await ctx.send(
-					response_text,
-					file=discord.File(io, filename=f"{response[0].name}.png"),
-				)
-			elif len(response_text) > 0:
-				await ctx.send(response_text)
+				file = discord.File(io, filename=f"{response[0].name}.png")
+			elif len(response_text) < 1:
+				response_text = frf.EMPTY_MESSAGE
+
+			if deferred:
+				await ctx.respond(response_text, file=file)
 			else:
-				await ctx.send(EMPTY_MESSAGE)
+				await ctx.send(
+					f"<@{ctx.author.id}>\n{response_text}", file=file, silent=True
+				)
 
 		except (
 			req.HTTPError,
@@ -308,27 +268,46 @@ class Fractalthorns(commands.Cog):
 			req.ConnectionError,
 			req.TooManyRedirects,
 		) as exc:
-			await standard_exception_handler(ctx, self.logger, exc, "single_image")
+			await frf.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.single_image"
+			)
 
-	@commands.command(name="description")
+	@discord.slash_command(name="description")
+	@discord.option(
+		"name",
+		str,
+		description="The (URL) name of the image",
+		autocomplete=discord.utils.basic_autocomplete(single_image_name),
+	)
 	async def image_description(
 		self,
-		ctx: commands.Context,
+		ctx: discord.ApplicationContext,
 		name: str,
 	) -> None:
-		"""Show the description of an image.
+		"""Show the description of an image."""
+		if not await frf.bot_channel_warning(ctx):
+			return
 
-		Arguments:
-		---------
-		  name Which image description to show
-		"""
 		try:
 			response = fractalthorns_api.get_image_description(name.lower())
 
-			responses = split_message([response.format()], "")
+			responses = frf.split_message([response.format()], "")
+			for i in range(len(responses)):
+				if not responses[i].startswith("> ") and not responses[i].startswith(
+					">>> "
+				):
+					responses[i] = f">>> {responses[i]}"
 
+			if not await frf.message_length_warning(ctx, responses, 1000):
+				return
+
+			user = f"<@{ctx.author.id}>\n"
 			for i in responses:
-				await ctx.send(i)
+				if not ctx.response.is_done():
+					await ctx.respond(i)
+				else:
+					await ctx.send(f"{user}{i}", silent=True)
+					user = ""
 
 		except (
 			req.HTTPError,
@@ -336,19 +315,28 @@ class Fractalthorns(commands.Cog):
 			req.ConnectionError,
 			req.TooManyRedirects,
 		) as exc:
-			await standard_exception_handler(ctx, self.logger, exc, "image_description")
+			await frf.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.image_description"
+			)
 
-	@commands.command(aliases=["allimages"], usage="[amount] [start]")
+	@discord.slash_command(name="allimages")
+	@discord.option("limit", int, description="How many images to show (default: 10)")
+	@discord.option(
+		"start",
+		int,
+		description="Where to start from (negative numbers start from the end) (default: 1)",
+		parameter_name="start_index",
+	)
 	async def all_images(
-		self, ctx: commands.Context, amount: int = 10, start_index: int = 0
+		self,
+		ctx: discord.ApplicationContext,
+		limit: int = 10,
+		start_index: int = 1,
 	) -> None:
-		"""Show a list of all images.
+		"""Show a list of all images."""
+		if not await frf.bot_channel_warning(ctx):
+			return
 
-		Arguments:
-		---------
-		    amount How many images to show (-1 for all) (default: 10)
-		    start  Where to start (negative numbers start from the end) (default: 1)
-		"""
 		if start_index > 0:
 			start_index -= 1
 
@@ -356,21 +344,31 @@ class Fractalthorns(commands.Cog):
 			images = fractalthorns_api.get_all_images()
 
 			total_items = len(images)
-			images = images[start_index :: sign(start_index)]
+			images = images[start_index :: frf.sign(start_index)]
 
-			if amount >= 0:
-				images = images[:amount]
+			if limit >= 0:
+				images = images[:limit]
 
 			response = [i.format_inline() for i in images]
 
-			too_many = truncated_message(total_items, len(response), amount, start_index, "images")
+			too_many = frf.truncated_message(
+				total_items, len(response), limit, start_index, "images"
+			)
 			if too_many is not None:
 				response.append(f"\n{too_many}")
 
-			responses = split_message(response, "\n")
+			responses = frf.split_message(response, "\n")
 
+			if not await frf.message_length_warning(ctx, responses, 1800):
+				return
+
+			user = f"<@{ctx.author.id}>\n"
 			for i in responses:
-				await ctx.send(i)
+				if not ctx.response.is_done():
+					await ctx.respond(i)
+				else:
+					await ctx.send(f"{user}{i}", silent=True)
+					user = ""
 
 		except (
 			req.HTTPError,
@@ -378,34 +376,81 @@ class Fractalthorns(commands.Cog):
 			req.ConnectionError,
 			req.TooManyRedirects,
 		) as exc:
-			await standard_exception_handler(ctx, self.logger, exc, "all_images")
+			await frf.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.all_images"
+			)
 
-	@commands.command(name="chapter", aliases=["episodic"], usage="[chapter]...")
+	@staticmethod
+	async def full_episodic_name(ctx: discord.AutocompleteContext) -> list[str]:
+		"""Give available chapter names."""
+		cached_chapters = fractalthorns_api.get_cached_items(
+			fractalthorns_api.CacheTypes.CHAPTERS, ignore_stale=True
+		)
+
+		if cached_chapters is None:
+			return []
+
+		chapters = [i.name for i in cached_chapters]
+
+		used_chapters = ctx.value.split()
+		if (
+			len(used_chapters) > 0
+			and not ctx.value.endswith(" ")
+			and used_chapters[-1] not in chapters
+		):
+			used_chapters.pop()
+
+		if len(used_chapters) > 0:
+			possible_chapters = [" ".join(used_chapters)]
+			possible_chapters += [
+				" ".join([*used_chapters, i])
+				for i in chapters
+				if i not in used_chapters
+			]
+			return possible_chapters
+
+		return chapters
+
+	@discord.slash_command(name="chapter")
+	@discord.option(
+		"chapter",
+		str,
+		description="The name of the chapter(s) (default: (latest))",
+		autocomplete=discord.utils.basic_autocomplete(full_episodic_name),
+	)
 	async def full_episodic(
 		self,
-		ctx: commands.Context,
-		*chapter: str,
+		ctx: discord.ApplicationContext,
+		chapter: str | None = None,
 	) -> None:
-		"""Show a list of records in a chapter.
+		"""Show a list of records in a chapter."""
+		if not await frf.bot_channel_warning(ctx):
+			return
 
-		Arguments:
-		---------
-		    chapter The name of the chapter. Can specify multiple. (default: (latest))
-		"""
 		try:
 			chapters = fractalthorns_api.get_full_episodic()
 
-			if len(chapter) < 1:
+			if chapter is None:
 				chapter = (chapters[-1].name,)
+			else:
+				chapter = chapter.lower().split()
 
 			response = []
 			for i in chapter:
 				response += [j.format() for j in chapters if i.lower() == j.name]
 
-			responses = split_message(response, "\n\n")
+			responses = frf.split_message(response, "\n\n")
 
+			if not await frf.message_length_warning(ctx, responses, 600):
+				return
+
+			user = f"<@{ctx.author.id}>\n"
 			for i in responses:
-				await ctx.send(i)
+				if not ctx.response.is_done():
+					await ctx.respond(i)
+				else:
+					await ctx.send(f"{user}{i.strip()}", silent=True)
+					user = ""
 
 		except (
 			req.HTTPError,
@@ -413,36 +458,84 @@ class Fractalthorns(commands.Cog):
 			req.ConnectionError,
 			req.TooManyRedirects,
 		) as exc:
-			await standard_exception_handler(ctx, self.logger, exc, "full_episodic")
+			await frf.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.full_episodic"
+			)
 
-	@commands.command(name="record", usage="<name> [show [...]...]")
+	@staticmethod
+	async def single_record_name(_: discord.AutocompleteContext) -> list[str]:
+		"""Give available record names."""
+		records = fractalthorns_api.get_cached_items(
+			fractalthorns_api.CacheTypes.RECORDS, ignore_stale=True
+		)
+
+		if records is None:
+			return []
+
+		return [i.name for i in records]
+
+	@staticmethod
+	async def single_record_show(ctx: discord.AutocompleteContext) -> list[str]:
+		"""Give available items for record show."""
+		options = ["title", "name", "iteration", "chapter", "solved"]
+
+		used_options = ctx.value.split()
+		if (
+			len(used_options) > 0
+			and not ctx.value.endswith(" ")
+			and used_options[-1] not in options
+		):
+			used_options.pop()
+
+		if len(used_options) > 0:
+			possible_options = [" ".join(used_options)]
+			possible_options += [
+				" ".join([*used_options, i]) for i in options if i not in used_options
+			]
+			return possible_options
+
+		return options
+
+	@discord.slash_command(name="record")
+	@discord.option(
+		"name",
+		str,
+		description="The (URL) name of the record",
+		autocomplete=discord.utils.basic_autocomplete(single_record_name),
+	)
+	@discord.option(
+		"show",
+		str,
+		description="What information to show and in what order (default: title name iteration chapter)",
+		autocomplete=discord.utils.basic_autocomplete(single_record_show),
+	)
 	async def single_record(
 		self,
-		ctx: commands.Context,
+		ctx: discord.ApplicationContext,
 		name: str,
-		*args: str,
+		show: str | None = None,
 	) -> None:
-		"""Show a record entry.
+		"""Show a record entry."""
+		if not await frf.bot_channel_warning(ctx):
+			return
 
-		Arguments:
-		---------
-		    name The name of the record.
-		    show Add "show ..." to specify what to show and the order.
-		         The following may be specified:
-		         title, name, iteration, chapter, solved
-		         (default: "show title name iteration chapter")
-		"""
+		if show is not None:
+			show = show.split()
+
 		try:
 			response = fractalthorns_api.get_single_record(name.lower())
 
-			formatting = get_formatting(args)
+			formatting = frf.get_formatting(show)
 
 			response_text = response.format(formatting)
 
-			if len(response_text) > 0:
-				await ctx.send(response.format(formatting))
+			if len(response_text.strip()) < 1:
+				response_text = frf.EMPTY_MESSAGE
+
+			if not ctx.response.is_done():
+				await ctx.respond(response_text)
 			else:
-				await ctx.send(EMPTY_MESSAGE)
+				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
 
 		except (
 			req.HTTPError,
@@ -450,30 +543,40 @@ class Fractalthorns(commands.Cog):
 			req.ConnectionError,
 			req.TooManyRedirects,
 		) as exc:
-			await standard_exception_handler(ctx, self.logger, exc, "single_record")
+			await frf.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.single_record"
+			)
 
-	@commands.command(aliases=["recordtext"], usage="<name>")
-	async def record_text(
-		self,
-		ctx: commands.Context,
-		name: str,
-	) -> None:
-		"""Show a record's text.
+	@discord.slash_command(name="recordtext")
+	@discord.option(
+		"name",
+		str,
+		description="The (URL) name of the record",
+		autocomplete=discord.utils.basic_autocomplete(single_record_name),
+	)
+	async def record_text(self, ctx: discord.ApplicationContext, name: str) -> None:
+		"""Show a record's text."""
+		if not await frf.bot_channel_warning(ctx):
+			return
 
-		Arguments:
-		---------
-		    name The name of the record.
-		"""
 		try:
 			response = fractalthorns_api.get_record_text(name.lower())
 
-			responses = split_message([response.format()], "")
-			for i in range(0, len(responses)):
+			responses = frf.split_message([response.format()], "")
+			for i in range(len(responses)):
 				if not responses[i].startswith("> "):
 					responses[i] = f"> {responses[i]}"
 
+			if not await frf.message_length_warning(ctx, responses, 1000):
+				return
+
+			user = f"<@{ctx.author.id}>\n"
 			for i in responses:
-				await ctx.send(i)
+				if not ctx.response.is_done():
+					await ctx.respond(i)
+				else:
+					await ctx.send(f"{user}{i}", silent=True)
+					user = ""
 
 		except (
 			req.HTTPError,
@@ -481,33 +584,45 @@ class Fractalthorns(commands.Cog):
 			req.ConnectionError,
 			req.TooManyRedirects,
 		) as exc:
-			await standard_exception_handler(ctx, self.logger, exc, "single_record")
+			await frf.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.record_text"
+			)
 
-	@commands.command(aliases=["domainsearch"], usage="<term> <type> [amount] [start]")
+	@discord.slash_command(name="domainsearch")
+	@discord.option("term", str, description="What to search")
+	@discord.option(
+		"type",
+		str,
+		description="What type of search",
+		choices=["image", "episodic-item", "episodic-line"],
+		parameter_name="type_",
+	)
+	@discord.option(
+		"limit", int, description="How many search results to show (default: 10)"
+	)
+	@discord.option(
+		"start",
+		int,
+		description="Where to start from (negative numbers start from the end) (default: 1)",
+		parameter_name="start_index",
+	)
 	async def domain_search(
 		self,
-		ctx: commands.Context,
+		ctx: discord.ApplicationContext,
 		term: str,
-		type_: Literal[
-			"image", "episodic-item", "record", "episodic-line", "record-text", "text"
-		],
-		amount: int = 10,
+		type_: str,
+		limit: int = 10,
 		start_index: int = 1,
 	) -> None:
-		"""Make a search.
+		"""Make a search."""
+		if not await frf.bot_channel_warning(ctx):
+			return
 
-		Arguments:
-		---------
-		    term   The search term. Use quotes for multiple words.
-		    type   What to search. Must be one of the following:
-		           image, episodic-item | record, episodic-line | text
-		    amount How many results to show (-1 for all) (default: 10)
-		    start  Where to start (negative numbers start from the end) (default: 1)
-		"""
-		if type_ == "record":
-			type_ = "episodic-item"
-		elif type_ == "text":
-			type_ = "episodic-line"
+		msg = f"searching `{type_}` for `{term}`..."
+		if not ctx.response.is_done():
+			await ctx.respond(msg)
+		else:
+			await ctx.send(f"<@{ctx.author.id}> {msg}", silent=True)
 
 		if start_index > 0:
 			start_index -= 1
@@ -520,25 +635,34 @@ class Fractalthorns(commands.Cog):
 				await ctx.send("nothing was found")
 				return
 
-			results = results[start_index :: sign(start_index)]
+			results = results[start_index :: frf.sign(start_index)]
 
-			if amount >= 0:
-				results = results[:amount]
+			if limit >= 0:
+				results = results[:limit]
 
 			response = [i.format() for i in results]
 			if type_ == "episodic-line" and total_items >= 100:
-				too_many = truncated_message(total_items+1, len(response), amount, start_index, "results")
-				too_many = too_many.replace(str(total_items+1), f"{str(total_items)}+", 1)
+				too_many = frf.truncated_message(
+					total_items + 1, len(response), limit, start_index, "results"
+				)
+				too_many = too_many.replace(
+					str(total_items + 1), f"{total_items!s}+", 1
+				)
 			else:
-				too_many = truncated_message(total_items, len(response), amount, start_index, "results")
+				too_many = frf.truncated_message(
+					total_items, len(response), limit, start_index, "results"
+				)
 
 			if too_many is not None:
-				if type_ == "episodic-line":
-					response.append(too_many)
-				else:
-					response.append(f"\n{too_many}")
+				if type_ != "episodic-line":
+					too_many = f"\n{too_many}"
+				response.append(too_many)
 
-			responses = split_message(response, "\n")
+			responses = frf.split_message(response, "\n")
+
+			if not await frf.message_length_warning(ctx, responses, 1200):
+				await ctx.send("the search was cancelled.")
+				return
 
 			for i in responses:
 				await ctx.send(i)
@@ -549,9 +673,11 @@ class Fractalthorns(commands.Cog):
 			req.ConnectionError,
 			req.TooManyRedirects,
 		) as exc:
-			await standard_exception_handler(ctx, self.logger, exc, "domain_search")
+			await frf.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.domain_search"
+			)
 
 
-def setup(bot: commands.Bot) -> None:
+def setup(bot: discord.Bot) -> None:
 	"""Set up the cog."""
 	bot.add_cog(Fractalthorns(bot))

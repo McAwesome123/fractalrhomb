@@ -34,7 +34,7 @@ class NewsEntry:
 		"""
 		return NewsEntry(
 			obj["title"],
-			obj.get("items"),
+			obj.get("items", []),
 			obj["date"],
 			obj.get("version"),
 		)
@@ -95,7 +95,7 @@ class NewsEntry:
 				changes = "\n".join(changes_list)
 				news_join_list.append(changes)
 			elif format_ == "items":
-				changes = "> no changes"
+				changes = "> no changes listed"
 				news_join_list.append(changes)
 
 			if format_ == "version" and self.version is not None:
@@ -337,28 +337,54 @@ class Image:
 	def format_inline(self) -> str:
 		"""Return a string with discord formatting (without linebreaks)."""
 		if self.speedpaint_video_url is None:
-			return f"**{self.title}** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, [image url](<{self.image_url}>), no speedpaint video_)"
+			return f"> **{self.title}** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, [image url](<{self.image_url}>), no speedpaint video_)"
 
-		return f"**{self.title}** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, [image url](<{self.image_url}>), [speedpaint video](<{self.speedpaint_video_url}>)_)"
+		return f"> **{self.title}** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, [image url](<{self.image_url}>), [speedpaint video](<{self.speedpaint_video_url}>)_)"
 
 
 @dataclass
 class ImageDescription:
 	"""Data class containing an image description."""
 
+	title: str
 	description: str | None
+
+	type ImageDescriptionType = dict[str, str | None]
+
+	@staticmethod
+	def from_obj(obj: ImageDescriptionType) -> "ImageDescription":
+		"""Create an ImageDescription from an object.
+
+		Argument: obj -- The object to create a ImageDescription from.
+		(Expected: image_description with an added title.
+		image_description needs to be converted from json first.)
+		"""
+		return ImageDescription(
+			obj["title"],
+			obj.get("description"),
+		)
 
 	def __str__(self) -> str:
 		"""Return the class' contents, separated by newlines."""
-		return f"description: {self.description}"
+		str_list = []
+
+		str_list.append(f"title: {self.title}")
+		str_list.append(f"description: {self.description}")
+
+		return "\n".join(str_list)
 
 	def format(self) -> str:
 		"""Return a string with discord formatting."""
-		return (
-			self.description.rstrip()
+		description_join_list = []
+
+		description_join_list.append(f"> # {self.title}")
+		description_join_list.append(
+			f">>> {self.description.rstrip()}"
 			if self.description is not None
 			else "no description"
 		)
+
+		return "\n".join(description_join_list)
 
 
 @dataclass
@@ -594,7 +620,7 @@ class RecordLine:
 			text = text.replace("\n", " ")
 			text = re.sub(r" {2,}", " ", text)
 
-		if text.startswith("- ") or text.startswith("* "):
+		if text.startswith(("- ", "* ")):
 			text = f"\n{text}"
 
 		if self.character is None:
@@ -688,7 +714,12 @@ class RecordText:
 				break
 
 		if requested:
-			record_join_list.append("> NSIrP")
+			record_join_list.append(
+				"> <:nsirp_11:1271772847806877727><:nsirp_12:1271772877300957247>"
+			)
+			record_join_list.append(
+				"> <:nsirp_21:1271772902915706943><:nsirp_22:1271772919286206495>"
+			)
 		record_join_list.append(f"> ## {self.title}")
 
 		pre_header = f"> (_iteration: {self.iteration}; language(s): "
