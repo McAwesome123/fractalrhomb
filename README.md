@@ -1,11 +1,22 @@
 # Fractal RHOMB
 
-A discord bot\* that uses the API of https://fractalthorns.com/ \
-\* Bot functionality has yet to be implemented.
+A discord bot that uses the API of https://fractalthorns.com/
 
 ## Usage
 
-To use, it is recommended to activate the venv (from `.venv\scripts` or `.\venv\bin`) and run the following command in the repository's root directory.
+To use, it is recommended to activate the venv (from `.venv\scripts` or `.\venv\bin`) and run one of the following commands in the repository's root directory.
+
+### Discord bot
+
+```bat
+python fractalrhomb.py
+```
+
+If successful, it should say "Logged in as ..."
+
+Otherwise, it likely would have printed out an error.
+
+### API usage
 
 ```bat
 python -i -m src.fractalthorns_api
@@ -22,7 +33,6 @@ Afterwards, access the methods provided by the `fractalthorns_api` singleton, su
 Most of the single item methods return a dataclass and most of the multi item methods return a list of dataclasses. The dataclasses can either be printed directly or using the `format` method.
 
 ```py
->>> print(news)
 >>> print(news[0])
 title: an impressive background
 items: ['(feat) replaced time-of-day based backgrounds', "the new backgrounds change color depending on the page you're on, and the image switches every day of the week", 'highly experimental, might delete later', '(feat) added a "primary_color" and "secondary_color" field to image objects from the api']
@@ -61,11 +71,13 @@ So you will probably want to do something like this instead
 - Access to all currently available API endpoints at https://fractalthorns.com/api/v1/docs
 - Text returned by the dataclasses' `format` methods contains discord formatting
 - `NewsEntry`, `Image`, and `Record` allow for customizing what information is shown
+- Discord bot functionality
 
 ### To do:
 
-- Add the discord bot
 - Add useful logging
+- Use a proper database
+- Make some functions async
 
 ## Setup
 
