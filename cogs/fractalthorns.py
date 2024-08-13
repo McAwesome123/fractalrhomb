@@ -28,6 +28,8 @@ class Fractalthorns(discord.Cog):
 		self.bot: discord.Bot = bot
 		self.logger = logging.getLogger("discord.cogs.fractalthorns")
 
+	MAX_EPISODIC_LINE_ITEMS = 100
+
 	@staticmethod
 	async def all_news_show(ctx: discord.AutocompleteContext) -> list[str]:
 		"""Give available items for show."""
@@ -243,7 +245,7 @@ class Fractalthorns(discord.Cog):
 			response_image = None
 			if image == "image":
 				response_image = response[1][0]
-			elif image == "thumbnail" or image == "thumb":
+			elif image =="thumbnail":
 				response_image = response[1][1]
 
 			file = None
@@ -641,7 +643,7 @@ class Fractalthorns(discord.Cog):
 				results = results[:limit]
 
 			response = [i.format() for i in results]
-			if type_ == "episodic-line" and total_items >= 100:
+			if type_ == "episodic-line" and total_items >= self.MAX_EPISODIC_LINE_ITEMS:
 				too_many = frf.truncated_message(
 					total_items + 1, len(response), limit, start_index, "results"
 				)

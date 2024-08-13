@@ -29,9 +29,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install ruff
         pip install -r requirements.txt
-    - name: Lint with ruff
+    - name: Lint for errors
       run: |
         # stop the build if there are Python syntax errors or undefined names
         ruff check --select=E9,F63,F7,F82 --output-format full --no-fix
+    - name: Lint for warnings
+      run: |
         # exit-zero treats all errors as warnings.
-        ruff check --exit-zero --output-format concise --no-fix
+        ruff check --extend-ignore "PLR09","C901" --exit-zero --output-format concise --no-fix
+    - name: Lint for complexity warnings
+      run: |
+        # exit-zero treats all errors as warnings.
+        ruff check --select "PLR09" --exit-zero --output-format concise --no-fix
+        ruff check --select "C901" --exit-zero --output-format concise --no-fix
