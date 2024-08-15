@@ -11,7 +11,7 @@
 import json
 from dataclasses import dataclass
 
-import requests
+import aiohttp
 
 import src.fractalthorns_exceptions as fte
 
@@ -35,18 +35,20 @@ class Request:
 	__endpoint_url: str
 	__request_arguments: list[RequestArgument] | None
 
-	def make_request(
+	async def make_request(
 		self,
+		session: aiohttp.ClientSession,
 		url: str,
 		request_payload: dict[str, str] | None,
 		*,
 		strictly_match_request_arguments: bool = True,
 		headers: dict[str, str] | None = None,
-	) -> requests.Response:
+	) -> aiohttp.ClientResponse:
 		"""Make a GET request to the predefined endpoint and return the response.
 
 		Arguments:
 		---------
+		session -- An aiohttp client session to use
 		url -- Full URL to the API where the endpoint is located
 		request_payload -- Arguments that will be passed as JSON to ?body={}
 
@@ -54,15 +56,13 @@ class Request:
 		-----------------
 		strictly_match_request_arguments -- If True, raises a ParameterError if
 		request_payload contains undefined arguments (default True)
-		headers -- Headers to pass to requests.get() (default {})
+		headers -- Headers to pass to aiohttp.ClientSession.get() (default {})
 
 		Raises:
 		------
 		fractalthorns_exceptions.ParameterError -- A required request argument is missing
 		fractalthorns_exceptions.ParameterError (from __check_arguments) -- Unexpected request argument
-		requests.ConnectionError (from requests.get) -- A connection error occurred
-		requests.TooManyRedirects (from requests.get) -- Too many redirects
-		requests.Timeout (from requests.get) -- The request timed out
+		aiohttp.client_exceptions.ClientError (from aiohttp.ClientSession.get) -- A client error occurred
 		"""
 		if headers is None:
 			headers = {}
@@ -81,9 +81,10 @@ class Request:
 		if self.__request_arguments is not None and request_payload is not None:
 			arguments = json.dumps(request_payload)
 
-		return requests.get(
+		async with session.get(
 			final_url, params={"body": arguments}, timeout=10.0, headers=headers
-		)
+		) as resp:
+			return resp
 
 	def __check_arguments(self, request_payload: dict[str, str] | None) -> None:
 		"""Raise a ParameterError if request_payload contains undefined arguments."""
@@ -118,18 +119,20 @@ class API:
 	_api_url: str
 	_requests_list: dict[str, Request]
 
-	def _make_request(
+	async def _make_request(
 		self,
+		session: aiohttp.ClientSession,
 		endpoint: str,
 		request_payload: dict[str, str] | None,
 		*,
 		strictly_match_request_arguments: bool = True,
 		headers: dict[str, str] | None = None,
-	) -> requests.Response:
+	) -> aiohttp.ClientResponse:
 		"""Make a request at one of the predefined endpoints.
 
 		Arguments:
 		---------
+		session -- An aiohttp client session to use
 		endpoint -- Name of the endpoint
 		request_payload -- Arguments that will be passed as JSON to ?body={}
 
@@ -137,21 +140,20 @@ class API:
 		-----------------
 		strictly_match_request_arguments -- If True, raises a ParameterError if
 		request_payload contains undefined arguments (default True)
-		headers -- Headers to pass to requests.get() (default {})
+		headers -- Headers to pass to aiohttp.ClientSession.get() (default {})
 
 		Raises:
 		------
 		fractalthorns_exceptions.ParameterError (from Request.make_request) -- A required request argument is missing
 		fractalthorns_exceptions.ParameterError (from Request.make_request) -- Unexpected request argument
-		requests.ConnectionError (from Request.make_request) -- A connection error occurred
-		requests.TooManyRedirects (from Request.make_request) -- Too many redirects
-		requests.Timeout (from Request.make_request) -- The request timed out
+		aiohttp.client_exceptions.ClientError (from aiohttp.ClientSession.get) -- A client error occurred
 		"""
 		if headers is None:
 			headers = {}
 
 		final_url = f"{self._base_url}{self._api_url}"
-		return self._requests_list.get(endpoint).make_request(
+		return await self._requests_list.get(endpoint).make_request(
+			session,
 			final_url,
 			request_payload,
 			strictly_match_request_arguments=strictly_match_request_arguments,

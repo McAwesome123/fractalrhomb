@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Nothing so far
+### Changed
+
+- Replaced Requests (2.32.3) with Aiohttp (3.10.3)
+
+### Security
+
+- Updated `aiohttp` to 3.10.3
 
 ## [0.2.0] - 2024-08-13
 

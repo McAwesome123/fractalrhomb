@@ -17,9 +17,10 @@ import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+import aiohttp
+import aiohttp.client_exceptions as client_exc
 import discord
 import discord.utils
-import requests.exceptions as req
 
 intents = discord.Intents.default()
 bot = discord.Bot(intents=intents)
@@ -28,6 +29,7 @@ MAX_MESSAGE_LENGTH = 1950
 EMPTY_MESSAGE = "give me something to show"
 
 discord_logger = logging.getLogger("discord")
+session: aiohttp.ClientSession = None
 
 
 @dataclass
@@ -37,7 +39,7 @@ class BotData:
 	bot_channels: dict[str, list[str]]
 	purge_cooldowns: dict[str, dict[str, float]]
 
-	def load(self, fp: Path) -> None:
+	async def load(self, fp: Path) -> None:
 		"""Load data from file."""
 		if not fp.exists():
 			return
@@ -49,7 +51,7 @@ class BotData:
 			if data.get("purge_cooldowns") is not None:
 				self.purge_cooldowns = data["purge_cooldowns"]
 
-	def save(self, fp: Path) -> None:
+	async def save(self, fp: Path) -> None:
 		"""Save data to file."""
 		if fp.exists():
 			backup = Path(f"{fp.resolve().as_posix()}.bak")
@@ -83,9 +85,9 @@ def truncated_message(
 		if start_index == 0:
 			message = f"the rest of the {total_items} {items} were truncated (limit was {amount})"
 		elif start_index < 0:
-			message = f"the rest of the {total_items} {items} were truncated (limit was {amount}, starting backwards from {total_items+start_index+1})"
+			message = f"the rest of the {total_items} {items} were truncated (limit was {amount}, starting backwards from {total_items + start_index + 1})"
 		else:
-			message = f"the rest of the {total_items} {items} were truncated (limit was {amount}, starting from {start_index+1})"
+			message = f"the rest of the {total_items} {items} were truncated (limit was {amount}, starting from {start_index + 1})"
 
 	return message
 
@@ -180,15 +182,15 @@ async def standard_exception_handler(
 
 	response = ""
 	level = logging.ERROR
-	if isinstance(exc, req.HTTPError):
-		response = f"{str(exc).lower()}"
+	if isinstance(exc, client_exc.ClientResponseError):
+		response = f"{exc.status!s} {exc.message.lower()}"
 		level = logging.WARNING
-	elif isinstance(exc, req.Timeout):
+	elif isinstance(exc, client_exc.ServerTimeoutError):
 		response = "server request timed out"
-	elif isinstance(exc, req.ConnectionError):
+	elif isinstance(exc, client_exc.ClientConnectionError):
 		response = "a connection error occurred"
-	elif isinstance(exc, req.TooManyRedirects):
-		response = "server redirected too many times"
+	elif isinstance(exc, client_exc.ClientError):
+		response = "an unknown client error occurred"
 
 	logger.log(level, msg, exc_info=True)
 
