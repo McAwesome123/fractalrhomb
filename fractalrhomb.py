@@ -448,7 +448,8 @@ async def main() -> None:
 		bot.load_extension("cogs.fractalthorns")
 
 		token = getenv("DISCORD_BOT_TOKEN")
-		await bot.start(token)
+		async with bot:
+			await bot.start(token)
 
 
 if __name__ == "__main__":
