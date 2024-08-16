@@ -9,7 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Replaced Requests (2.32.3) with Aiohttp (3.10.3)
+- All requests are now done with Aiohttp
+- All related functions (and some others) are now async and must be awaited
+- All related functions now expect an aiohttp.ClientSession as the first parameter and return an async request context manager
+- `FractalthornsAPI.get_cached_items()` now returns a direct copy of the cache with an added expiry time rather than just the stored items
+
+### Removed
+
+- Requests (2.32.3) dependency
 
 ### Security
 

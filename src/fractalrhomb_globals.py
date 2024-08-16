@@ -202,13 +202,13 @@ class BotWarningView(discord.ui.View):
 
 	def __init__(self) -> "BotWarningView":
 		"""Create a bot channel warning view."""
-		super().__init__()
+		super().__init__(disable_on_timeout=True)
 		self.value = None
 
 	async def finish_callback(
 		self, button: discord.ui.Button, interaction: discord.Interaction
 	) -> None:
-		"""Finish a callback after pressing a butotn."""
+		"""Finish a callback after pressing a button."""
 		for i in self.children:
 			i.style = discord.ButtonStyle.secondary
 		button.style = discord.ButtonStyle.success

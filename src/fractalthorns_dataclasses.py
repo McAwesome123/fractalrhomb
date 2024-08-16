@@ -794,7 +794,13 @@ class SearchResult:
 
 	type SearchResultType = dict[
 		str,
-		str | Image.ImageType | Record.RecordType | RecordLine | int | None,
+		str
+		| Image.ImageType
+		| Record.RecordType
+		| RecordLine.RecordLineType
+		| RecordLine
+		| int
+		| None,
 	]
 
 	@staticmethod
@@ -804,8 +810,11 @@ class SearchResult:
 		Argument: obj -- The object to create a SearchResult from.
 		(Expected: an item from domain_search["results"].
 		search_results needs to be converted from json first.
-		If the type is "episodic-line", obj["record_line"] should be a RecordLine.)
+		If the type is "episodic-line", obj["record_line"] should be a RecordLine or a compatible dictionary.)
 		"""
+		if obj.get("record_line") is not None and isinstance(obj["record_line"], dict):
+			obj["record_line"] = RecordLine.from_obj(obj["record_line"])
+
 		return SearchResult(
 			obj["type"],
 			None if obj.get("image") is None else Image.from_obj(obj["image"]),

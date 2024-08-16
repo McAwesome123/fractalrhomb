@@ -43,7 +43,7 @@ class Request:
 		*,
 		strictly_match_request_arguments: bool = True,
 		headers: dict[str, str] | None = None,
-	) -> aiohttp.ClientResponse:
+	) -> aiohttp.client._RequestContextManager:
 		"""Make a GET request to the predefined endpoint and return the response.
 
 		Arguments:
@@ -81,10 +81,9 @@ class Request:
 		if self.__request_arguments is not None and request_payload is not None:
 			arguments = json.dumps(request_payload)
 
-		async with session.get(
+		return session.get(
 			final_url, params={"body": arguments}, timeout=10.0, headers=headers
-		) as resp:
-			return resp
+		)
 
 	def __check_arguments(self, request_payload: dict[str, str] | None) -> None:
 		"""Raise a ParameterError if request_payload contains undefined arguments."""
@@ -127,7 +126,7 @@ class API:
 		*,
 		strictly_match_request_arguments: bool = True,
 		headers: dict[str, str] | None = None,
-	) -> aiohttp.ClientResponse:
+	) -> aiohttp.client._RequestContextManager:
 		"""Make a request at one of the predefined endpoints.
 
 		Arguments:

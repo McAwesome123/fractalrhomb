@@ -8,6 +8,7 @@
 
 """Fractalthorns cog for the bot."""
 
+import asyncio
 import logging
 import logging.handlers
 from io import BytesIO
@@ -132,7 +133,7 @@ class Fractalthorns(discord.Cog):
 			fractalthorns_api.CacheTypes.IMAGES, ignore_stale=True
 		)
 
-		# images.pop(None, None)
+		images.pop(None, None)
 
 		return list(images.keys())
 
@@ -588,6 +589,12 @@ class Fractalthorns(discord.Cog):
 		else:
 			await ctx.send(f"<@{ctx.author.id}> {msg}", silent=True)
 
+		async def too_long() -> None:
+			await asyncio.sleep(10)
+			await ctx.send("this is taking a while...")
+
+		too_long_task = asyncio.create_task(too_long())
+
 		if start_index > 0:
 			start_index -= 1
 
@@ -625,6 +632,8 @@ class Fractalthorns(discord.Cog):
 				response.append(too_many)
 
 			responses = frg.split_message(response, "\n")
+
+			too_long_task.cancel()
 
 			if not await frg.message_length_warning(ctx, responses, 1200):
 				await ctx.send("the search was cancelled.")

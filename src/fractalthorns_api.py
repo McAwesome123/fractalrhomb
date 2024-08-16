@@ -183,7 +183,7 @@ class FractalthornsAPI(API):
 		*,
 		strictly_match_request_arguments: bool = True,
 		headers: dict[str, str] | None = None,
-	) -> aiohttp.ClientResponse:
+	) -> aiohttp.client._RequestContextManager:
 		"""Make a request at one of the predefined endpoints.
 
 		Arguments:
@@ -533,11 +533,12 @@ class FractalthornsAPI(API):
 			r = await self._make_request(
 				session, self.ValidRequests.ALL_NEWS.value, None
 			)
-			r.raise_for_status()
-
-			news_items = [
-				ftd.NewsEntry.from_obj(i) for i in json.loads(await r.text())["items"]
-			]
+			async with r as resp:
+				resp.raise_for_status()
+				news_items = [
+					ftd.NewsEntry.from_obj(i)
+					for i in json.loads(await resp.text())["items"]
+				]
 
 			self.__cached_news_items = (
 				news_items,
@@ -566,8 +567,10 @@ class FractalthornsAPI(API):
 			r = await self._make_request(
 				session, self.ValidRequests.SINGLE_IMAGE.value, {"name": image}
 			)
-			r.raise_for_status()
-			image_metadata = json.loads(await r.text())
+			async with r as resp:
+				resp.raise_for_status()
+				image_metadata = json.loads(await resp.text())
+
 			image_metadata["image_url"] = (
 				f"{self._base_url}{image_metadata["image_url"]}"
 			)
@@ -618,17 +621,19 @@ class FractalthornsAPI(API):
 				f"{image_metadata.image_url}",
 				timeout=self.__REQUEST_TIMEOUT,
 				headers=self.__DEFAULT_HEADERS,
+				raise_for_status=True,
 			)
-			self.__raise_for_status(image_req)
-			image_contents = Image.open(BytesIO(image_req.content))
+			async with image_req as resp:
+				image_contents = Image.open(BytesIO(await resp.read()))
 
 			thumb_req = await session.get(
 				f"{image_metadata.thumb_url}",
 				timeout=self.__REQUEST_TIMEOUT,
 				headers=self.__DEFAULT_HEADERS,
+				raise_for_status=True,
 			)
-			self.__raise_for_status(thumb_req)
-			image_thumbnail = Image.open(BytesIO(thumb_req.content))
+			async with thumb_req as resp:
+				image_thumbnail = Image.open(BytesIO(await resp.read()))
 
 			self.__cached_image_contents.update(
 				{
@@ -661,9 +666,9 @@ class FractalthornsAPI(API):
 			r = await self._make_request(
 				session, self.ValidRequests.IMAGE_DESCRIPTION.value, {"name": image}
 			)
-			r.raise_for_status()
-
-			image_description = json.loads(await r.text())
+			async with r as resp:
+				resp.raise_for_status()
+				image_description = json.loads(await resp.text())
 
 			image_title = (await self.__get_single_image(session, image)).title
 			image_description.update({"title": image_title})
@@ -697,9 +702,10 @@ class FractalthornsAPI(API):
 			r = await self._make_request(
 				session, self.ValidRequests.ALL_IMAGES.value, None
 			)
-			r.raise_for_status()
+			async with r as resp:
+				resp.raise_for_status()
+				images = json.loads(await resp.text())["images"]
 
-			images = json.loads(await r.text())["images"]
 			cache_time = dt.datetime.now(dt.UTC)
 
 			self.purge_cache(self.CacheTypes.IMAGES, force_purge=True)
@@ -740,9 +746,10 @@ class FractalthornsAPI(API):
 			r = await self._make_request(
 				session, self.ValidRequests.FULL_EPISODIC.value, None
 			)
-			r.raise_for_status()
+			async with r as resp:
+				resp.raise_for_status()
+				chapters_list = json.loads(await resp.text())["chapters"]
 
-			chapters_list = json.loads(await r.text())["chapters"]
 			cache_time = dt.datetime.now(dt.UTC)
 
 			self.purge_cache(self.CacheTypes.CHAPTERS, force_purge=True)
@@ -788,9 +795,10 @@ class FractalthornsAPI(API):
 			r = await self._make_request(
 				session, self.ValidRequests.SINGLE_RECORD, {"name": name}
 			)
-			r.raise_for_status()
+			async with r as resp:
+				resp.raise_for_status()
+				record = json.loads(await resp.text())
 
-			record = json.loads(await r.text())
 			self.__cached_records.update(
 				{
 					name: (
@@ -822,9 +830,10 @@ class FractalthornsAPI(API):
 			r = await self._make_request(
 				session, self.ValidRequests.RECORD_TEXT.value, {"name": name}
 			)
-			r.raise_for_status()
+			async with r as resp:
+				resp.raise_for_status()
+				record_contents = json.loads(await resp.text())
 
-			record_contents = json.loads(await r.text())
 			record_title = (await self.__get_single_record(session, name)).title
 			self.__cached_record_contents.update(
 				{
@@ -866,9 +875,9 @@ class FractalthornsAPI(API):
 				self.ValidRequests.DOMAIN_SEARCH.value,
 				{"term": term, "type": type_},
 			)
-			r.raise_for_status()
-
-			search_results = json.loads(await r.text())["results"]
+			async with r as resp:
+				resp.raise_for_status()
+				search_results = json.loads(await resp.text())["results"]
 
 			for i in search_results:
 				if i.get("image") is not None:
