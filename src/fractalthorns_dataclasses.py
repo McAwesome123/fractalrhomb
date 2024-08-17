@@ -642,7 +642,7 @@ class RecordLine:
 		last_language -- The language returned by the last formatted line (or None).
 		"""
 		text = self.text
-		if not (re.search(r"\n +\*", text) or re.search(r"\n +-", text)):
+		if not (re.search(r"\n *\* ", text) or re.search(r"\n *- ", text)):
 			text = text.replace("\n", " ")
 			text = re.sub(r" {2,}", " ", text)
 
@@ -670,7 +670,7 @@ class RecordLine:
 				speaker.append(f"({self.emphasis})")
 
 			line_string = " ".join(speaker)
-			if text.startswith("*"):
+			if text.startswith("* "):
 				line_string = f"{line_string} :\n{text}"
 			else:
 				line_string = f"{line_string} **:** {text}"
@@ -841,7 +841,7 @@ class SearchResult:
 
 		return "\n".join(str_list)
 
-	def format(self) -> str:
+	def format(self, last_record: Record | None = None) -> str:
 		"""Return a string with discord formatting."""
 		results_join_list = []
 
@@ -853,24 +853,61 @@ class SearchResult:
 				return self.record.format_inline()
 
 			case "episodic-line":
-				record_str = self.record.format_inline(
-					show_iteration=False, show_chapter=False
-				)
-				results_join_list.append(record_str)
+				if last_record != self.record:
+					if last_record is not None:
+						results_join_list.append("")
+
+					record_str = self.record.format_inline(
+						show_iteration=False, show_chapter=False
+					)
+					results_join_list.append(record_str)
 
 				if self.record.solved:
 					matching_text = self.record_line.text
+
+					if not (
+						re.search(r"\n *\* ", matching_text)
+						or re.search(r"\n *- ", matching_text)
+					):
+						matching_text = matching_text.replace("\n", " ")
+						matching_text = re.sub(r" {2,}", " ", matching_text)
+					matching_text = matching_text.strip()
+
 					matching_text = matching_text.replace(
 						self.record_matched_text,
 						f"**{self.record_matched_text}**",
 					)
+
+					split_text = matching_text.split("\n")
+					for i in range(len(split_text)):
+						if self.record_matched_text not in split_text[i]:
+							split_text[i] = None
+
+					for i in range(1, len(split_text)):
+						while (
+							i < len(split_text)
+							and split_text[i] is None
+							and split_text[i - 1] is None
+						):
+							split_text.pop(i)
+						if (
+							i < len(split_text)
+							and split_text[i - 1] is None
+							and split_text[i].startswith("  ")
+						):
+							split_text[i] = split_text[i].lstrip(" ")
+
+					for i in range(len(split_text)):
+						if split_text[i] is None:
+							split_text[i] = "[ ... ]"
+
 					edited_line = RecordLine(
 						self.record_line.character,
 						self.record_line.language,
 						self.record_line.emphasis,
-						matching_text,
+						"\n".join(split_text),
 					)
 					record_text = edited_line.format(None, None)[0]
-					results_join_list.append(f"{record_text}\n")
+					results_join_list.append(f"{record_text}")
 
 				return "\n".join(results_join_list)

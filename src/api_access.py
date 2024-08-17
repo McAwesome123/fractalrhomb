@@ -82,7 +82,7 @@ class Request:
 			arguments = json.dumps(request_payload)
 
 		return session.get(
-			final_url, params={"body": arguments}, timeout=10.0, headers=headers
+			final_url, params={"body": arguments}, timeout=30.0, headers=headers
 		)
 
 	def __check_arguments(self, request_payload: dict[str, str] | None) -> None:

@@ -17,6 +17,7 @@ import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+import aiofiles
 import aiohttp
 import aiohttp.client_exceptions as client_exc
 import discord
@@ -39,31 +40,40 @@ class BotData:
 	bot_channels: dict[str, list[str]]
 	purge_cooldowns: dict[str, dict[str, float]]
 
-	async def load(self, fp: Path) -> None:
+	async def load(self, fp: str) -> None:
 		"""Load data from file."""
-		if not fp.exists():
+		discord_logger.info("Loading bot data.")
+
+		if not Path(fp).exists():
+			discord_logger.info("Did not find saved bot data.")
 			return
 
-		with fp.open("r") as f:
-			data = json.load(f)
+		async with aiofiles.open(fp, "r") as f:
+			data = json.loads(await f.read())
 			if data.get("bot_channels") is not None:
+				discord_logger.info("Loaded saved bot channels.")
 				self.bot_channels = data["bot_channels"]
 			if data.get("purge_cooldowns") is not None:
+				discord_logger.info("Loaded saved purge cooldowns.")
 				self.purge_cooldowns = data["purge_cooldowns"]
 
-	async def save(self, fp: Path) -> None:
+	async def save(self, fp: str) -> None:
 		"""Save data to file."""
-		if fp.exists():
-			backup = Path(f"{fp.resolve().as_posix()}.bak")
-			fp.replace(backup)
-		with fp.open("w") as f:
-			json.dump(asdict(self), f)
+		discord_logger.info("Saving bot data.")
+
+		if Path(fp).exists():
+			backup = f"{fp}.bak"
+			await aiofiles.os.replace(fp, backup)
+			discord_logger.info("Backed up old bot data file.")
+		async with aiofiles.open(fp, "w") as f:
+			await f.write(json.dumps(asdict(self)))
+			discord_logger.info("Saved bot data.")
 
 
 bot_data = BotData({}, {})
 
 USER_PURGE_COOLDOWN = dt.timedelta(hours=12)
-BOT_DATA_PATH = Path("bot_data.json")
+BOT_DATA_PATH = "bot_data.json"
 
 
 def sign(x: int) -> int:

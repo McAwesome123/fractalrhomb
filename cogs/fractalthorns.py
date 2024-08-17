@@ -121,7 +121,25 @@ class Fractalthorns(discord.Cog):
 					await ctx.send(f"{user}{i.strip()}", silent=True)
 					user = ""
 
-		except client_exc.ClientError as exc:
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.NEWS_ITEMS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.all_news"
 			)
@@ -254,7 +272,31 @@ class Fractalthorns(discord.Cog):
 					f"<@{ctx.author.id}>\n{response_text}", file=file, silent=True
 				)
 
-		except client_exc.ClientError as exc:
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.IMAGES)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.IMAGE_CONTENTS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.single_image"
 			)
@@ -298,7 +340,25 @@ class Fractalthorns(discord.Cog):
 					await ctx.send(f"{user}{i}", silent=True)
 					user = ""
 
-		except client_exc.ClientError as exc:
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.IMAGE_DESCRIPTIONS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.image_description"
 			)
@@ -354,7 +414,23 @@ class Fractalthorns(discord.Cog):
 					await ctx.send(f"{user}{i}", silent=True)
 					user = ""
 
-		except client_exc.ClientError as exc:
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.IMAGES)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.all_images"
 			)
@@ -431,7 +507,29 @@ class Fractalthorns(discord.Cog):
 					await ctx.send(f"{user}{i.strip()}", silent=True)
 					user = ""
 
-		except client_exc.ClientError as exc:
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.CHAPTERS)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.RECORDS)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.full_episodic"
 			)
@@ -510,7 +608,23 @@ class Fractalthorns(discord.Cog):
 			else:
 				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
 
-		except client_exc.ClientError as exc:
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.RECORDS)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.single_record"
 			)
@@ -548,7 +662,25 @@ class Fractalthorns(discord.Cog):
 					await ctx.send(f"{user}{i}", silent=True)
 					user = ""
 
-		except client_exc.ClientError as exc:
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.RECORD_CONTENTS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.record_text"
 			)
@@ -613,7 +745,14 @@ class Fractalthorns(discord.Cog):
 			if limit >= 0:
 				results = results[:limit]
 
-			response = [i.format() for i in results]
+			if type_ == "episodic-line":
+				last_record = None
+				response = []
+				for i in results:
+					response.append(i.format(last_record))
+					last_record = i.record
+			else:
+				response = [i.format() for i in results]
 			if type_ == "episodic-line" and total_items >= self.MAX_EPISODIC_LINE_ITEMS:
 				too_many = frg.truncated_message(
 					total_items + 1, len(response), limit, start_index, "results"
@@ -642,10 +781,39 @@ class Fractalthorns(discord.Cog):
 			for i in responses:
 				await ctx.send(i)
 
-		except client_exc.ClientError as exc:
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.SEARCH_RESULTS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.RECORD_CONTENTS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.domain_search"
 			)
+
+		finally:
+			too_long_task.cancel()
 
 
 def setup(bot: discord.Bot) -> None:

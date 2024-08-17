@@ -31,6 +31,7 @@ from src.fractalthorns_exceptions import CachePurgeError
 load_dotenv()
 
 discord_logger = logging.getLogger("discord")
+root_logger = logging.getLogger()
 
 log_handler = logging.handlers.TimedRotatingFileHandler(
 	filename="discord.log", when="midnight", backupCount=7, encoding="utf-8", utc=True
@@ -40,7 +41,7 @@ log_formatter = logging.Formatter(
 	"[{asctime}] [{levelname:<8}] {name}: {message}", dt_fmt, style="{"
 )
 log_handler.setFormatter(log_formatter)
-discord_logger.addHandler(log_handler)
+root_logger.addHandler(log_handler)
 
 PING_LATENCY_HIGH = 10.0
 
@@ -190,6 +191,9 @@ async def purge_all(ctx: discord.ApplicationContext) -> None:
 		response = f"successfully purged {", ".join(purged)}"
 		await ctx.respond(response)
 
+		msg = f"'{"', '".join(purged)} purged by {ctx.author.id}."
+		discord_logger.info(msg)
+
 		try:
 			await frg.bot_data.save(frg.BOT_DATA_PATH)
 		except Exception:
@@ -226,7 +230,7 @@ async def force_purge(
 	if str(ctx.author.id) in force_purge_allowed:
 		fractalthorns_api.purge_cache(cache, force_purge=True)
 
-		msg = f"'{cache.value}' purged by {ctx.author.id}."
+		msg = f"'{cache.value}' force purged by {ctx.author.id}."
 		discord_logger.info(msg)
 
 		response = f"successfully force purged {cache.value}"
@@ -403,8 +407,6 @@ def parse_arguments() -> None:
 		default=None,
 	)
 	args = parser.parse_args()
-
-	root_logger = logging.getLogger()
 
 	if args.verbose:
 		discord_logger.setLevel(logging.INFO)

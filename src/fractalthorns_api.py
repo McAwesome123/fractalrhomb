@@ -11,7 +11,7 @@
 import asyncio
 import datetime as dt
 import json
-import traceback
+import logging
 from copy import deepcopy
 from dataclasses import asdict
 from enum import Enum, StrEnum
@@ -20,6 +20,8 @@ from os import getenv
 from pathlib import Path
 from typing import ClassVar, Literal
 
+import aiofiles
+import aiofiles.os
 import aiohttp
 from dotenv import load_dotenv
 from PIL import Image
@@ -68,6 +70,8 @@ class FractalthornsAPI(API):
 
 	def __init__(self) -> None:
 		"""Initialize the API handler."""
+		self.logger = logging.getLogger("fractalthorns_api")
+
 		__all_news = Request(self.ValidRequests.ALL_NEWS.value, None)
 
 		__single_image = Request(
@@ -143,7 +147,11 @@ class FractalthornsAPI(API):
 		self.__last_full_episodic_cache: dt.datetime | None = None
 		self.__last_cache_purge: dict[self.CacheTypes, dt.datetime] = {}
 
-		asyncio.run(self.__load_all_cache())
+		asyncio.run(self.load_all_caches())
+
+		self.__cache_saved: dict[self.CacheTypes, bool] = dict.fromkeys(
+			self.CacheTypes, True
+		)
 
 	__CACHE_DURATION: ClassVar[dict[CacheTypes, dt.timedelta]] = {
 		CacheTypes.NEWS_ITEMS: dt.timedelta(hours=12),
@@ -171,9 +179,12 @@ class FractalthornsAPI(API):
 	__DEFAULT_HEADERS: ClassVar[dict[str, str]] = {
 		"User-Agent": getenv("FRACTALTHORNS_USER_AGENT")
 	}
-	__CACHE_PATH: str = "__apicache__/cache_"
+	__CACHE_PATH: str = ".apicache/cache_"
 	__CACHE_EXT: str = ".json"
 	__CACHE_BAK: str = ".bak"
+	__STALE_CACHE_MESSAGE = "cache is missing or stale."
+	__RENEWED_CACHE_MESSAGE = "renewed cache."
+	__ALREADY_CACHED_MESSAGE = "already cached."
 
 	async def _make_request(
 		self,
@@ -229,12 +240,18 @@ class FractalthornsAPI(API):
 		------
 		fractalthorns_exceptions.CachePurgeError -- Cannot purge the cache.
 		"""
+		msg = f"Purge for {cache.value} requested."
+		self.logger.info(msg)
+
 		if (
 			not force_purge
 			and self.__last_cache_purge.get(cache) is not None
 			and dt.datetime.now(dt.UTC)
 			< self.__last_cache_purge[cache] + self.__CACHE_PURGE_COOLDOWN[cache]
 		):
+			msg = f"Purge failed: {self.InvalidPurgeReasons.CACHE_PURGE.value}"
+			self.logger.info(msg)
+
 			raise fte.CachePurgeError(
 				self.InvalidPurgeReasons.CACHE_PURGE.value,
 				self.__last_cache_purge[cache] + self.__CACHE_PURGE_COOLDOWN[cache],
@@ -262,10 +279,16 @@ class FractalthornsAPI(API):
 			case self.CacheTypes.FULL_RECORD_CONTENTS:
 				self.__full_record_contents = None
 			case _:
+				msg = f"Purge failed: {self.InvalidPurgeReasons.INVALID_CACHE.value}"
+				self.logger.warning(msg)
+
 				msg = f"{self.InvalidPurgeReasons.INVALID_CACHE.value}: {cache}"
 				raise fte.CachePurgeError(msg)
 
 		self.__last_cache_purge.update({cache: dt.datetime.now(dt.UTC)})
+
+		msg = f"Successfully purged {cache.value}."
+		self.logger.info(msg)
 
 	def get_cached_items(
 		self, cache: CacheTypes, *, ignore_stale: bool = False
@@ -427,6 +450,7 @@ class FractalthornsAPI(API):
 		"""
 		image_info = await self.__get_single_image(session, name)
 		image_contents = await self.__get_image_contents(session, name)
+
 		return (image_info, image_contents)
 
 	async def get_image_description(
@@ -530,6 +554,9 @@ class FractalthornsAPI(API):
 			> self.__cached_news_items[1]
 			+ self.__CACHE_DURATION[self.CacheTypes.NEWS_ITEMS]
 		):
+			msg = f"({self.CacheTypes.NEWS_ITEMS.value}) {self.__STALE_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
 			r = await self._make_request(
 				session, self.ValidRequests.ALL_NEWS.value, None
 			)
@@ -544,7 +571,17 @@ class FractalthornsAPI(API):
 				news_items,
 				dt.datetime.now(dt.UTC),
 			)
-			await self.__save_cache(self.CacheTypes.NEWS_ITEMS)
+
+			self.__cache_saved[self.CacheTypes.NEWS_ITEMS] = False
+
+			msg = f"({self.CacheTypes.NEWS_ITEMS.value}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = (
+				f"({self.CacheTypes.NEWS_ITEMS.value}) {self.__ALREADY_CACHED_MESSAGE}"
+			)
+			self.logger.info(msg)
 
 		return self.__cached_news_items[0]
 
@@ -564,6 +601,9 @@ class FractalthornsAPI(API):
 			> self.__cached_images[image][1]
 			+ self.__CACHE_DURATION[self.CacheTypes.IMAGES]
 		):
+			msg = f"({self.CacheTypes.IMAGES.value} - {image}) {self.__STALE_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
 			r = await self._make_request(
 				session, self.ValidRequests.SINGLE_IMAGE.value, {"name": image}
 			)
@@ -595,7 +635,15 @@ class FractalthornsAPI(API):
 						)
 					}
 				)
-			await self.__save_cache(self.CacheTypes.IMAGES)
+
+			self.__cache_saved[self.CacheTypes.IMAGES] = False
+
+			msg = f"({self.CacheTypes.IMAGES.value} - {image}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = f"({self.CacheTypes.IMAGES.value}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
 
 		return self.__cached_images[image][0]
 
@@ -615,25 +663,42 @@ class FractalthornsAPI(API):
 			> self.__cached_image_contents[image][1]
 			+ self.__CACHE_DURATION[self.CacheTypes.IMAGE_CONTENTS]
 		):
+			msg = f"({self.CacheTypes.IMAGE_CONTENTS.value} - {image}) {self.__STALE_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
 			image_metadata = await self.__get_single_image(session, image)
 
-			image_req = await session.get(
-				f"{image_metadata.image_url}",
-				timeout=self.__REQUEST_TIMEOUT,
-				headers=self.__DEFAULT_HEADERS,
-				raise_for_status=True,
-			)
-			async with image_req as resp:
-				image_contents = Image.open(BytesIO(await resp.read()))
+			async with asyncio.TaskGroup() as tg:
+				image_req = tg.create_task(
+					session.get(
+						f"{image_metadata.image_url}",
+						timeout=self.__REQUEST_TIMEOUT,
+						headers=self.__DEFAULT_HEADERS,
+						raise_for_status=True,
+					)
+				)
+				thumb_req = tg.create_task(
+					session.get(
+						f"{image_metadata.thumb_url}",
+						timeout=self.__REQUEST_TIMEOUT,
+						headers=self.__DEFAULT_HEADERS,
+						raise_for_status=True,
+					)
+				)
 
-			thumb_req = await session.get(
-				f"{image_metadata.thumb_url}",
-				timeout=self.__REQUEST_TIMEOUT,
-				headers=self.__DEFAULT_HEADERS,
-				raise_for_status=True,
+			async with (
+				image_req.result() as image_resp,
+				thumb_req.result() as thumb_resp,
+				asyncio.TaskGroup() as tg,
+			):
+				image_bytes = tg.create_task(image_resp.read())
+				thumb_bytes = tg.create_task(thumb_resp.read())
+
+			loop = asyncio.get_running_loop()
+			image_contents, image_thumbnail = await asyncio.gather(
+				loop.run_in_executor(None, Image.open, BytesIO(image_bytes.result())),
+				loop.run_in_executor(None, Image.open, BytesIO(thumb_bytes.result())),
 			)
-			async with thumb_req as resp:
-				image_thumbnail = Image.open(BytesIO(await resp.read()))
 
 			self.__cached_image_contents.update(
 				{
@@ -643,7 +708,15 @@ class FractalthornsAPI(API):
 					)
 				}
 			)
-			await self.__save_cache(self.CacheTypes.IMAGE_CONTENTS)
+
+			self.__cache_saved[self.CacheTypes.IMAGE_CONTENTS] = False
+
+			msg = f"({self.CacheTypes.IMAGE_CONTENTS.value} - {image}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = f"({self.CacheTypes.IMAGE_CONTENTS.value} - {image}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
 
 		return self.__cached_image_contents[image][0]
 
@@ -663,6 +736,9 @@ class FractalthornsAPI(API):
 			> self.__cached_image_descriptions[image][1]
 			+ self.__CACHE_DURATION[self.CacheTypes.IMAGE_DESCRIPTIONS]
 		):
+			msg = f"({self.CacheTypes.IMAGE_DESCRIPTIONS.value} - {image}) {self.__STALE_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
 			r = await self._make_request(
 				session, self.ValidRequests.IMAGE_DESCRIPTION.value, {"name": image}
 			)
@@ -681,7 +757,15 @@ class FractalthornsAPI(API):
 					)
 				}
 			)
-			await self.__save_cache(self.CacheTypes.IMAGE_DESCRIPTIONS)
+
+			self.__cache_saved[self.CacheTypes.IMAGE_DESCRIPTIONS] = False
+
+			msg = f"({self.CacheTypes.IMAGE_DESCRIPTIONS.value} - {image}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = f"({self.CacheTypes.IMAGE_DESCRIPTIONS.value} - {image}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
 
 		return self.__cached_image_descriptions[image][0]
 
@@ -699,6 +783,9 @@ class FractalthornsAPI(API):
 			> self.__last_all_images_cache
 			+ self.__CACHE_DURATION[self.CacheTypes.IMAGES]
 		):
+			msg = f"({self.CacheTypes.IMAGES.value}) {self.__STALE_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
 			r = await self._make_request(
 				session, self.ValidRequests.ALL_IMAGES.value, None
 			)
@@ -723,7 +810,15 @@ class FractalthornsAPI(API):
 
 			self.__last_all_images_cache = cache_time
 
-			await self.__save_cache(self.CacheTypes.IMAGES)
+			self.__cache_saved[self.CacheTypes.IMAGES] = False
+			self.__cache_saved[self.CacheTypes.CACHE_METADATA] = False
+
+			msg = f"({self.CacheTypes.IMAGES.value}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = f"({self.CacheTypes.IMAGES.value}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
 
 		return [j[0] for i, j in self.__cached_images.items() if i is not None]
 
@@ -743,6 +838,9 @@ class FractalthornsAPI(API):
 			> self.__last_full_episodic_cache
 			+ self.__CACHE_DURATION[self.CacheTypes.CHAPTERS]
 		):
+			msg = f"({self.CacheTypes.CHAPTERS.value}) {self.__STALE_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
 			r = await self._make_request(
 				session, self.ValidRequests.FULL_EPISODIC.value, None
 			)
@@ -771,8 +869,16 @@ class FractalthornsAPI(API):
 
 			self.__last_full_episodic_cache = cache_time
 
-			await self.__save_cache(self.CacheTypes.CHAPTERS)
-			await self.__save_cache(self.CacheTypes.RECORDS)
+			self.__cache_saved[self.CacheTypes.CHAPTERS] = False
+			self.__cache_saved[self.CacheTypes.RECORDS] = False
+			self.__cache_saved[self.CacheTypes.CACHE_METADATA] = False
+
+			msg = f"({self.CacheTypes.CHAPTERS.value}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = f"({self.CacheTypes.CHAPTERS.value}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
 
 		return list(self.__cached_chapters[0].values())
 
@@ -792,6 +898,9 @@ class FractalthornsAPI(API):
 			> self.__cached_records[name][1]
 			+ self.__CACHE_DURATION[self.CacheTypes.RECORDS]
 		):
+			msg = f"({self.CacheTypes.RECORDS.value} - {name}) {self.__STALE_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
 			r = await self._make_request(
 				session, self.ValidRequests.SINGLE_RECORD, {"name": name}
 			)
@@ -807,7 +916,15 @@ class FractalthornsAPI(API):
 					)
 				}
 			)
-			await self.__save_cache(self.CacheTypes.RECORDS)
+
+			self.__cache_saved[self.CacheTypes.RECORDS] = False
+
+			msg = f"({self.CacheTypes.RECORDS.value} - {name}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = f"({self.CacheTypes.RECORDS.value} - {name}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
 
 		return self.__cached_records[name][0]
 
@@ -827,6 +944,9 @@ class FractalthornsAPI(API):
 			> self.__cached_record_contents[name][1]
 			+ self.__CACHE_DURATION[self.CacheTypes.RECORD_CONTENTS]
 		):
+			msg = f"({self.CacheTypes.RECORD_CONTENTS.value} - {name}) {self.__STALE_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
 			r = await self._make_request(
 				session, self.ValidRequests.RECORD_TEXT.value, {"name": name}
 			)
@@ -843,7 +963,15 @@ class FractalthornsAPI(API):
 					)
 				}
 			)
-			await self.__save_cache(self.CacheTypes.RECORD_CONTENTS)
+
+			self.__cache_saved[self.CacheTypes.RECORD_CONTENTS] = False
+
+			msg = f"({self.CacheTypes.RECORD_CONTENTS.value} - {name}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = f"({self.CacheTypes.RECORD_CONTENTS.value} - {name}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
 
 		return self.__cached_record_contents[name][0]
 
@@ -867,9 +995,12 @@ class FractalthornsAPI(API):
 
 		if (term, type_) not in self.__cached_search_results or dt.datetime.now(
 			dt.UTC
-		) > self.__cached_search_results[(term, type_)][1] + self.__CACHE_DURATION[
+		) > self.__cached_search_results[term, type_][1] + self.__CACHE_DURATION[
 			self.CacheTypes.SEARCH_RESULTS
 		]:
+			msg = f"({self.CacheTypes.SEARCH_RESULTS.value} - {term}, {type_}) {self.__STALE_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
 			r = await self._make_request(
 				session,
 				self.ValidRequests.DOMAIN_SEARCH.value,
@@ -879,24 +1010,31 @@ class FractalthornsAPI(API):
 				resp.raise_for_status()
 				search_results = json.loads(await resp.text())["results"]
 
-			for i in search_results:
-				if i.get("image") is not None:
-					i["image"]["image_url"] = (
-						f"{self._base_url}{i["image"]["image_url"]}"
-					)
-					i["image"]["thumb_url"] = (
-						f"{self._base_url}{i["image"]["thumb_url"]}"
-					)
-				if i.get("record_line_index") is not None and i["record"]["solved"]:
-					record_name = i["record"]["name"]
+			if type_ == "image":
+				for i in search_results:
+					if i.get("image") is not None:
+						i["image"]["image_url"] = (
+							f"{self._base_url}{i["image"]["image_url"]}"
+						)
+						i["image"]["thumb_url"] = (
+							f"{self._base_url}{i["image"]["thumb_url"]}"
+						)
+			elif type_ == "episodic-line":
+				record_text_tasks = []
+				async with asyncio.TaskGroup() as tg:
+					for i in search_results:
+						if not i["record"]["solved"]:
+							continue
+
+						record_name = i["record"]["name"]
+						task = tg.create_task(
+							self.__get_record_text(session, record_name)
+						)
+						record_text_tasks.append((i, task))
+
+				for i, j in record_text_tasks:
 					line_index = i["record_line_index"]
-					i.update(
-						{
-							"record_line": (
-								await self.__get_record_text(session, record_name)
-							).lines[line_index]
-						}
-					)
+					i.update({"record_line": (j.result()).lines[line_index]})
 
 			self.__cached_search_results.update(
 				{
@@ -907,11 +1045,23 @@ class FractalthornsAPI(API):
 				}
 			)
 
-			await self.__save_cache(self.CacheTypes.SEARCH_RESULTS)
+			self.__cache_saved[self.CacheTypes.SEARCH_RESULTS] = False
+			self.__cache_saved[self.CacheTypes.RECORD_CONTENTS] = False
 
-		return self.__cached_search_results[(term, type_)][0]
+			msg = f"({self.CacheTypes.SEARCH_RESULTS.value} - {term}, {type_}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
 
-	async def __load_cache(self, cache: CacheTypes) -> None:
+		else:
+			msg = f"({self.CacheTypes.SEARCH_RESULTS.value} - {term}, {type_}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
+
+		return self.__cached_search_results[term, type_][0]
+
+	async def load_cache(self, cache: CacheTypes) -> None:
+		"""Load the specified cache."""
+		msg = f"({cache.value} loading cache."
+		self.logger.info(msg)
+
 		try:
 			if cache == self.CacheTypes.IMAGE_CONTENTS:
 				cache_path = "".join((self.__CACHE_PATH, cache.value.replace(" ", "_")))
@@ -924,8 +1074,8 @@ class FractalthornsAPI(API):
 				if not Path(cache_meta).exists():
 					return
 
-				with Path.open(cache_meta, "r", encoding="utf-8") as f:
-					saved_images = json.load(f)
+				async with aiofiles.open(cache_meta, "r", encoding="utf-8") as f:
+					saved_images = json.loads(await f.read())
 
 				for i in saved_images:
 					timestamp = dt.datetime.fromtimestamp(saved_images[i], tz=dt.UTC)
@@ -936,10 +1086,16 @@ class FractalthornsAPI(API):
 					if not (Path(image_path).exists() and Path(thumb_path).exists()):
 						continue
 
-					image_bytes = Path(image_path).read_bytes()
-					thumb_bytes = Path(thumb_path).read_bytes()
-					image = Image.open(BytesIO(image_bytes))
-					thumb = Image.open(BytesIO(thumb_bytes))
+					async with (
+						aiofiles.open(image_path, "rb") as image_file,
+						aiofiles.open(thumb_path, "rb") as thumb_file,
+						asyncio.TaskGroup() as tg,
+					):
+						image_bytes = tg.create_task(image_file.read())
+						thumb_bytes = tg.create_task(thumb_file.read())
+
+					image = Image.open(BytesIO(image_bytes.result()))
+					thumb = Image.open(BytesIO(thumb_bytes.result()))
 
 					name = i
 					if name == "__None__":
@@ -962,8 +1118,8 @@ class FractalthornsAPI(API):
 				if not Path(cache_path).exists():
 					return
 
-				with Path.open(cache_path, "r", encoding="utf-8") as f:
-					cache_contents = json.load(f)
+				async with aiofiles.open(cache_path, "r", encoding="utf-8") as f:
+					cache_contents = json.loads(await f.read())
 
 				match cache:
 					case self.CacheTypes.NEWS_ITEMS:
@@ -1059,137 +1215,178 @@ class FractalthornsAPI(API):
 							for i, j in self.__last_cache_purge.items()
 						}
 
-		except (json.decoder.JSONDecodeError, ValueError):
-			print(f"Error while loading cache for {cache.value}")
-			print(traceback.format_exc())
+		except Exception:
+			msg = f"Failed to load cache! ({cache.value})"
+			self.logger.exception(msg)
 
-	async def __load_all_cache(self) -> None:
-		for i in self.CacheTypes:
-			await self.__load_cache(i)
+	async def load_all_caches(self) -> None:
+		"""Load all caches."""
+		tasks = set()
+		async with asyncio.TaskGroup() as tg:
+			for i in self.CacheTypes:
+				task = tg.create_task(self.load_cache(i))
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
 
-	async def __save_cache(self, cache: CacheTypes) -> None:
-		if cache == self.CacheTypes.IMAGE_CONTENTS:
-			cache_path = "".join((self.__CACHE_PATH, cache.value.replace(" ", "_")))
+	async def save_cache(self, cache: CacheTypes) -> None:
+		"""Save the specified cache."""
+		if self.__cache_saved[cache]:
+			msg = f"({cache.value}) cache already saved."
+			self.logger.info(msg)
+			return
 
-			Path(cache_path).mkdir(parents=True, exist_ok=True)
+		msg = f"({cache.value}) saving cache."
+		self.logger.info(msg)
 
-			saved_images = {}
+		try:
+			if cache == self.CacheTypes.IMAGE_CONTENTS:
+				cache_path = "".join((self.__CACHE_PATH, cache.value.replace(" ", "_")))
 
-			for i, j in self.__cached_image_contents.items():
-				name = i
-				if name is None:
-					name = "__None__"
-				image, image_path = (j[0][0], f"{cache_path}/image_{name}.png")
-				thumb, thumb_path = (j[0][1], f"{cache_path}/thumb_{name}.png")
+				Path(cache_path).mkdir(parents=True, exist_ok=True)
 
-				if Path(image_path).exists():
-					Path(image_path).replace(f"{image_path}{self.__CACHE_BAK}")
-				if Path(thumb_path).exists():
-					Path(thumb_path).replace(f"{thumb_path}{self.__CACHE_BAK}")
+				saved_images = {}
 
-				image.save(image_path)
-				thumb.save(thumb_path)
+				for i, j in self.__cached_image_contents.items():
+					name = i
+					if name is None:
+						name = "__None__"
+					image, image_path = (j[0][0], f"{cache_path}/image_{name}.png")
+					thumb, thumb_path = (j[0][1], f"{cache_path}/thumb_{name}.png")
 
-				saved_images.update({name: j[1].timestamp()})
-
-			cache_meta = f"{cache_path}{self.__CACHE_EXT}"
-
-			if Path(cache_meta).exists():
-				Path(cache_meta).replace(f"{cache_meta}{self.__CACHE_BAK}")
-
-			with Path.open(cache_meta, "w", encoding="utf-8") as f:
-				json.dump(saved_images, f, indent=4)
-
-		else:
-			cache_path = "".join(
-				(self.__CACHE_PATH, cache.value.replace(" ", "_"), self.__CACHE_EXT)
-			)
-
-			Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-
-			if Path(cache_path).exists():
-				Path(cache_path).replace(f"{cache_path}{self.__CACHE_BAK}")
-
-			match cache:
-				case self.CacheTypes.NEWS_ITEMS:
-					cache_contents = self.__cached_news_items
-					cache_contents = (
-						[asdict(i) for i in cache_contents[0]],
-						cache_contents[1].timestamp(),
-					)
-				case self.CacheTypes.IMAGES:
-					cache_contents = self.__cached_images
-					cache_contents = {
-						(i if i is not None else "__None__"): (
-							asdict(j[0]),
-							j[1].timestamp(),
+					if Path(image_path).exists():
+						await aiofiles.os.replace(
+							image_path, f"{image_path}{self.__CACHE_BAK}"
 						)
-						for i, j in cache_contents.items()
-					}
-				case self.CacheTypes.IMAGE_DESCRIPTIONS:
-					cache_contents = self.__cached_image_descriptions
-					cache_contents = {
-						i: (asdict(j[0]), j[1].timestamp())
-						for i, j in cache_contents.items()
-					}
-				case self.CacheTypes.CHAPTERS:
-					cache_contents = self.__cached_chapters
-					cache_contents = (
-						{i: asdict(j) for i, j in cache_contents[0].items()},
-						cache_contents[1].timestamp(),
-					)
-				case self.CacheTypes.RECORDS:
-					cache_contents = self.__cached_records
-					cache_contents = {
-						i: (asdict(j[0]), j[1].timestamp())
-						for i, j in cache_contents.items()
-					}
-				case self.CacheTypes.RECORD_CONTENTS:
-					cache_contents = self.__cached_record_contents
-					cache_contents = {
-						i: (asdict(j[0]), j[1].timestamp())
-						for i, j in cache_contents.items()
-					}
-				case self.CacheTypes.SEARCH_RESULTS:
-					cache_contents = self.__cached_search_results
-					cache_contents = {
-						f"{i[0]}|{i[1]}": ([asdict(k) for k in j[0]], j[1].timestamp())
-						for i, j in cache_contents.items()
-					}
-				case self.CacheTypes.FULL_RECORD_CONTENTS:
-					cache_contents = self.__cached_full_record_contents
-					cache_contents = (
-						{i: asdict(j) for i, j in cache_contents[0].items()},
-						cache_contents[1].timestamp(),
-					)
-				case self.CacheTypes.CACHE_METADATA:
-					cache_contents = {}
-					if self.__last_all_images_cache is not None:
-						cache_contents.update(
-							{
-								"__last_all_images_cache": self.__last_all_images_cache.timestamp()
-							}
+					if Path(thumb_path).exists():
+						await aiofiles.os.replace(
+							thumb_path, f"{thumb_path}{self.__CACHE_BAK}"
 						)
-					if self.__last_full_episodic_cache is not None:
-						cache_contents.update(
-							{
-								"__last_full_episodic_cache": self.__last_full_episodic_cache.timestamp()
-							}
+
+						loop = asyncio.get_running_loop()
+						await asyncio.gather(
+							loop.run_in_executor(None, image.save, image_path),
+							loop.run_in_executor(None, thumb.save, thumb_path),
 						)
-					cache_contents.update(
-						{
-							"__last_cache_purge": {
-								i.value: j.timestamp()
-								for i, j in self.__last_cache_purge.items()
-							}
+
+					saved_images.update({name: j[1].timestamp()})
+
+				cache_meta = f"{cache_path}{self.__CACHE_EXT}"
+
+				if Path(cache_meta).exists():
+					await aiofiles.os.replace(
+						cache_meta, f"{cache_meta}{self.__CACHE_BAK}"
+					)
+
+				async with aiofiles.open(cache_meta, "w", encoding="utf-8") as f:
+					await f.write(json.dumps(saved_images, indent=4))
+
+			else:
+				cache_path = "".join(
+					(self.__CACHE_PATH, cache.value.replace(" ", "_"), self.__CACHE_EXT)
+				)
+
+				Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+
+				if Path(cache_path).exists():
+					await aiofiles.os.replace(
+						cache_path, f"{cache_path}{self.__CACHE_BAK}"
+					)
+
+				match cache:
+					case self.CacheTypes.NEWS_ITEMS:
+						cache_contents = self.__cached_news_items
+						cache_contents = (
+							[asdict(i) for i in cache_contents[0]],
+							cache_contents[1].timestamp(),
+						)
+					case self.CacheTypes.IMAGES:
+						cache_contents = self.__cached_images
+						cache_contents = {
+							(i if i is not None else "__None__"): (
+								asdict(j[0]),
+								j[1].timestamp(),
+							)
+							for i, j in cache_contents.items()
 						}
-					)
+					case self.CacheTypes.IMAGE_DESCRIPTIONS:
+						cache_contents = self.__cached_image_descriptions
+						cache_contents = {
+							i: (asdict(j[0]), j[1].timestamp())
+							for i, j in cache_contents.items()
+						}
+					case self.CacheTypes.CHAPTERS:
+						cache_contents = self.__cached_chapters
+						cache_contents = (
+							{i: asdict(j) for i, j in cache_contents[0].items()},
+							cache_contents[1].timestamp(),
+						)
+					case self.CacheTypes.RECORDS:
+						cache_contents = self.__cached_records
+						cache_contents = {
+							i: (asdict(j[0]), j[1].timestamp())
+							for i, j in cache_contents.items()
+						}
+					case self.CacheTypes.RECORD_CONTENTS:
+						cache_contents = self.__cached_record_contents
+						cache_contents = {
+							i: (asdict(j[0]), j[1].timestamp())
+							for i, j in cache_contents.items()
+						}
+					case self.CacheTypes.SEARCH_RESULTS:
+						cache_contents = self.__cached_search_results
+						cache_contents = {
+							f"{i[0]}|{i[1]}": (
+								[asdict(k) for k in j[0]],
+								j[1].timestamp(),
+							)
+							for i, j in cache_contents.items()
+						}
+					case self.CacheTypes.FULL_RECORD_CONTENTS:
+						cache_contents = self.__cached_full_record_contents
+						cache_contents = (
+							{i: asdict(j) for i, j in cache_contents[0].items()},
+							cache_contents[1].timestamp(),
+						)
+					case self.CacheTypes.CACHE_METADATA:
+						cache_contents = {}
+						if self.__last_all_images_cache is not None:
+							cache_contents.update(
+								{
+									"__last_all_images_cache": self.__last_all_images_cache.timestamp()
+								}
+							)
+						if self.__last_full_episodic_cache is not None:
+							cache_contents.update(
+								{
+									"__last_full_episodic_cache": self.__last_full_episodic_cache.timestamp()
+								}
+							)
+						cache_contents.update(
+							{
+								"__last_cache_purge": {
+									i.value: j.timestamp()
+									for i, j in self.__last_cache_purge.items()
+								}
+							}
+						)
 
-			with Path.open(cache_path, "w", encoding="utf-8") as f:
-				json.dump(cache_contents, f, indent=4)
+				async with aiofiles.open(cache_path, "w", encoding="utf-8") as f:
+					await f.write(json.dumps(cache_contents, indent=4))
 
-				if cache != self.CacheTypes.CACHE_METADATA:
-					await self.__save_cache(self.CacheTypes.CACHE_METADATA)
+			self.__cache_saved[cache] = True
+
+		except Exception:
+			msg = f"Failed to save cache! ({cache.value})"
+			self.logger.exception(msg)
+
+	async def save_all_caches(self) -> None:
+		"""Save all caches."""
+		tasks = set()
+		async with asyncio.TaskGroup() as tg:
+			for i in self.CacheTypes:
+				task = tg.create_task(self.save_cache(i))
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
 
 
 fractalthorns_api = FractalthornsAPI()
