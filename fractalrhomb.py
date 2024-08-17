@@ -368,7 +368,7 @@ def parse_arguments() -> None:
 		"-V",
 		"--version",
 		action="version",
-		version="%(prog)s 0.3.0",
+		version="%(prog)s 0.3.1",
 	)
 	parser.add_argument(
 		"-v",
@@ -444,7 +444,9 @@ async def main() -> None:
 	except Exception:
 		discord_logger.exception("Could not load bot data.")
 
-	async with aiohttp.ClientSession() as session:
+	conn = aiohttp.TCPConnector(limit_per_host=6)
+
+	async with aiohttp.ClientSession(connector=conn) as session:
 		frg.session = session
 
 		bot.load_extension("cogs.fractalthorns")

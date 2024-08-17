@@ -139,7 +139,7 @@ class Fractalthorns(discord.Cog):
 				tasks.add(task)
 				task.add_done_callback(tasks.discard)
 
-		except* client_exc.ClientError as exc:
+		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.all_news"
 			)
@@ -296,7 +296,7 @@ class Fractalthorns(discord.Cog):
 				tasks.add(task)
 				task.add_done_callback(tasks.discard)
 
-		except* client_exc.ClientError as exc:
+		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.single_image"
 			)
@@ -358,7 +358,7 @@ class Fractalthorns(discord.Cog):
 				tasks.add(task)
 				task.add_done_callback(tasks.discard)
 
-		except* client_exc.ClientError as exc:
+		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.image_description"
 			)
@@ -430,7 +430,7 @@ class Fractalthorns(discord.Cog):
 				tasks.add(task)
 				task.add_done_callback(tasks.discard)
 
-		except* client_exc.ClientError as exc:
+		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.all_images"
 			)
@@ -529,7 +529,7 @@ class Fractalthorns(discord.Cog):
 				tasks.add(task)
 				task.add_done_callback(tasks.discard)
 
-		except* client_exc.ClientError as exc:
+		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.full_episodic"
 			)
@@ -624,7 +624,7 @@ class Fractalthorns(discord.Cog):
 				tasks.add(task)
 				task.add_done_callback(tasks.discard)
 
-		except* client_exc.ClientError as exc:
+		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.single_record"
 			)
@@ -680,7 +680,7 @@ class Fractalthorns(discord.Cog):
 				tasks.add(task)
 				task.add_done_callback(tasks.discard)
 
-		except* client_exc.ClientError as exc:
+		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.record_text"
 			)
@@ -807,7 +807,7 @@ class Fractalthorns(discord.Cog):
 				tasks.add(task)
 				task.add_done_callback(tasks.discard)
 
-		except* client_exc.ClientError as exc:
+		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.domain_search"
 			)
