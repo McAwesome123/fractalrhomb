@@ -8,7 +8,6 @@
 
 """General functions for the bot."""
 
-import asyncio
 import datetime as dt
 import inspect
 import json
