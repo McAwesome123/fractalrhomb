@@ -43,10 +43,14 @@ class NewsEntry:
 		"""Return the class' contents, separated by newlines."""
 		str_list = []
 
-		str_list.append(f"title: {self.title}")
-		str_list.append(f"items: {self.items}")
-		str_list.append(f"date: {self.date}")
-		str_list.append(f"version: {self.version}")
+		str_list.extend(
+			(
+				f"title: {self.title}",
+				f"items: {self.items}",
+				f"date: {self.date}",
+				f"version: {self.version}",
+			)
+		)
 
 		return "\n".join(str_list)
 
@@ -155,18 +159,22 @@ class Image:
 		"""Return the class' contents, separated by newlines."""
 		str_list = []
 
-		str_list.append(f"name: {self.name}")
-		str_list.append(f"title: {self.title}")
-		str_list.append(f"date: {self.date}")
-		str_list.append(f"ordinal: {self.ordinal}")
-		str_list.append(f"image url: {self.image_url}")
-		str_list.append(f"thumb url: {self.thumb_url}")
-		str_list.append(f"canon: {self.canon}")
-		str_list.append(f"has description: {self.has_description}")
-		str_list.append(f"characters: {self.characters}")
-		str_list.append(f"speedpaint video url: {self.speedpaint_video_url}")
-		str_list.append(f"primary color: {self.primary_color}")
-		str_list.append(f"secondary color: {self.secondary_color}")
+		str_list.extend(
+			(
+				f"name: {self.name}",
+				f"title: {self.title}",
+				f"date: {self.date}",
+				f"ordinal: {self.ordinal}",
+				f"image url: {self.image_url}",
+				f"thumb url: {self.thumb_url}",
+				f"canon: {self.canon}",
+				f"has description: {self.has_description}",
+				f"characters: {self.characters}",
+				f"speedpaint video url: {self.speedpaint_video_url}",
+				f"primary color: {self.primary_color}",
+				f"secondary color: {self.secondary_color}",
+			)
+		)
 
 		return "\n".join(str_list)
 
@@ -286,9 +294,7 @@ class Image:
 
 			if format_ == "characters":
 				characters = ", ".join(self.characters)
-				characters = " ".join(
-					("> characters:", characters if characters != "" else "_none_")
-				)
+				characters = " ".join(("> characters:", characters or "_none_"))
 				image_join_list.append(characters)
 
 			if format_ == "speedpaint_video_url":
@@ -368,8 +374,12 @@ class ImageDescription:
 		"""Return the class' contents, separated by newlines."""
 		str_list = []
 
-		str_list.append(f"title: {self.title}")
-		str_list.append(f"description: {self.description}")
+		str_list.extend(
+			(
+				f"title: {self.title}",
+				f"description: {self.description}",
+			)
+		)
 
 		return "\n".join(str_list)
 
@@ -377,11 +387,15 @@ class ImageDescription:
 		"""Return a string with discord formatting."""
 		description_join_list = []
 
-		description_join_list.append(f"> # {self.title}")
-		description_join_list.append(
-			f">>> {self.description.rstrip()}"
-			if self.description is not None
-			else "no description"
+		description_join_list.extend(
+			(
+				f"> # {self.title}",
+				(
+					f">>> {self.description.rstrip()}"
+					if self.description is not None
+					else "no description"
+				),
+			)
 		)
 
 		return "\n".join(description_join_list)
@@ -419,11 +433,15 @@ class Record:
 		"""Return the class' contents, separated by newlines."""
 		str_list = []
 
-		str_list.append(f"chapter: {self.chapter}")
-		str_list.append(f"name: {self.name}")
-		str_list.append(f"title: {self.title}")
-		str_list.append(f"solved: {self.solved}")
-		str_list.append(f"iteration: {self.iteration}")
+		str_list.extend(
+			(
+				f"chapter: {self.chapter}",
+				f"name: {self.name}",
+				f"title: {self.title}",
+				f"solved: {self.solved}",
+				f"iteration: {self.iteration}",
+			)
+		)
 
 		return "\n".join(str_list)
 
@@ -550,8 +568,12 @@ class Chapter:
 		"""Return the class' contents, separated by newlines."""
 		str_list = []
 
-		str_list.append(f"name: {self.name}")
-		str_list.append(f"records: {[i.name for i in self.records]}")
+		str_list.extend(
+			(
+				f"name: {self.name}",
+				f"records: {[i.name for i in self.records]}",
+			)
+		)
 
 		return "\n".join(str_list)
 
@@ -598,10 +620,14 @@ class RecordLine:
 		"""Return the class' contents, separated by newlines."""
 		str_list = []
 
-		str_list.append(f"character: {self.character}")
-		str_list.append(f"language: {self.language}")
-		str_list.append(f"emphasis: {self.emphasis}")
-		str_list.append(f"text: {self.text}")
+		str_list.extend(
+			(
+				f"character: {self.character}",
+				f"language: {self.language}",
+				f"emphasis: {self.emphasis}",
+				f"text: {self.text}",
+			)
+		)
 
 		return "\n".join(str_list)
 
@@ -616,7 +642,7 @@ class RecordLine:
 		last_language -- The language returned by the last formatted line (or None).
 		"""
 		text = self.text
-		if not (re.search(r"\n +\*", text) or re.search(r"\n +-", text)):
+		if not (re.search(r"\n *\* ", text) or re.search(r"\n *- ", text)):
 			text = text.replace("\n", " ")
 			text = re.sub(r" {2,}", " ", text)
 
@@ -644,7 +670,7 @@ class RecordLine:
 				speaker.append(f"({self.emphasis})")
 
 			line_string = " ".join(speaker)
-			if text.startswith("*"):
+			if text.startswith("* "):
 				line_string = f"{line_string} :\n{text}"
 			else:
 				line_string = f"{line_string} **:** {text}"
@@ -694,12 +720,16 @@ class RecordText:
 		"""Return the class' contents, separated by newlines."""
 		str_list = []
 
-		str_list.append(f"title: {self.title}")
-		str_list.append(f"iteration: {self.iteration}")
-		str_list.append(f"header_lines: {self.header_lines}")
-		str_list.append(f"languages: {self.languages}")
-		str_list.append(f"characters: {self.characters}")
-		str_list.append(f"num lines: {len(self.lines)}")
+		str_list.extend(
+			(
+				f"title: {self.title}",
+				f"iteration: {self.iteration}",
+				f"header_lines: {self.header_lines}",
+				f"languages: {self.languages}",
+				f"characters: {self.characters}",
+				f"num lines: {len(self.lines)}",
+			)
+		)
 
 		return "\n".join(str_list)
 
@@ -714,11 +744,11 @@ class RecordText:
 				break
 
 		if requested:
-			record_join_list.append(
-				"> <:nsirp_11:1271772847806877727><:nsirp_12:1271772877300957247>"
-			)
-			record_join_list.append(
-				"> <:nsirp_21:1271772902915706943><:nsirp_22:1271772919286206495>"
+			record_join_list.extend(
+				(
+					"> <:nsirp_11:1271772847806877727><:nsirp_12:1271772877300957247>",
+					"> <:nsirp_21:1271772902915706943><:nsirp_22:1271772919286206495>",
+				)
 			)
 		record_join_list.append(f"> ## {self.title}")
 
@@ -730,11 +760,14 @@ class RecordText:
 		characters = ", ".join(self.characters)
 		pre_header = f"{pre_header}{characters}_)"
 
-		record_join_list.append(pre_header)
-
-		record_join_list.append("> _ _\n> ```")
-		record_join_list.extend(f"> {line}" for line in self.header_lines)
-		record_join_list.append("> ```")
+		record_join_list.extend(
+			(
+				pre_header,
+				"> _ _\n> ```",
+				*(f"> {line}" for line in self.header_lines),
+				"> ```",
+			)
+		)
 
 		last_character = None
 		last_language = None
@@ -755,11 +788,19 @@ class SearchResult:
 	type: str
 	image: Image | None
 	record: Record | None
+	record_line: RecordLine | None
 	record_matched_text: str | None
 	record_line_index: int | None
 
 	type SearchResultType = dict[
-		str, str | Image.ImageType | Record.RecordType | int | None
+		str,
+		str
+		| Image.ImageType
+		| Record.RecordType
+		| RecordLine.RecordLineType
+		| RecordLine
+		| int
+		| None,
 	]
 
 	@staticmethod
@@ -768,12 +809,17 @@ class SearchResult:
 
 		Argument: obj -- The object to create a SearchResult from.
 		(Expected: an item from domain_search["results"].
-		search_results needs to be converted from json first.)
+		search_results needs to be converted from json first.
+		If the type is "episodic-line", obj["record_line"] should be a RecordLine or a compatible dictionary.)
 		"""
+		if obj.get("record_line") is not None and isinstance(obj["record_line"], dict):
+			obj["record_line"] = RecordLine.from_obj(obj["record_line"])
+
 		return SearchResult(
 			obj["type"],
 			None if obj.get("image") is None else Image.from_obj(obj["image"]),
 			None if obj.get("record") is None else Record.from_obj(obj["record"]),
+			obj.get("record_line"),
 			obj.get("record_matched_text"),
 			obj.get("record_line_index"),
 		)
@@ -782,15 +828,20 @@ class SearchResult:
 		"""Return the class' contents, separated by newlines."""
 		str_list = []
 
-		str_list.append(f"type: {self.type}")
-		str_list.append(f"image: {self.image}")
-		str_list.append(f"record: {self.record}")
-		str_list.append(f"record_matched_text: {self.record_matched_text}")
-		str_list.append(f"record_line_index: {self.record_line_index}")
+		str_list.extend(
+			(
+				f"type: {self.type}",
+				f"image: {self.image}",
+				f"record: {self.record}",
+				f"record_line: {self.record_line}",
+				f"record_matched_text: {self.record_matched_text}",
+				f"record_line_index: {self.record_line_index}",
+			)
+		)
 
 		return "\n".join(str_list)
 
-	def format(self) -> str:
+	def format(self, last_record: Record | None = None) -> str:
 		"""Return a string with discord formatting."""
 		results_join_list = []
 
@@ -802,29 +853,61 @@ class SearchResult:
 				return self.record.format_inline()
 
 			case "episodic-line":
-				record_str = self.record.format_inline(
-					show_iteration=False, show_chapter=False
-				)
-				results_join_list.append(record_str)
+				if last_record != self.record:
+					if last_record is not None:
+						results_join_list.append("")
+
+					record_str = self.record.format_inline(
+						show_iteration=False, show_chapter=False
+					)
+					results_join_list.append(record_str)
 
 				if self.record.solved:
-					from src.fractalthorns_api import fractalthorns_api
+					matching_text = self.record_line.text
 
-					matching_line: RecordLine = (
-						fractalthorns_api.get_record_text(self.record.name)
-					).lines[self.record_line_index]
-					matching_text = matching_line.text
+					if not (
+						re.search(r"\n *\* ", matching_text)
+						or re.search(r"\n *- ", matching_text)
+					):
+						matching_text = matching_text.replace("\n", " ")
+						matching_text = re.sub(r" {2,}", " ", matching_text)
+					matching_text = matching_text.strip()
+
 					matching_text = matching_text.replace(
 						self.record_matched_text,
 						f"**{self.record_matched_text}**",
 					)
+
+					split_text = matching_text.split("\n")
+					for i in range(len(split_text)):
+						if self.record_matched_text not in split_text[i]:
+							split_text[i] = None
+
+					for i in range(1, len(split_text)):
+						while (
+							i < len(split_text)
+							and split_text[i] is None
+							and split_text[i - 1] is None
+						):
+							split_text.pop(i)
+						if (
+							i < len(split_text)
+							and split_text[i - 1] is None
+							and split_text[i].startswith("  ")
+						):
+							split_text[i] = split_text[i].lstrip(" ")
+
+					for i in range(len(split_text)):
+						if split_text[i] is None:
+							split_text[i] = "[ ... ]"
+
 					edited_line = RecordLine(
-						matching_line.character,
-						matching_line.language,
-						matching_line.emphasis,
-						matching_text,
+						self.record_line.character,
+						self.record_line.language,
+						self.record_line.emphasis,
+						"\n".join(split_text),
 					)
 					record_text = edited_line.format(None, None)[0]
-					results_join_list.append(f"{record_text}\n")
+					results_join_list.append(f"{record_text}")
 
 				return "\n".join(results_join_list)

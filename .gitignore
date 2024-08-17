@@ -170,3 +170,4 @@ cython_debug/
 __apicache__/
 bot_data.*
 *.log*
+.apicache/

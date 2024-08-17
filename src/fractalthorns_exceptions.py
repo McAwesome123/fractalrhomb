@@ -8,6 +8,8 @@
 
 """Module containing exceptions used the fractalthorns API handler."""
 
+import datetime as dt
+
 
 class APIError(Exception):
 	"""General purpose Fractalthorns API handler exception."""
@@ -19,6 +21,13 @@ class ParameterError(APIError):
 
 class CachePurgeError(APIError):
 	"""Cannot purge the cache."""
+
+	def __init__(
+		self, reason: str | None = None, allowed_time: dt.datetime | None = None, /
+	) -> "CachePurgeError":
+		"""Create a cache purge error."""
+		self.reason = reason
+		self.allowed_time = allowed_time
 
 
 class CacheFetchError(APIError):

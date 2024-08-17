@@ -8,15 +8,16 @@
 
 """Fractalthorns cog for the bot."""
 
+import asyncio
 import logging
 import logging.handlers
 from io import BytesIO
 
+import aiohttp.client_exceptions as client_exc
 import discord
 import discord.utils
-import requests.exceptions as req
 
-import src.fractalrhomb_globals as frf
+import src.fractalrhomb_globals as frg
 from src.fractalthorns_api import fractalthorns_api
 
 
@@ -74,22 +75,22 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show the latest news."""
-		if not await frf.bot_channel_warning(ctx):
+		if not await frg.bot_channel_warning(ctx):
 			return
 
 		if start_index > 0:
-			start_index = start_index - 1
+			start_index -= 1
 
 		if show is not None:
 			show = show.split()
 
-		formatting = frf.get_formatting(show)
+		formatting = frg.get_formatting(show)
 
 		try:
-			news = fractalthorns_api.get_all_news()
+			news = await fractalthorns_api.get_all_news(frg.session)
 
 			total_items = len(news)
-			news = news[start_index :: frf.sign(start_index)]
+			news = news[start_index :: frg.sign(start_index)]
 
 			if limit >= 0:
 				news = news[:limit]
@@ -97,19 +98,19 @@ class Fractalthorns(discord.Cog):
 			response = [i.format(formatting) for i in news]
 
 			if limit != 1:
-				too_many = frf.truncated_message(
+				too_many = frg.truncated_message(
 					total_items, len(response), limit, start_index, "news items"
 				)
 				if too_many is not None:
 					response.append(too_many)
 
-			responses = frf.split_message(response, "\n\n")
+			responses = frg.split_message(response, "\n\n")
 
-			if not await frf.message_length_warning(ctx, responses, 1000):
+			if not await frg.message_length_warning(ctx, responses, 1000):
 				return
 
 			if len(responses[0].strip()) < 1:
-				await ctx.respond(frf.EMPTY_MESSAGE)
+				await ctx.respond(frg.EMPTY_MESSAGE)
 				return
 
 			user = f"<@{ctx.author.id}>\n"
@@ -120,13 +121,26 @@ class Fractalthorns(discord.Cog):
 					await ctx.send(f"{user}{i.strip()}", silent=True)
 					user = ""
 
-		except (
-			req.HTTPError,
-			req.Timeout,
-			req.ConnectionError,
-			req.TooManyRedirects,
-		) as exc:
-			await frf.standard_exception_handler(
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.NEWS_ITEMS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
+			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.all_news"
 			)
 
@@ -137,15 +151,9 @@ class Fractalthorns(discord.Cog):
 			fractalthorns_api.CacheTypes.IMAGES, ignore_stale=True
 		)
 
-		if images is None:
-			return []
+		images.pop(None, None)
 
-		non_duplicate = []
-		for i in images:
-			if i.name not in non_duplicate:
-				non_duplicate.append(i.name)
-
-		return non_duplicate
+		return list(images.keys())
 
 	@staticmethod
 	async def single_image_show(ctx: discord.AutocompleteContext) -> list[str]:
@@ -209,7 +217,7 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show an image."""
-		if not await frf.bot_channel_warning(ctx):
+		if not await frg.bot_channel_warning(ctx):
 			return
 
 		deferred = False
@@ -237,15 +245,15 @@ class Fractalthorns(discord.Cog):
 					case "secondary":
 						show[i] = "secondary_color"
 
-		formatting = frf.get_formatting(show)
+		formatting = frg.get_formatting(show)
 
 		try:
-			response = fractalthorns_api.get_single_image(name)
+			response = await fractalthorns_api.get_single_image(frg.session, name)
 			response_text = response[0].format(formatting)
 			response_image = None
 			if image == "image":
 				response_image = response[1][0]
-			elif image =="thumbnail":
+			elif image == "thumbnail":
 				response_image = response[1][1]
 
 			file = None
@@ -255,7 +263,7 @@ class Fractalthorns(discord.Cog):
 				io.seek(0)
 				file = discord.File(io, filename=f"{response[0].name}.png")
 			elif len(response_text) < 1:
-				response_text = frf.EMPTY_MESSAGE
+				response_text = frg.EMPTY_MESSAGE
 
 			if deferred:
 				await ctx.respond(response_text, file=file)
@@ -264,13 +272,32 @@ class Fractalthorns(discord.Cog):
 					f"<@{ctx.author.id}>\n{response_text}", file=file, silent=True
 				)
 
-		except (
-			req.HTTPError,
-			req.Timeout,
-			req.ConnectionError,
-			req.TooManyRedirects,
-		) as exc:
-			await frf.standard_exception_handler(
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.IMAGES)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.IMAGE_CONTENTS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
+			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.single_image"
 			)
 
@@ -287,20 +314,22 @@ class Fractalthorns(discord.Cog):
 		name: str,
 	) -> None:
 		"""Show the description of an image."""
-		if not await frf.bot_channel_warning(ctx):
+		if not await frg.bot_channel_warning(ctx):
 			return
 
 		try:
-			response = fractalthorns_api.get_image_description(name.lower())
+			response = await fractalthorns_api.get_image_description(
+				frg.session, name.lower()
+			)
 
-			responses = frf.split_message([response.format()], "")
+			responses = frg.split_message([response.format()], "")
 			for i in range(len(responses)):
 				if not responses[i].startswith("> ") and not responses[i].startswith(
 					">>> "
 				):
 					responses[i] = f">>> {responses[i]}"
 
-			if not await frf.message_length_warning(ctx, responses, 1000):
+			if not await frg.message_length_warning(ctx, responses, 1000):
 				return
 
 			user = f"<@{ctx.author.id}>\n"
@@ -311,13 +340,26 @@ class Fractalthorns(discord.Cog):
 					await ctx.send(f"{user}{i}", silent=True)
 					user = ""
 
-		except (
-			req.HTTPError,
-			req.Timeout,
-			req.ConnectionError,
-			req.TooManyRedirects,
-		) as exc:
-			await frf.standard_exception_handler(
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.IMAGE_DESCRIPTIONS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
+			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.image_description"
 			)
 
@@ -336,32 +378,32 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Show a list of all images."""
-		if not await frf.bot_channel_warning(ctx):
+		if not await frg.bot_channel_warning(ctx):
 			return
 
 		if start_index > 0:
 			start_index -= 1
 
 		try:
-			images = fractalthorns_api.get_all_images()
+			images = await fractalthorns_api.get_all_images(frg.session)
 
 			total_items = len(images)
-			images = images[start_index :: frf.sign(start_index)]
+			images = images[start_index :: frg.sign(start_index)]
 
 			if limit >= 0:
 				images = images[:limit]
 
 			response = [i.format_inline() for i in images]
 
-			too_many = frf.truncated_message(
+			too_many = frg.truncated_message(
 				total_items, len(response), limit, start_index, "images"
 			)
 			if too_many is not None:
 				response.append(f"\n{too_many}")
 
-			responses = frf.split_message(response, "\n")
+			responses = frg.split_message(response, "\n")
 
-			if not await frf.message_length_warning(ctx, responses, 1800):
+			if not await frg.message_length_warning(ctx, responses, 1800):
 				return
 
 			user = f"<@{ctx.author.id}>\n"
@@ -372,13 +414,24 @@ class Fractalthorns(discord.Cog):
 					await ctx.send(f"{user}{i}", silent=True)
 					user = ""
 
-		except (
-			req.HTTPError,
-			req.Timeout,
-			req.ConnectionError,
-			req.TooManyRedirects,
-		) as exc:
-			await frf.standard_exception_handler(
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.IMAGES)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
+			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.all_images"
 			)
 
@@ -392,7 +445,7 @@ class Fractalthorns(discord.Cog):
 		if cached_chapters is None:
 			return []
 
-		chapters = [i.name for i in cached_chapters]
+		chapters = list(cached_chapters[0].keys())
 
 		used_chapters = ctx.value.split()
 		if (
@@ -426,11 +479,11 @@ class Fractalthorns(discord.Cog):
 		chapter: str | None = None,
 	) -> None:
 		"""Show a list of records in a chapter."""
-		if not await frf.bot_channel_warning(ctx):
+		if not await frg.bot_channel_warning(ctx):
 			return
 
 		try:
-			chapters = fractalthorns_api.get_full_episodic()
+			chapters = await fractalthorns_api.get_full_episodic(frg.session)
 
 			if chapter is None:
 				chapter = (chapters[-1].name,)
@@ -441,9 +494,9 @@ class Fractalthorns(discord.Cog):
 			for i in chapter:
 				response += [j.format() for j in chapters if i.lower() == j.name]
 
-			responses = frf.split_message(response, "\n\n")
+			responses = frg.split_message(response, "\n\n")
 
-			if not await frf.message_length_warning(ctx, responses, 600):
+			if not await frg.message_length_warning(ctx, responses, 600):
 				return
 
 			user = f"<@{ctx.author.id}>\n"
@@ -454,13 +507,30 @@ class Fractalthorns(discord.Cog):
 					await ctx.send(f"{user}{i.strip()}", silent=True)
 					user = ""
 
-		except (
-			req.HTTPError,
-			req.Timeout,
-			req.ConnectionError,
-			req.TooManyRedirects,
-		) as exc:
-			await frf.standard_exception_handler(
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.CHAPTERS)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.RECORDS)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
+			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.full_episodic"
 			)
 
@@ -471,10 +541,7 @@ class Fractalthorns(discord.Cog):
 			fractalthorns_api.CacheTypes.RECORDS, ignore_stale=True
 		)
 
-		if records is None:
-			return []
-
-		return [i.name for i in records]
+		return list(records.keys())
 
 	@staticmethod
 	async def single_record_show(ctx: discord.AutocompleteContext) -> list[str]:
@@ -518,34 +585,47 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show a record entry."""
-		if not await frf.bot_channel_warning(ctx):
+		if not await frg.bot_channel_warning(ctx):
 			return
 
 		if show is not None:
 			show = show.split()
 
 		try:
-			response = fractalthorns_api.get_single_record(name.lower())
+			response = await fractalthorns_api.get_single_record(
+				frg.session, name.lower()
+			)
 
-			formatting = frf.get_formatting(show)
+			formatting = frg.get_formatting(show)
 
 			response_text = response.format(formatting)
 
 			if len(response_text.strip()) < 1:
-				response_text = frf.EMPTY_MESSAGE
+				response_text = frg.EMPTY_MESSAGE
 
 			if not ctx.response.is_done():
 				await ctx.respond(response_text)
 			else:
 				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
 
-		except (
-			req.HTTPError,
-			req.Timeout,
-			req.ConnectionError,
-			req.TooManyRedirects,
-		) as exc:
-			await frf.standard_exception_handler(
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.RECORDS)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
+			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.single_record"
 			)
 
@@ -558,18 +638,20 @@ class Fractalthorns(discord.Cog):
 	)
 	async def record_text(self, ctx: discord.ApplicationContext, name: str) -> None:
 		"""Show a record's text."""
-		if not await frf.bot_channel_warning(ctx):
+		if not await frg.bot_channel_warning(ctx):
 			return
 
 		try:
-			response = fractalthorns_api.get_record_text(name.lower())
+			response = await fractalthorns_api.get_record_text(
+				frg.session, name.lower()
+			)
 
-			responses = frf.split_message([response.format()], "")
+			responses = frg.split_message([response.format()], "")
 			for i in range(len(responses)):
 				if not responses[i].startswith("> "):
 					responses[i] = f"> {responses[i]}"
 
-			if not await frf.message_length_warning(ctx, responses, 1000):
+			if not await frg.message_length_warning(ctx, responses, 1000):
 				return
 
 			user = f"<@{ctx.author.id}>\n"
@@ -580,13 +662,26 @@ class Fractalthorns(discord.Cog):
 					await ctx.send(f"{user}{i}", silent=True)
 					user = ""
 
-		except (
-			req.HTTPError,
-			req.Timeout,
-			req.ConnectionError,
-			req.TooManyRedirects,
-		) as exc:
-			await frf.standard_exception_handler(
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.RECORD_CONTENTS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
+			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.record_text"
 			)
 
@@ -617,7 +712,7 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Make a search."""
-		if not await frf.bot_channel_warning(ctx):
+		if not await frg.bot_channel_warning(ctx):
 			return
 
 		msg = f"searching `{type_}` for `{term}`..."
@@ -626,32 +721,47 @@ class Fractalthorns(discord.Cog):
 		else:
 			await ctx.send(f"<@{ctx.author.id}> {msg}", silent=True)
 
+		async def too_long() -> None:
+			await asyncio.sleep(10)
+			await ctx.send("this is taking a while...")
+
+		too_long_task = asyncio.create_task(too_long())
+
 		if start_index > 0:
 			start_index -= 1
 
 		try:
-			results = fractalthorns_api.get_domain_search(term, type_)
+			results = await fractalthorns_api.get_domain_search(
+				frg.session, term, type_
+			)
 
 			total_items = len(results)
 			if total_items < 1:
 				await ctx.send("nothing was found")
 				return
 
-			results = results[start_index :: frf.sign(start_index)]
+			results = results[start_index :: frg.sign(start_index)]
 
 			if limit >= 0:
 				results = results[:limit]
 
-			response = [i.format() for i in results]
+			if type_ == "episodic-line":
+				last_record = None
+				response = []
+				for i in results:
+					response.append(i.format(last_record))
+					last_record = i.record
+			else:
+				response = [i.format() for i in results]
 			if type_ == "episodic-line" and total_items >= self.MAX_EPISODIC_LINE_ITEMS:
-				too_many = frf.truncated_message(
+				too_many = frg.truncated_message(
 					total_items + 1, len(response), limit, start_index, "results"
 				)
 				too_many = too_many.replace(
 					str(total_items + 1), f"{total_items!s}+", 1
 				)
 			else:
-				too_many = frf.truncated_message(
+				too_many = frg.truncated_message(
 					total_items, len(response), limit, start_index, "results"
 				)
 
@@ -660,24 +770,50 @@ class Fractalthorns(discord.Cog):
 					too_many = f"\n{too_many}"
 				response.append(too_many)
 
-			responses = frf.split_message(response, "\n")
+			responses = frg.split_message(response, "\n")
 
-			if not await frf.message_length_warning(ctx, responses, 1200):
+			too_long_task.cancel()
+
+			if not await frg.message_length_warning(ctx, responses, 1200):
 				await ctx.send("the search was cancelled.")
 				return
 
 			for i in responses:
 				await ctx.send(i)
 
-		except (
-			req.HTTPError,
-			req.Timeout,
-			req.ConnectionError,
-			req.TooManyRedirects,
-		) as exc:
-			await frf.standard_exception_handler(
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.SEARCH_RESULTS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.RECORD_CONTENTS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* client_exc.ClientError as exc:
+			await frg.standard_exception_handler(
 				ctx, self.logger, exc, "Fractalthorns.domain_search"
 			)
+
+		finally:
+			too_long_task.cancel()
 
 
 def setup(bot: discord.Bot) -> None:

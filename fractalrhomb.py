@@ -9,6 +9,8 @@
 """Module containing bot logic."""
 
 import argparse
+import asyncio
+import contextlib
 import datetime as dt
 import json
 import logging
@@ -16,11 +18,12 @@ import logging.handlers
 from math import ceil
 from os import getenv
 
+import aiohttp
 import discord
 import discord.utils
 from dotenv import load_dotenv
 
-import src.fractalrhomb_globals as frf
+import src.fractalrhomb_globals as frg
 from src.fractalrhomb_globals import bot
 from src.fractalthorns_api import FractalthornsAPI, fractalthorns_api
 from src.fractalthorns_exceptions import CachePurgeError
@@ -28,6 +31,7 @@ from src.fractalthorns_exceptions import CachePurgeError
 load_dotenv()
 
 discord_logger = logging.getLogger("discord")
+root_logger = logging.getLogger()
 
 log_handler = logging.handlers.TimedRotatingFileHandler(
 	filename="discord.log", when="midnight", backupCount=7, encoding="utf-8", utc=True
@@ -37,11 +41,13 @@ log_formatter = logging.Formatter(
 	"[{asctime}] [{levelname:<8}] {name}: {message}", dt_fmt, style="{"
 )
 log_handler.setFormatter(log_formatter)
-discord_logger.addHandler(log_handler)
+root_logger.addHandler(log_handler)
+
+PING_LATENCY_HIGH = 10.0
 
 
 @bot.event
-async def on_ready() -> None:
+async def on_ready() -> None:  # noqa: RUF029
 	"""Do stuff when the bot finishes logging in."""
 	print(f"Logged in as {bot.user}")
 
@@ -59,7 +65,12 @@ async def on_application_command_error(
 @bot.slash_command(description="Pong!")
 async def ping(ctx: discord.ApplicationContext) -> None:
 	"""Pong."""
-	response = f"pong! latency: {round(bot.latency*1000)}ms."
+	if bot.latency < PING_LATENCY_HIGH:
+		latency = f"{round(bot.latency * 1000)!s}ms"
+	else:
+		latency = f"{round(bot.latency, 2)!s}s"
+
+	response = f"pong! latency: {latency}."
 	await ctx.respond(response)
 
 
@@ -67,25 +78,20 @@ async def ping(ctx: discord.ApplicationContext) -> None:
 async def show_license(ctx: discord.ApplicationContext) -> None:
 	"""Display the bot's license message."""
 	license_text = (
-		"```\n"
-		"fractalrhomb\n"
-		"Copyright (C) 2024 McAwesome (https://github.com/McAwesome123)\n"
-		"View the source code on GitHub: https://github.com/McAwesome123/fractal-rhomb\n"
+		">>> fractalrhomb\n"
+		"Copyright (C) 2024 [McAwesome](<https://github.com/McAwesome123>)\n"
 		"\n"
-		"This bot is licensed under the GNU Affero General Public License version 3 or later.\n"
-		"For more information, visit: https://www.gnu.org/licenses/agpl-3.0.en.html\n"
+		"The [source code](<https://github.com/McAwesome123/fractal-rhomb>) is licensed under the [GNU AGPL version 3](<https://www.gnu.org/licenses/agpl-3.0.en.html>) or later.\n"
 		"\n"
-		"fractalthorns is a website created by Pierce Smith (https://github.com/pierce-smith1).\n"
-		"View it here: https://fractalthorns.com\n"
-		"```"
+		"[fractalthorns](<https://fractalthorns.com>) is created by [Pierce Smith](<https://github.com/pierce-smith1>)."
 	)
 	await ctx.respond(license_text)
 
 
-purge_group = bot.create_group("purge", "Purge the bot's cache.")
+purge_group = bot.create_group("cache", "Manage the bot's cache.")
 
 
-@purge_group.command(name="cache")
+@purge_group.command(name="purge")
 @discord.option(
 	"cache",
 	str,
@@ -93,10 +99,10 @@ purge_group = bot.create_group("purge", "Purge the bot's cache.")
 		i.value
 		for i in FractalthornsAPI.CacheTypes
 		if i
-		not in [
+		not in {
 			FractalthornsAPI.CacheTypes.CACHE_METADATA,
 			FractalthornsAPI.CacheTypes.FULL_RECORD_CONTENTS,
-		]
+		}
 	],
 )
 async def purge(
@@ -105,15 +111,15 @@ async def purge(
 ) -> None:
 	"""Purge the bot's cache."""
 	cache = FractalthornsAPI.CacheTypes(cache)
-	user = frf.bot_data.purge_cooldowns.get(str(ctx.author.id))
+	user = frg.bot_data.purge_cooldowns.get(str(ctx.author.id))
 	if user is not None:
 		time = user.get(cache.value)
 		if (
 			time is not None
 			and dt.datetime.now(dt.UTC)
-			< dt.datetime.fromtimestamp(time, dt.UTC) + frf.USER_PURGE_COOLDOWN
+			< dt.datetime.fromtimestamp(time, dt.UTC) + frg.USER_PURGE_COOLDOWN
 		):
-			time += frf.USER_PURGE_COOLDOWN.total_seconds()
+			time += frg.USER_PURGE_COOLDOWN.total_seconds()
 			response = f"you cannot do that. try again <t:{ceil(time)}:R>"
 			await ctx.respond(response)
 			return
@@ -121,35 +127,40 @@ async def purge(
 		fractalthorns_api.purge_cache(cache)
 
 	except CachePurgeError as exc:
-		response = f"could not purge the cache: {exc.args[0].lower()}\ntry again <t:{ceil(exc.args[1].timestamp())}:R>"
+		if exc.allowed_time is not None:
+			response = f"could not purge the cache - {exc.reason}\ntry again <t:{ceil(exc.args[1].timestamp())}:R>"
+		elif exc.reason is not None:
+			response = f"could not purge the cache - {exc.reason}"
+		else:
+			response = "could not purge the cache"
 		await ctx.respond(response)
 
 	else:
 		response = f"successfully purged {cache.value}"
 		await ctx.respond(response)
 
-		if str(ctx.author.id) not in frf.bot_data.purge_cooldowns:
-			frf.bot_data.purge_cooldowns.update({str(ctx.author.id): {}})
-		frf.bot_data.purge_cooldowns[str(ctx.author.id)].update(
+		if str(ctx.author.id) not in frg.bot_data.purge_cooldowns:
+			frg.bot_data.purge_cooldowns.update({str(ctx.author.id): {}})
+		frg.bot_data.purge_cooldowns[str(ctx.author.id)].update(
 			{cache.value: dt.datetime.now(dt.UTC).timestamp()}
 		)
 		try:
-			frf.bot_data.save(frf.BOT_DATA_PATH)
+			await frg.bot_data.save(frg.BOT_DATA_PATH)
 		except Exception:
 			discord_logger.exception("Could not save bot data.")
 
 
-@purge_group.command(name="all")
+@purge_group.command(name="purgeall")
 async def purge_all(ctx: discord.ApplicationContext) -> None:
 	"""Purge the bot's entire cache."""
-	user = frf.bot_data.purge_cooldowns.get(str(ctx.author.id))
+	user = frg.bot_data.purge_cooldowns.get(str(ctx.author.id))
 	purged = []
 	cooldown = {}
 	for cache in FractalthornsAPI.CacheTypes:
-		if cache in [
+		if cache in {
 			FractalthornsAPI.CacheTypes.CACHE_METADATA,
 			FractalthornsAPI.CacheTypes.FULL_RECORD_CONTENTS,
-		]:
+		}:
 			continue
 
 		if user is not None:
@@ -157,22 +168,22 @@ async def purge_all(ctx: discord.ApplicationContext) -> None:
 			if (
 				time is not None
 				and dt.datetime.now(dt.UTC)
-				< dt.datetime.fromtimestamp(time, dt.UTC) + frf.USER_PURGE_COOLDOWN
+				< dt.datetime.fromtimestamp(time, dt.UTC) + frg.USER_PURGE_COOLDOWN
 			):
-				cooldown.update({cache: time + frf.USER_PURGE_COOLDOWN.total_seconds()})
+				cooldown.update({cache: time + frg.USER_PURGE_COOLDOWN.total_seconds()})
 				continue
 
 		try:
 			fractalthorns_api.purge_cache(cache)
 		except CachePurgeError as exc:
-			if len(exc.args) > 1:
-				cooldown.update({cache: exc.args[1].timestamp()})
+			if exc.allowed_time is not None:
+				cooldown.update({cache: exc.allowed_time.timestamp()})
 		else:
 			purged.append(cache.value)
 
-			if str(ctx.author.id) not in frf.bot_data.purge_cooldowns:
-				frf.bot_data.purge_cooldowns.update({str(ctx.author.id): {}})
-			frf.bot_data.purge_cooldowns[str(ctx.author.id)].update(
+			if str(ctx.author.id) not in frg.bot_data.purge_cooldowns:
+				frg.bot_data.purge_cooldowns.update({str(ctx.author.id): {}})
+			frg.bot_data.purge_cooldowns[str(ctx.author.id)].update(
 				{cache.value: dt.datetime.now(dt.UTC).timestamp()}
 			)
 
@@ -180,8 +191,11 @@ async def purge_all(ctx: discord.ApplicationContext) -> None:
 		response = f"successfully purged {", ".join(purged)}"
 		await ctx.respond(response)
 
+		msg = f"'{"', '".join(purged)} purged by {ctx.author.id}."
+		discord_logger.info(msg)
+
 		try:
-			frf.bot_data.save(frf.BOT_DATA_PATH)
+			await frg.bot_data.save(frg.BOT_DATA_PATH)
 		except Exception:
 			discord_logger.exception("Could not save bot data.")
 	else:
@@ -191,7 +205,7 @@ async def purge_all(ctx: discord.ApplicationContext) -> None:
 		await ctx.respond(response)
 
 
-@purge_group.command(name="force")
+@purge_group.command(name="forcepurge")
 @discord.option(
 	"cache",
 	str,
@@ -199,10 +213,10 @@ async def purge_all(ctx: discord.ApplicationContext) -> None:
 		i.value
 		for i in FractalthornsAPI.CacheTypes
 		if i
-		not in [
+		not in {
 			FractalthornsAPI.CacheTypes.CACHE_METADATA,
 			FractalthornsAPI.CacheTypes.FULL_RECORD_CONTENTS,
-		]
+		}
 	],
 )
 async def force_purge(
@@ -216,7 +230,7 @@ async def force_purge(
 	if str(ctx.author.id) in force_purge_allowed:
 		fractalthorns_api.purge_cache(cache, force_purge=True)
 
-		msg = f"'{cache.value}' purged by {ctx.author.id}."
+		msg = f"'{cache.value}' force purged by {ctx.author.id}."
 		discord_logger.info(msg)
 
 		response = f"successfully force purged {cache.value}"
@@ -264,12 +278,12 @@ async def add_bot_channel(
 
 	guild_id = str(ctx.guild_id)
 
-	if guild_id not in frf.bot_data.bot_channels:
-		frf.bot_data.bot_channels.update({guild_id: []})
+	if guild_id not in frg.bot_data.bot_channels:
+		frg.bot_data.bot_channels.update({guild_id: []})
 
-	if channel_id not in frf.bot_data.bot_channels[guild_id]:
-		frf.bot_data.bot_channels[guild_id].append(channel_id)
-		frf.bot_data.save(frf.BOT_DATA_PATH)
+	if channel_id not in frg.bot_data.bot_channels[guild_id]:
+		frg.bot_data.bot_channels[guild_id].append(channel_id)
+		await frg.bot_data.save(frg.BOT_DATA_PATH)
 		response = f"successfully added channel ({channel_id})"
 	else:
 		response = f"channel is already a bot channel ({channel_id})"
@@ -304,12 +318,12 @@ async def remove_bot_channel(
 
 	guild_id = str(ctx.guild_id)
 
-	if guild_id not in frf.bot_data.bot_channels:
-		frf.bot_data.bot_channels.update({guild_id: []})
+	if guild_id not in frg.bot_data.bot_channels:
+		frg.bot_data.bot_channels.update({guild_id: []})
 
-	if channel_id in frf.bot_data.bot_channels[guild_id]:
-		frf.bot_data.bot_channels[guild_id].remove(channel_id)
-		frf.bot_data.save(frf.BOT_DATA_PATH)
+	if channel_id in frg.bot_data.bot_channels[guild_id]:
+		frg.bot_data.bot_channels[guild_id].remove(channel_id)
+		await frg.bot_data.save(frg.BOT_DATA_PATH)
 		response = f"successfully removed channel ({channel_id})"
 	else:
 		response = f"channel is not a bot channel ({channel_id})"
@@ -326,12 +340,12 @@ async def remove_all_bot_channels(
 	"""Remove all channels as a bot channel (requires Manage Server permission)."""
 	guild_id = str(ctx.guild_id)
 
-	if guild_id not in frf.bot_data.bot_channels:
-		frf.bot_data.bot_channels.update({guild_id: []})
+	if guild_id not in frg.bot_data.bot_channels:
+		frg.bot_data.bot_channels.update({guild_id: []})
 
-	if len(frf.bot_data.bot_channels[guild_id]) > 0:
-		frf.bot_data.bot_channels[guild_id].clear()
-		frf.bot_data.save(frf.BOT_DATA_PATH)
+	if len(frg.bot_data.bot_channels[guild_id]) > 0:
+		frg.bot_data.bot_channels[guild_id].clear()
+		await frg.bot_data.save(frg.BOT_DATA_PATH)
 		response = "successfully removed all channels"
 	else:
 		response = "server has no bot channels"
@@ -354,7 +368,7 @@ def parse_arguments() -> None:
 		"-V",
 		"--version",
 		action="version",
-		version="%(prog)s 0.2.0",
+		version="%(prog)s 0.3.0",
 	)
 	parser.add_argument(
 		"-v",
@@ -394,8 +408,6 @@ def parse_arguments() -> None:
 	)
 	args = parser.parse_args()
 
-	root_logger = logging.getLogger()
-
 	if args.verbose:
 		discord_logger.setLevel(logging.INFO)
 	if args.root_verbose:
@@ -423,20 +435,25 @@ def parse_arguments() -> None:
 			root_logger.setLevel(args.root_log_level)
 
 
-def main() -> None:
+async def main() -> None:
 	"""Do main."""
 	parse_arguments()
 
 	try:
-		frf.bot_data.load(frf.BOT_DATA_PATH)
+		await frg.bot_data.load(frg.BOT_DATA_PATH)
 	except Exception:
 		discord_logger.exception("Could not load bot data.")
 
-	bot.load_extension("cogs.fractalthorns")
+	async with aiohttp.ClientSession() as session:
+		frg.session = session
 
-	token = getenv("DISCORD_BOT_TOKEN")
-	bot.run(token)
+		bot.load_extension("cogs.fractalthorns")
+
+		token = getenv("DISCORD_BOT_TOKEN")
+		async with bot:
+			await bot.start(token)
 
 
 if __name__ == "__main__":
-	main()
+	with contextlib.suppress(KeyboardInterrupt):
+		asyncio.run(main())

@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.3.0] - 2024-08-17
+
+### Added
+
+- Logging for the fractalthorns API handler (mostly info logs regarding cache access (not part of the discord logger; require `-rv` to be logged))
+- `FractalthornsAPI.save_all_caches()` method
+- Some protection against redundant cache saves
+
+### Changed
+
+- File IO is now done with Aiofiles
+- Requests are now done with Aiohttp
+- All related functions (and some others) are now async and must be awaited
+- All functions that make requests now expect an aiohttp.ClientSession as the first parameter and return an async request context manager
+- `FractalthornsAPI.get_cached_items()` now returns a direct copy of the cache with an added expiry time rather than just the stored items
+- Search results can now be grouped by records
+- API cache save and load are no longer private methods
+- Saving cache to disk is no longer the API handler's responsibility (to avoid saving to disk 50 times for one request)
+- Functions that use API should call `FractalthornsAPI.save_cache()` for the respective cache(s)
+  - However, if unsure, `FractalthornsAPI.save_all_caches()` should be fine to use
+- Timeout for requests increased to 30s (to prevent high amounts of parallel async requests from timing out)
+- Cache folder renamed to `.apicache` (from `__apicache__`)
+
+### Removed
+
+- Requests (2.32.3) dependency
+
+### Fixed
+
+- Domain search results should no longer spit out entire records for a single search result.
+- Root logger should now log properly
+
+### Security
+
+- Updated `aiohttp` to 3.10.3
+
 ## [0.2.0] - 2024-08-13
 
 ### Added
