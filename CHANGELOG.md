@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.3.1] - 2024-08-17
+
+### Fixed
+
+- The bot should no longer make a very high amount of concurrent requests, leading the server to think it's getting DDOSed (limited concurrent connections to 6 per host)
+- The bot's standard exception handler should now work with exception groups correctly
+- Corrected what exceptions are caught for the standard exception handler
+
 ## [0.3.0] - 2024-08-17
 
 ### Added

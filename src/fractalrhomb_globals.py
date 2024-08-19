@@ -177,7 +177,10 @@ def split_message(message: list[str], join_str: str) -> list[str]:
 
 
 async def standard_exception_handler(
-	ctx: discord.ApplicationContext, logger: logging.Logger, exc: Exception, cmd: str
+	ctx: discord.ApplicationContext,
+	logger: logging.Logger,
+	exc: Exception | ExceptionGroup,
+	cmd: str,
 ) -> None:
 	"""Handle standard requests exceptions."""
 	cmd_name = cmd
@@ -188,19 +191,29 @@ async def standard_exception_handler(
 	finally:
 		del frame
 
+	max_loop = 1000
+	while isinstance(exc, ExceptionGroup):
+		max_loop -= 1
+		if max_loop < 0:
+			msg = "Loop running for too long."
+			logger.warning(msg, stack_info=True)
+			break
+
+		exc = exc.exceptions[0]
+
 	msg = f"A request exception occurred in command {cmd_name}"
 
-	response = ""
+	response = "an unknown client/connection error occurred"
 	level = logging.ERROR
 	if isinstance(exc, client_exc.ClientResponseError):
-		response = f"{exc.status!s} {exc.message.lower()}"
+		response = f"server returned: {exc.status!s} {exc.message.lower()}"
 		level = logging.WARNING
+	elif isinstance(exc, TimeoutError):
+		response = "request timed out"
 	elif isinstance(exc, client_exc.ServerTimeoutError):
-		response = "server request timed out"
+		response = "server timed out"
 	elif isinstance(exc, client_exc.ClientConnectionError):
 		response = "a connection error occurred"
-	elif isinstance(exc, client_exc.ClientError):
-		response = "an unknown client error occurred"
 
 	logger.log(level, msg, exc_info=True)
 
