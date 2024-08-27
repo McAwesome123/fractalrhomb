@@ -24,9 +24,8 @@ import discord
 import discord.utils
 
 intents = discord.Intents.default()
-activity = discord.Activity(
-	type=discord.ActivityType.custom,
-	state="observing you",
+activity = discord.CustomActivity(
+	"observing you",
 	emoji=discord.PartialEmoji.from_str("<:nxeye:1277840622459289641>").to_dict(),
 )
 bot = discord.Bot(intents=intents, activity=activity)
