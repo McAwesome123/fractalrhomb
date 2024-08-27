@@ -24,7 +24,11 @@ import discord
 import discord.utils
 
 intents = discord.Intents.default()
-bot = discord.Bot(intents=intents)
+activity = discord.CustomActivity(
+	"observing you",
+	emoji=discord.PartialEmoji.from_str("<:nxeye:1277840622459289641>").to_dict(),
+)
+bot = discord.Bot(intents=intents, activity=activity)
 
 MAX_MESSAGE_LENGTH = 1950
 EMPTY_MESSAGE = "give me something to show"

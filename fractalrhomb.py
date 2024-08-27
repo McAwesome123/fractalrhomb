@@ -52,6 +52,90 @@ async def on_ready() -> None:  # noqa: RUF029
 	print(f"Logged in as {bot.user}")
 
 
+@bot.listen("on_message")
+async def private_commands(message: discord.Message) -> None:
+	"""Parse private commands."""
+	if message.author == bot.user:
+		return
+
+	if message.channel.type != discord.ChannelType.private:
+		return
+
+	user_id = str(message.author.id)
+
+	if message.content.startswith("-say"):
+		allowed = json.loads(getenv("SAY_COMMAND_ALLOWED", "[]"))
+		if user_id not in allowed:
+			msg = f"User {user_id} tried to use -say, but is not part of {allowed}"
+			discord_logger.info(msg)
+			return
+
+		await say_message_command(message)
+
+	if message.content.startswith("-status"):
+		allowed = json.loads(getenv("STATUS_COMMAND_ALLOWED", "[]"))
+		if user_id not in allowed:
+			msg = f"User {user_id} tried to use -status, but is not part of {allowed}"
+			discord_logger.info(msg)
+			return
+
+		await change_status_command(message)
+
+
+async def say_message_command(message: discord.Message) -> None:
+	"""Send a message in a specified channel."""
+	args = message.content.split(" ", 2)
+
+	msg = f"Received -say command: {message.content}. Parsed as: {args}."
+	discord_logger.debug(msg)
+
+	if len(args) < 3:  # noqa: PLR2004
+		msg = "Command did not receive enough arguments."
+		discord_logger.debug(msg)
+		return
+
+	channel = args[1]
+	content = args[2]
+
+	msg = f"Parsed channel as {channel} and content as {content}."
+	discord_logger.debug(msg)
+
+	try:
+		discord_channel = bot.get_channel(int(channel))
+		if discord_channel is None:
+			msg = f"{channel} is not a valid channel."
+			discord_logger.debug(msg)
+			return
+	except ValueError:
+		msg = f"{channel} is not a channel id."
+		discord_logger.debug(msg)
+		return
+
+	await discord_channel.send(content)
+
+
+async def change_status_command(message: discord.Message) -> None:
+	"""Change the bot's status."""
+	args = message.content.split(" ", 1)
+
+	msg = f"Received -status command: {message.content}. Parsed as: {args}."
+	discord_logger.debug(msg)
+
+	if len(args) < 2:  # noqa: PLR2004
+		msg = "Did not receive enough arguments."
+		discord_logger.debug(msg)
+		return
+
+	content = args[1]
+	if content.lower() == "clear":
+		await bot.change_presence()
+		return
+	if content.strip("\\").lower() == "clear":
+		content = content[1:]
+
+	await bot.change_presence(activity=discord.CustomActivity(content))
+
+
 @bot.event
 async def on_application_command_error(
 	ctx: discord.ApplicationContext, error: Exception
@@ -368,7 +452,7 @@ def parse_arguments() -> None:
 		"-V",
 		"--version",
 		action="version",
-		version="%(prog)s 0.3.1",
+		version="%(prog)s 0.4.0",
 	)
 	parser.add_argument(
 		"-v",

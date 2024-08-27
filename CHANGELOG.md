@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.4.0] - 2024-08-17
+
+### Added
+
+- A few private commands (-say, -status)
+- Discord status
+
 ## [0.3.1] - 2024-08-17
 
 ### Fixed
