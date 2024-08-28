@@ -440,7 +440,7 @@ async def remove_all_bot_channels(
 @bot.slash_command(name="test")
 async def test_command(ctx: discord.ApplicationContext) -> None:
 	"""Test command."""
-	await ctx.respond("<:look2:1270758550695837706>")
+	await ctx.respond(getenv("LOOK2_EMOJI", ":look2:"))
 
 
 def parse_arguments() -> None:
@@ -452,7 +452,7 @@ def parse_arguments() -> None:
 		"-V",
 		"--version",
 		action="version",
-		version="%(prog)s 0.4.0",
+		version="%(prog)s 0.5.0",
 	)
 	parser.add_argument(
 		"-v",

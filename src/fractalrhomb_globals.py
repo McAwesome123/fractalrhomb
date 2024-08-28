@@ -14,6 +14,7 @@ import json
 import logging
 import logging.handlers
 import math
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -24,9 +25,12 @@ import discord
 import discord.utils
 
 intents = discord.Intents.default()
+__activity_emoji = os.getenv("NXEYE_EMOJI")
+if __activity_emoji is not None:
+	__activity_emoji = discord.PartialEmoji.from_str(__activity_emoji).to_dict()
 activity = discord.CustomActivity(
 	"observing you",
-	emoji=discord.PartialEmoji.from_str("<:nxeye:1277840622459289641>").to_dict(),
+	emoji=__activity_emoji,
 )
 bot = discord.Bot(intents=intents, activity=activity)
 
