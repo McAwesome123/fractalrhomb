@@ -8,6 +8,7 @@
 
 """Module containing dataclasses used the fractalthorns API handler."""
 
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -128,14 +129,18 @@ class Image:
 	speedpaint_video_url: str | None
 	primary_color: str | None
 	secondary_color: str | None
+	image_link: str
 
 	type ImageType = dict[str, str | datetime | int | bool | list[str] | None]
 
 	@staticmethod
-	def from_obj(obj: ImageType) -> "Image":
+	def from_obj(image_link: str, obj: ImageType) -> "Image":
 		"""Create an Image from an object.
 
-		Argument: obj -- The object to create an Image from.
+		Arguments:
+		---------
+		image_link -- The link to the image.
+		obj -- The object to create an Image from.
 		(Expected: single_image or an item from all_images["images"].
 		single_image and all_images need to be converted from json first.
 		["image_url"] and ["thumb_url"] should have the full URL.)
@@ -153,6 +158,7 @@ class Image:
 			obj.get("speedpaint_video_url"),
 			obj.get("primary_color"),
 			obj.get("secondary_color"),
+			image_link,
 		)
 
 	def __str__(self) -> str:
@@ -173,6 +179,7 @@ class Image:
 				f"speedpaint video url: {self.speedpaint_video_url}",
 				f"primary color: {self.primary_color}",
 				f"secondary color: {self.secondary_color}",
+				f"image link: {self.image_link}",
 			)
 		)
 
@@ -188,7 +195,7 @@ class Image:
 
 		Valid formatting items:
 		-----------------------
-		"title" -- The image title (default: True)
+		"title" -- The image title (can contain a link to the image) (default: True)
 		"name" -- Identifying name of the image (default: False)
 		"ordinal" -- Image index (1-based) (default: False)
 		"date" -- Date created (default: False)
@@ -200,6 +207,7 @@ class Image:
 		"speedpaint_video_url" -- Link to the speedpaint (default: True)
 		"primary_color" -- Approximation of most dominant color (default: False)
 		"secondary_color" -- Approximation of second most dominant color (default: False)
+		"image_link" -- URL to the image itself (default: True)
 		"""
 		if formatting is None:
 			formatting = {
@@ -215,6 +223,7 @@ class Image:
 				"speedpaint_video_url": True,
 				"primary_color": False,
 				"secondary_color": False,
+				"image_link": True,
 			}
 
 		valid_formatting = [
@@ -230,6 +239,7 @@ class Image:
 			"speedpaint_video_url",
 			"primary_color",
 			"secondary_color",
+			"image_link",
 		]
 		formatting = [
 			i for i, j in formatting.items() if i in valid_formatting and j is True
@@ -246,7 +256,10 @@ class Image:
 				image_join_list.append(f"> ___{self.name}___")
 
 			if format_ == "title":
-				image_join_list.append(f"> ## {self.title}")
+				title = self.title
+				if "image_link" in formatting:
+					title = f"[{title}](<{self.image_link}>)"
+				image_join_list.append(f"> ## {title}")
 
 			if format_ == "ordinal":
 				image_join_list.append(
@@ -338,14 +351,20 @@ class Image:
 				image_join_list.append(colors)
 				secondary_color_done = True
 
+			if format_ == "image_link" and "title" not in formatting:
+				image_link = f"> <{self.image_link}>"
+				image_join_list.append(image_link)
+
 		return "\n".join(image_join_list)
 
 	def format_inline(self) -> str:
 		"""Return a string with discord formatting (without linebreaks)."""
 		if self.speedpaint_video_url is None:
-			return f"> **{self.title}** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, [image url](<{self.image_url}>), no speedpaint video_)"
+			speedpaint_video_url = "no speedpaint video"
+		else:
+			speedpaint_video_url = f"[speedpaint video](<{self.speedpaint_video_url}>)"
 
-		return f"> **{self.title}** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, [image url](<{self.image_url}>), [speedpaint video](<{self.speedpaint_video_url}>)_)"
+		return f"> **[{self.title}](<{self.image_link}>)** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, {speedpaint_video_url}_)"
 
 
 @dataclass
@@ -354,20 +373,27 @@ class ImageDescription:
 
 	title: str
 	description: str | None
+	image_link: str
 
 	type ImageDescriptionType = dict[str, str | None]
 
 	@staticmethod
-	def from_obj(obj: ImageDescriptionType) -> "ImageDescription":
+	def from_obj(
+		title: str, image_link: str, obj: ImageDescriptionType
+	) -> "ImageDescription":
 		"""Create an ImageDescription from an object.
 
-		Argument: obj -- The object to create a ImageDescription from.
-		(Expected: image_description with an added title.
-		image_description needs to be converted from json first.)
+		Argument:
+		---------
+		title -- The title of the image.
+		image_link -- The link to the image.
+		obj -- The object to create a ImageDescription from.
+		(Expected: image_description, converted from json.)
 		"""
 		return ImageDescription(
-			obj["title"],
+			title,
 			obj.get("description"),
+			image_link,
 		)
 
 	def __str__(self) -> str:
@@ -378,6 +404,7 @@ class ImageDescription:
 			(
 				f"title: {self.title}",
 				f"description: {self.description}",
+				f"image link: {self.image_link}",
 			)
 		)
 
@@ -389,7 +416,7 @@ class ImageDescription:
 
 		description_join_list.extend(
 			(
-				f"> # {self.title}",
+				f"> ## [{self.title}](<{self.image_link}>)",
 				(
 					f">>> {self.description.rstrip()}"
 					if self.description is not None
@@ -410,14 +437,18 @@ class Record:
 	title: str | None
 	solved: bool
 	iteration: str | None
+	record_link: str | None
 
 	type RecordType = dict[str, str | bool | None]
 
 	@staticmethod
-	def from_obj(obj: RecordType) -> "Record":
+	def from_obj(record_link: str | None, obj: RecordType) -> "Record":
 		"""Create a Record from an object.
 
-		Argument: obj -- The object to create a Record from.
+		Arguments:
+		---------
+		record_link -- The link to the record.
+		obj -- The object to create a Record from.
 		(Expected: single_record or an item from ["records"] from full_episodic.
 		single_record and full_episodic need to be converted from json first.)
 		"""
@@ -427,6 +458,7 @@ class Record:
 			obj.get("title"),
 			obj["solved"],
 			obj.get("iteration"),
+			record_link,
 		)
 
 	def __str__(self) -> str:
@@ -440,6 +472,7 @@ class Record:
 				f"title: {self.title}",
 				f"solved: {self.solved}",
 				f"iteration: {self.iteration}",
+				f"record link: {self.record_link}",
 			)
 		)
 
@@ -455,11 +488,12 @@ class Record:
 
 		Valid formatting items:
 		-----------------------
-		"title" -- The record title (default: True)
+		"title" -- The record title (can contain a link to the record) (default: True)
 		"name" -- Identifying name of the record (default: True)
 		"iteration" -- The record's iteration (default: True)
 		"chapter" -- Chapter the record belongs to (default: True)
 		"solved" -- Whether the record is solved (default: False)
+		"record_link" -- URL to the record itself (default: True)
 		"""
 		if formatting is None:
 			formatting = {
@@ -468,9 +502,17 @@ class Record:
 				"iteration": True,
 				"chapter": True,
 				"solved": False,
+				"record_link": True,
 			}
 
-		valid_formatting = ["title", "name", "iteration", "chapter", "solved"]
+		valid_formatting = [
+			"title",
+			"name",
+			"iteration",
+			"chapter",
+			"solved",
+			"record_link",
+		]
 		formatting = [
 			i for i, j in formatting.items() if i in valid_formatting and j is True
 		]
@@ -493,8 +535,10 @@ class Record:
 				name_done = True
 
 			if format_ == "title" and self.solved:
-				title = f"> ## {self.title}"
-				record_join_list.append(title)
+				title = self.title
+				if "record_link" in formatting:
+					title = f"[{title}]({self.record_link})"
+				record_join_list.append(f"> ## {title}")
 			elif format_ == "title" and not self.solved:
 				title = "> ## ??????"
 				record_join_list.append(title)
@@ -510,6 +554,10 @@ class Record:
 				iteration = f"{iteration}_)"
 				record_join_list.append(iteration)
 				iteration_done = True
+
+			if format_ == "record_link" and "title" not in formatting and self.solved:
+				record_link = f"> <{self.record_link}>"
+				record_join_list.append(record_link)
 
 		return "\n".join(record_join_list)
 
@@ -527,7 +575,7 @@ class Record:
 		"""
 		if self.solved:
 			name = self.name
-			title = self.title
+			title = f"[{self.title}](<{self.record_link}>)"
 			iteration = f"in {self.iteration}"
 			chapter = f"chapter {self.chapter}"
 
@@ -552,16 +600,25 @@ class Chapter:
 	type ChapterType = dict[str, str | list[Record.RecordType]]
 
 	@staticmethod
-	def from_obj(obj: ChapterType) -> "Chapter":
+	def from_obj(record_base: str, obj: ChapterType) -> "Chapter":
 		"""Create a Chapter from an object.
 
-		Argument: obj -- The object to create a Chapter from.
+		Arguments:
+		---------
+		record_base -- The base URL for records.
+		obj -- The object to create a Chapter from.
 		(Expected: an item from full_episodic["chapters"].
-		full_episodic needs to be converted from json first.)
+		full_episodic needs to be converted from json first.
+		["record_base"] needs to be added, containing the base url to records.)
 		"""
+		records = []
+		for i in obj["records"]:
+			record_link = f"{record_base}{i["name"]}"
+			records.append(Record.from_obj(record_link, i))
+
 		return Chapter(
 			obj["name"],
-			[Record.from_obj(i) for i in obj["records"]],
+			records,
 		)
 
 	def __str__(self) -> str:
@@ -694,16 +751,18 @@ class RecordText:
 	languages: list[str]
 	characters: list[str]
 	lines: list[RecordLine]
+	record_link: str
 
 	type RecordTextType = dict[str, str | list[str] | list[RecordLine.RecordLineType]]
 
 	@staticmethod
-	def from_obj(title: str, obj: RecordTextType) -> "RecordText":
+	def from_obj(title: str, record_link: str, obj: RecordTextType) -> "RecordText":
 		"""Create a RecordText from an object.
 
 		Arguments:
 		---------
 		title -- The title of the record.
+		record_link -- The link to the record.
 		obj -- The object to create a RecordText from.
 		(Expected: record_text, converted from json.)
 		"""
@@ -714,6 +773,7 @@ class RecordText:
 			obj["languages"],
 			obj["characters"],
 			[RecordLine.from_obj(i) for i in obj["lines"]],
+			record_link,
 		)
 
 	def __str__(self) -> str:
@@ -728,6 +788,7 @@ class RecordText:
 				f"languages: {self.languages}",
 				f"characters: {self.characters}",
 				f"num lines: {len(self.lines)}",
+				f"record link: {self.record_link}",
 			)
 		)
 
@@ -744,13 +805,8 @@ class RecordText:
 				break
 
 		if requested:
-			record_join_list.extend(
-				(
-					"> <:nsirp_11:1271772847806877727><:nsirp_12:1271772877300957247>",
-					"> <:nsirp_21:1271772902915706943><:nsirp_22:1271772919286206495>",
-				)
-			)
-		record_join_list.append(f"> ## {self.title}")
+			record_join_list.append(os.getenv("NSIRP_EMOJIS", "> NSIRP"))
+		record_join_list.append(f"> ## [{self.title}](<{self.record_link}>)")
 
 		pre_header = f"> (_iteration: {self.iteration}; language(s): "
 
@@ -804,10 +860,16 @@ class SearchResult:
 	]
 
 	@staticmethod
-	def from_obj(obj: SearchResultType) -> "SearchResult":
+	def from_obj(
+		record_base: str, image_base: str, obj: SearchResultType
+	) -> "SearchResult":
 		"""Create a SearchResult from an object.
 
-		Argument: obj -- The object to create a SearchResult from.
+		Arguments:
+		---------
+		record_base -- The base URL for records.
+		image_base -- The base URL for images.
+		obj -- The object to create a SearchResult from.
 		(Expected: an item from domain_search["results"].
 		search_results needs to be converted from json first.
 		If the type is "episodic-line", obj["record_line"] should be a RecordLine or a compatible dictionary.)
@@ -815,10 +877,21 @@ class SearchResult:
 		if obj.get("record_line") is not None and isinstance(obj["record_line"], dict):
 			obj["record_line"] = RecordLine.from_obj(obj["record_line"])
 
+		image_link = None
+		record_link = None
+		if obj.get("image") is not None:
+			image_link = f"{image_base}{obj["image"]["name"]}"
+		if obj.get("record") is not None and obj["record"]["solved"]:
+			record_link = f"{record_base}{obj["record"]["name"]}"
+
 		return SearchResult(
 			obj["type"],
-			None if obj.get("image") is None else Image.from_obj(obj["image"]),
-			None if obj.get("record") is None else Record.from_obj(obj["record"]),
+			None
+			if obj.get("image") is None
+			else Image.from_obj(image_link, obj["image"]),
+			None
+			if obj.get("record") is None
+			else Record.from_obj(record_link, obj["record"]),
 			obj.get("record_line"),
 			obj.get("record_matched_text"),
 			obj.get("record_line_index"),

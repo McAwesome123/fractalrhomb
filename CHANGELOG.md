@@ -9,7 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
-## [0.4.0] - 2024-08-17
+## [0.5.0] - 2024-08-28
+
+### Added
+
+- Image and record related requests now include links to the images and records
+  - Those will need to be passed as a parameter to `from_obj()`
+
+### Changed
+
+- Emojis are now used through environment variables (because they won't be the same for every bot)
+- `from_obj()` methods no longer require adding arbitrary keys to the objects; those keys have been turned into parameters for `from_obj()`
+
+### Fixed
+
+- Setting the `image` parameter to `none` for `/image` no longer gives an exception
+
+## [0.4.0] - 2024-08-27
 
 ### Added
 

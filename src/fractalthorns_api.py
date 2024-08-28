@@ -118,6 +118,8 @@ class FractalthornsAPI(API):
 		}
 
 		super().__init__("https://fractalthorns.com", "/api/v1/", __requests_list)
+		self.__BASE_IMAGE_URL = f"{self._base_url}/image/"
+		self.__BASE_RECORD_URL = f"{self._base_url}/episodic/"
 
 		self.__cached_news_items: tuple[list[ftd.NewsEntry], dt.datetime] | None = None
 		self.__cached_images: dict[str, tuple[ftd.Image, dt.datetime]] = {}
@@ -617,11 +619,12 @@ class FractalthornsAPI(API):
 			image_metadata["thumb_url"] = (
 				f"{self._base_url}{image_metadata["thumb_url"]}"
 			)
+			image_link = f"{self.__BASE_IMAGE_URL}{image_metadata["name"]}"
 
 			self.__cached_images.update(
 				{
 					image: (
-						ftd.Image.from_obj(image_metadata),
+						ftd.Image.from_obj(image_link, image_metadata),
 						dt.datetime.now(dt.UTC),
 					)
 				}
@@ -630,7 +633,7 @@ class FractalthornsAPI(API):
 				self.__cached_images.update(
 					{
 						self.__cached_images[image][0].name: (
-							ftd.Image.from_obj(image_metadata),
+							ftd.Image.from_obj(image_link, image_metadata),
 							dt.datetime.now(dt.UTC),
 						)
 					}
@@ -747,12 +750,14 @@ class FractalthornsAPI(API):
 				image_description = json.loads(await resp.text())
 
 			image_title = (await self.__get_single_image(session, image)).title
-			image_description.update({"title": image_title})
+			image_link = f"{self.__BASE_IMAGE_URL}{image}"
 
 			self.__cached_image_descriptions.update(
 				{
 					image: (
-						ftd.ImageDescription.from_obj(image_description),
+						ftd.ImageDescription.from_obj(
+							image_title, image_link, image_description
+						),
 						dt.datetime.now(dt.UTC),
 					)
 				}
@@ -800,8 +805,9 @@ class FractalthornsAPI(API):
 			for image in images:
 				image["image_url"] = f"{self._base_url}{image["image_url"]}"
 				image["thumb_url"] = f"{self._base_url}{image["thumb_url"]}"
+				image_link = f"{self.__BASE_IMAGE_URL}{image["name"]}"
 				self.__cached_images.update(
-					{image["name"]: (ftd.Image.from_obj(image), cache_time)}
+					{image["name"]: (ftd.Image.from_obj(image_link, image), cache_time)}
 				)
 
 			self.__cached_images.update(
@@ -854,7 +860,7 @@ class FractalthornsAPI(API):
 			self.purge_cache(self.CacheTypes.RECORDS, force_purge=True)
 
 			chapters = {
-				chapter["name"]: ftd.Chapter.from_obj(chapter)
+				chapter["name"]: ftd.Chapter.from_obj(self.__BASE_RECORD_URL, chapter)
 				for chapter in chapters_list
 			}
 
@@ -908,10 +914,14 @@ class FractalthornsAPI(API):
 				resp.raise_for_status()
 				record = json.loads(await resp.text())
 
+			record_link = None
+			if record["solved"]:
+				record_link = f"{self.__BASE_RECORD_URL}{record["name"]}"
+
 			self.__cached_records.update(
 				{
 					name: (
-						ftd.Record.from_obj(record),
+						ftd.Record.from_obj(record_link, record),
 						dt.datetime.now(dt.UTC),
 					)
 				}
@@ -955,10 +965,13 @@ class FractalthornsAPI(API):
 				record_contents = json.loads(await resp.text())
 
 			record_title = (await self.__get_single_record(session, name)).title
+			record_link = f"{self.__BASE_RECORD_URL}{name}"
 			self.__cached_record_contents.update(
 				{
 					name: (
-						ftd.RecordText.from_obj(record_title, record_contents),
+						ftd.RecordText.from_obj(
+							record_title, record_link, record_contents
+						),
 						dt.datetime.now(dt.UTC),
 					)
 				}
@@ -1039,7 +1052,12 @@ class FractalthornsAPI(API):
 			self.__cached_search_results.update(
 				{
 					(term, type_): (
-						[ftd.SearchResult.from_obj(i) for i in search_results],
+						[
+							ftd.SearchResult.from_obj(
+								self.__BASE_RECORD_URL, self.__BASE_IMAGE_URL, i
+							)
+							for i in search_results
+						],
 						dt.datetime.now(dt.UTC),
 					)
 				}
@@ -1131,7 +1149,7 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.IMAGES:
 						cache_contents = {
 							(i if i != "__None__" else None): (
-								ftd.Image.from_obj(j[0]),
+								ftd.Image.from_obj(j[0]["image_link"], j[0]),
 								dt.datetime.fromtimestamp(j[1], tz=dt.UTC),
 							)
 							for i, j in cache_contents.items()
@@ -1140,7 +1158,9 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.IMAGE_DESCRIPTIONS:
 						cache_contents = {
 							i: (
-								ftd.ImageDescription.from_obj(j[0]),
+								ftd.ImageDescription.from_obj(
+									j[0]["title"], j[0]["image_link"], j[0]
+								),
 								dt.datetime.fromtimestamp(j[1], tz=dt.UTC),
 							)
 							for i, j in cache_contents.items()
@@ -1149,7 +1169,7 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.CHAPTERS:
 						cache_contents = (
 							{
-								i: ftd.Chapter.from_obj(j)
+								i: ftd.Chapter.from_obj(self.__BASE_RECORD_URL, j)
 								for i, j in cache_contents[0].items()
 							},
 							dt.datetime.fromtimestamp(cache_contents[1], tz=dt.UTC),
@@ -1158,7 +1178,7 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.RECORDS:
 						cache_contents = {
 							i: (
-								ftd.Record.from_obj(j[0]),
+								ftd.Record.from_obj(j[0]["record_link"], j[0]),
 								dt.datetime.fromtimestamp(j[1], tz=dt.UTC),
 							)
 							for i, j in cache_contents.items()
@@ -1167,7 +1187,9 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.RECORD_CONTENTS:
 						cache_contents = {
 							i: (
-								ftd.RecordText.from_obj(j[0]["title"], j[0]),
+								ftd.RecordText.from_obj(
+									j[0]["title"], j[0]["record_link"], j[0]
+								),
 								dt.datetime.fromtimestamp(j[1], tz=dt.UTC),
 							)
 							for i, j in cache_contents.items()
@@ -1176,7 +1198,12 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.SEARCH_RESULTS:
 						cache_contents = {
 							(i[: i.rindex("|")], i[i.rindex("|") + 1 :]): (
-								[ftd.SearchResult.from_obj(k) for k in j[0]],
+								[
+									ftd.SearchResult.from_obj(
+										self.__BASE_RECORD_URL, self.__BASE_IMAGE_URL, k
+									)
+									for k in j[0]
+								],
 								dt.datetime.fromtimestamp(j[1], tz=dt.UTC),
 							)
 							for i, j in cache_contents.items()

@@ -171,6 +171,7 @@ class Fractalthorns(discord.Cog):
 			"speedpaint",
 			"primary",
 			"secondary",
+			"link",
 		]
 
 		used_options = ctx.value.split()
@@ -206,7 +207,7 @@ class Fractalthorns(discord.Cog):
 	@discord.option(
 		"show",
 		str,
-		description="What information to show and in what order (default: title canon characters speedpaint)",
+		description="What information to show and in what order (default: title canon characters speedpaint link)",
 		autocomplete=discord.utils.basic_autocomplete(single_image_show),
 	)
 	async def single_image(
@@ -244,6 +245,8 @@ class Fractalthorns(discord.Cog):
 						show[i] = "primary_color"
 					case "secondary":
 						show[i] = "secondary_color"
+					case "link":
+						show[i] = "image_link"
 
 		formatting = frg.get_formatting(show)
 
@@ -266,11 +269,16 @@ class Fractalthorns(discord.Cog):
 				response_text = frg.EMPTY_MESSAGE
 
 			if deferred:
-				await ctx.respond(response_text, file=file)
-			else:
+				if file is not None:
+					await ctx.respond(response_text, file=file)
+				else:
+					await ctx.respond(response_text)
+			elif file is not None:
 				await ctx.send(
 					f"<@{ctx.author.id}>\n{response_text}", file=file, silent=True
 				)
+			else:
+				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -546,7 +554,7 @@ class Fractalthorns(discord.Cog):
 	@staticmethod
 	async def single_record_show(ctx: discord.AutocompleteContext) -> list[str]:
 		"""Give available items for record show."""
-		options = ["title", "name", "iteration", "chapter", "solved"]
+		options = ["title", "name", "iteration", "chapter", "solved", "record_link"]
 
 		used_options = ctx.value.split()
 		if (
@@ -575,7 +583,7 @@ class Fractalthorns(discord.Cog):
 	@discord.option(
 		"show",
 		str,
-		description="What information to show and in what order (default: title name iteration chapter)",
+		description="What information to show and in what order (default: title name iteration chapter record_link)",
 		autocomplete=discord.utils.basic_autocomplete(single_record_show),
 	)
 	async def single_record(
