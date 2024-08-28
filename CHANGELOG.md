@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Image and record related requests now include links to the images and records
   - Those will need to be passed as a parameter to `from_obj()`
+  - Deleting `.apicache` is recommended as the old cache will cause errors when loading.
 
 ### Changed
 
