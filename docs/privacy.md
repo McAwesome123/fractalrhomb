@@ -7,8 +7,7 @@
 By interacting with the bot, you agree that it may collect, store, and share your Discord User ID, as well as any information that you send as part of the interaction. Interactions include: using the bot's slash commands, directly messaging the bot.\
 When using any [fractalthorns](https://fractalthorns.com/) commands, the information given to them may be passed to the website's API in order for the bot to complete your request.
 
-> [!NOTE]
-> This is only a brief summary, and as such, it may be incomplete or inaccurate. In cases where this summary is inconsistent with the rest of this document, the latter prevails.
+(Note: This is only a brief summary, and as such, it may be incomplete or inaccurate. In cases where this summary is inconsistent with the rest of this document, the latter prevails.)
 
 ## Introduction
 
