@@ -17,7 +17,8 @@ The information collected and how its used is described below in this document.\
 
 ## What data is collected and why
 
-*In general, any information given to the bot through the use of slash commands may be read and processed. Unless stated otherwise, this information is not stored.*
+*In general, any information given to the bot through the use of slash commands may be read and processed.*\
+Additionally, used commands and the parameters given to them may be logged.
 
 When using any of the bot's slash commands, it may collect your Discord User ID (hereafter referred to as "User ID") in order to address you in its reply under certain circumstances. In these situations, your User ID is not stored.
 
