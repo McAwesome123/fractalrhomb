@@ -153,6 +153,8 @@ async def on_application_command_error(
 @bot.slash_command(description="Pong!")
 async def ping(ctx: discord.ApplicationContext) -> None:
 	"""Pong."""
+	frg.discord_logger.info("Ping command used")
+
 	if bot.latency < PING_LATENCY_HIGH:
 		latency = f"{round(bot.latency * 1000)!s}ms"
 	else:
@@ -165,6 +167,8 @@ async def ping(ctx: discord.ApplicationContext) -> None:
 @bot.slash_command(name="license")
 async def show_license(ctx: discord.ApplicationContext) -> None:
 	"""Display the bot's license message."""
+	frg.discord_logger.info("License command used")
+
 	license_text = (
 		">>> fractalrhomb\n"
 		"Copyright (C) 2024 [McAwesome](<https://github.com/McAwesome123>)\n"
@@ -200,6 +204,9 @@ async def purge(
 	ctx: discord.ApplicationContext, cache: str, *, force: bool = False
 ) -> None:
 	"""Purge the bot's cache."""
+	msg = f"Purge command used ({cache=}, {force=})"
+	frg.discord_logger.info(msg)
+
 	user = str(ctx.author.id)
 
 	if force:
@@ -367,6 +374,9 @@ async def add_bot_channel(
 	hidden: bool = False,
 ) -> None:
 	"""Add the channel as a bot channel (requires Manage Server permission)."""
+	msg = f"Add bot channel command used ({channel=}, {hidden=})"
+	frg.discord_logger.info(msg)
+
 	if channel is not None:
 		if isinstance(channel, discord.abc.Messageable):
 			channel_id = str(channel.id)
@@ -407,6 +417,9 @@ async def remove_bot_channel(
 	hidden: bool = False,
 ) -> None:
 	"""Remove the channel as a bot channel (requires Manage Server permission)."""
+	msg = f"Remove bot channel command used ({channel=}, {hidden=})"
+	frg.discord_logger.info(msg)
+
 	if channel is not None:
 		if isinstance(channel, discord.abc.Messageable):
 			channel_id = str(channel.id)
@@ -439,6 +452,9 @@ async def remove_all_bot_channels(
 	ctx: discord.ApplicationContext, *, hidden: bool = False
 ) -> None:
 	"""Remove all channels as a bot channel (requires Manage Server permission)."""
+	msg = f"Remove all bot channels command used ({hidden=})"
+	frg.discord_logger.info(msg)
+
 	guild_id = str(ctx.guild_id)
 
 	if guild_id not in frg.bot_data.bot_channels:
@@ -457,6 +473,7 @@ async def remove_all_bot_channels(
 @bot.slash_command(name="test")
 async def test_command(ctx: discord.ApplicationContext) -> None:
 	"""Test command."""
+	frg.discord_logger.info("Test command used")
 	await ctx.respond(getenv("LOOK2_EMOJI", ":look2:"))
 
 

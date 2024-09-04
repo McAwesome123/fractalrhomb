@@ -81,6 +81,9 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show the latest news."""
+		msg = f"All news command used ({limit=}, {start_index=}, {show=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -224,6 +227,9 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show an image."""
+		msg = f"Single image command used ({name=}, {image=}, {show=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -328,6 +334,9 @@ class Fractalthorns(discord.Cog):
 		name: str,
 	) -> None:
 		"""Show the description of an image."""
+		msg = f"Image description command used ({name=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -392,6 +401,9 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Show a list of all images."""
+		msg = f"All images command used ({limit=}, {start_index=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -516,6 +528,9 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show a sketch."""
+		msg = f"Single sketch command used ({name=}, {image=}, {show=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -602,6 +617,9 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Show a list of all sketches."""
+		msg = f"All sketches command used ({limit=}, {start_index=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -695,6 +713,9 @@ class Fractalthorns(discord.Cog):
 		chapter: str | None = None,
 	) -> None:
 		"""Show a list of records in a chapter."""
+		msg = f"Full episodic command used ({chapter=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -801,6 +822,9 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show a record entry."""
+		msg = f"Single record command used ({name=}, {show=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -854,6 +878,9 @@ class Fractalthorns(discord.Cog):
 	)
 	async def record_text(self, ctx: discord.ApplicationContext, name: str) -> None:
 		"""Show a record's text."""
+		msg = f"Record text command used ({name=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -928,6 +955,11 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Make a search."""
+		msg = (
+			f"Domain search command used ({term=}, {type_=}, {limit=}, {start_index=})"
+		)
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -1140,6 +1172,9 @@ class Fractalthorns(discord.Cog):
 		has_description: bool | None = None,
 	) -> None:
 		"""Get a random image."""
+		msg = f"Random image command used ({name=}, {description=}, {canon=}, {character=}, {has_description=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -1367,6 +1402,9 @@ class Fractalthorns(discord.Cog):
 		requested: bool | None = None,
 	) -> None:
 		"""Get a random record."""
+		msg = f"Random record command used ({name=}, {chapter=}, {iteration=}, {language=}, {character=}, {requested=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -1493,6 +1531,9 @@ class Fractalthorns(discord.Cog):
 		requested: bool | None = None,
 	) -> None:
 		"""Get a random record line."""
+		msg = f"Random record line command used ({text=}, {language=}, {character=}, {emphasis=}, {name=}, {chapter=}, {iteration=}, {requested=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -1607,6 +1648,9 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Search for images."""
+		msg = f"Search images command used ({name=}, {description=}, {canon=}, {character=}, {has_description=}, {limit=}, {start_index=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -1750,6 +1794,9 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Search for images."""
+		msg = f"Search records command used ({name=}, {chapter=}, {iteration=}, {language=}, {character=}, {requested=}, {limit=}, {start_index=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -1902,6 +1949,9 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Search for images."""
+		msg = f"Search record lines command used ({text=}, {language=}, {character=}, {emphasis=}, {name=}, {chapter=}, {iteration=}, {requested=}, {limit=}, {start_index=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -1996,6 +2046,8 @@ class Fractalthorns(discord.Cog):
 	@gather_group.command(name="gather")
 	async def gather_all(self, ctx: discord.ApplicationContext) -> None:
 		"""Gather record texts and image descriptions in bulk."""
+		self.logger.info("Gather all command used")
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
