@@ -979,7 +979,11 @@ class FractalthornsAPI(API):
 			requested_matches = (
 				requested is None
 				or bool(
-					[j for j in record_contents[i.name].header_lines if "unrequested" in j]
+					[
+						j
+						for j in record_contents[i.name].header_lines
+						if "unrequested" in j
+					]
 				)
 				!= requested
 			)

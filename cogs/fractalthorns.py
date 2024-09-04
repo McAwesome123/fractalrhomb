@@ -1110,7 +1110,7 @@ class Fractalthorns(discord.Cog):
 	@discord.option(
 		"description",
 		str,
-		description='Only images whose descriptions contain this (regex)',
+		description="Only images whose descriptions contain this (regex)",
 	)
 	@discord.option(
 		"canon",
@@ -1568,7 +1568,7 @@ class Fractalthorns(discord.Cog):
 	@discord.option(
 		"description",
 		str,
-		description='Only images whose descriptions contain this (regex)',
+		description="Only images whose descriptions contain this (regex)",
 	)
 	@discord.option(
 		"canon",
