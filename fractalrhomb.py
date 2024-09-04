@@ -142,7 +142,11 @@ async def on_application_command_error(
 ) -> None:
 	"""Do stuff when there's a command error."""
 	response = "an unhandled exception occurred"
-	await ctx.respond(response)
+	if ctx.response.is_done():
+		response = f"<@{ctx.author.id}> {response}"
+		await ctx.send(response, silent=True)
+	else:
+		await ctx.respond(response)
 	raise error
 
 
@@ -172,30 +176,60 @@ async def show_license(ctx: discord.ApplicationContext) -> None:
 	await ctx.respond(license_text)
 
 
-purge_group = bot.create_group("cache", "Manage the bot's cache.")
-
-
-@purge_group.command(name="purge")
+@bot.slash_command(name="purge")
 @discord.option(
 	"cache",
 	str,
 	choices=[
-		i.value
-		for i in FractalthornsAPI.CacheTypes
-		if i
-		not in {
-			FractalthornsAPI.CacheTypes.CACHE_METADATA,
-			FractalthornsAPI.CacheTypes.FULL_RECORD_CONTENTS,
-		}
+		*[
+			i.value
+			for i in FractalthornsAPI.CacheTypes
+			if i
+			not in {
+				FractalthornsAPI.CacheTypes.CACHE_METADATA,
+				FractalthornsAPI.CacheTypes.FULL_RECORD_CONTENTS,
+				FractalthornsAPI.CacheTypes.IMAGE_DESCRIPTIONS,
+			}
+		],
+		"all",
 	],
+	description="Which cache to purge?",
 )
+@discord.option("force", bool)
 async def purge(
-	ctx: discord.ApplicationContext,
-	cache: str,
+	ctx: discord.ApplicationContext, cache: str, *, force: bool = False
 ) -> None:
 	"""Purge the bot's cache."""
+	user = str(ctx.author.id)
+
+	if force:
+		force_purge_allowed = json.loads(getenv("FORCE_PURGE_ALLOWED"))
+
+		if user not in force_purge_allowed:
+			msg = f"Unauthorized force purge attempt by {user}."
+			discord_logger.warning(msg)
+
+			response = "you cannot do that."
+			await ctx.respond(response)
+			return
+
+	if cache == "all":
+		await purge_all(ctx, force=force)
+		return
+
 	cache = FractalthornsAPI.CacheTypes(cache)
-	user = frg.bot_data.purge_cooldowns.get(str(ctx.author.id))
+
+	if force:
+		fractalthorns_api.purge_cache(cache, force_purge=True)
+
+		msg = f"'{cache.value}' force purged by {ctx.author.id}."
+		discord_logger.info(msg)
+
+		response = f"successfully force purged {cache.value}"
+		await ctx.respond(response)
+		return
+
+	user = frg.bot_data.purge_cooldowns.get(user)
 	if user is not None:
 		time = user.get(cache.value)
 		if (
@@ -212,9 +246,9 @@ async def purge(
 
 	except CachePurgeError as exc:
 		if exc.allowed_time is not None:
-			response = f"could not purge the cache - {exc.reason}\ntry again <t:{ceil(exc.args[1].timestamp())}:R>"
+			response = f"could not purge the cache - {exc.reason.lower()}\ntry again <t:{ceil(exc.args[1].timestamp())}:R>"
 		elif exc.reason is not None:
-			response = f"could not purge the cache - {exc.reason}"
+			response = f"could not purge the cache - {exc.reason.lower()}"
 		else:
 			response = "could not purge the cache"
 		await ctx.respond(response)
@@ -234,16 +268,37 @@ async def purge(
 			discord_logger.exception("Could not save bot data.")
 
 
-@purge_group.command(name="purgeall")
-async def purge_all(ctx: discord.ApplicationContext) -> None:
+async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 	"""Purge the bot's entire cache."""
-	user = frg.bot_data.purge_cooldowns.get(str(ctx.author.id))
+	user = str(ctx.author.id)
+
+	if force:
+		for cache in FractalthornsAPI.CacheTypes:
+			if cache in {
+				FractalthornsAPI.CacheTypes.CACHE_METADATA,
+				FractalthornsAPI.CacheTypes.FULL_RECORD_CONTENTS,
+				FractalthornsAPI.CacheTypes.FULL_IMAGE_DESCRIPTIONS,
+			}:
+				continue
+
+			fractalthorns_api.purge_cache(cache, force_purge=True)
+
+		msg = f"All caches force purged by {user}."
+		discord_logger.info(msg)
+
+		response = "successfully force purged all caches"
+		await ctx.respond(response)
+		return
+
+	user = frg.bot_data.purge_cooldowns.get(user)
+
 	purged = []
 	cooldown = {}
 	for cache in FractalthornsAPI.CacheTypes:
 		if cache in {
 			FractalthornsAPI.CacheTypes.CACHE_METADATA,
 			FractalthornsAPI.CacheTypes.FULL_RECORD_CONTENTS,
+			FractalthornsAPI.CacheTypes.FULL_IMAGE_DESCRIPTIONS,
 		}:
 			continue
 
@@ -286,44 +341,6 @@ async def purge_all(ctx: discord.ApplicationContext) -> None:
 		earliest = min(cooldown, key=cooldown.get)
 
 		response = f"could not purge any caches.\nearliest available: '{earliest.value}' <t:{ceil(cooldown[earliest])}:R>"
-		await ctx.respond(response)
-
-
-@purge_group.command(name="forcepurge")
-@discord.option(
-	"cache",
-	str,
-	choices=[
-		i.value
-		for i in FractalthornsAPI.CacheTypes
-		if i
-		not in {
-			FractalthornsAPI.CacheTypes.CACHE_METADATA,
-			FractalthornsAPI.CacheTypes.FULL_RECORD_CONTENTS,
-		}
-	],
-)
-async def force_purge(
-	ctx: discord.ApplicationContext,
-	cache: str,
-) -> None:
-	"""Force purge the bot's cache, regardless of cooldowns (restricted)."""
-	cache = FractalthornsAPI.CacheTypes(cache)
-	force_purge_allowed = json.loads(getenv("FORCE_PURGE_ALLOWED"))
-
-	if str(ctx.author.id) in force_purge_allowed:
-		fractalthorns_api.purge_cache(cache, force_purge=True)
-
-		msg = f"'{cache.value}' force purged by {ctx.author.id}."
-		discord_logger.info(msg)
-
-		response = f"successfully force purged {cache.value}"
-		await ctx.respond(response)
-	else:
-		msg = f"Unauthorized force purge attempt by {ctx.author.id}."
-		discord_logger.warning(msg)
-
-		response = "you cannot do that."
 		await ctx.respond(response)
 
 

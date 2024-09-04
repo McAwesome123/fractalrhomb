@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.6.0] - 2024-09-04
+
+### Added
+
+- API coroutines for getting sketches
+- API coroutine for searching images, records, record lines
+- Sketch and MatchResult dataclasses
+- ItemsUngatheredError and SketchNotFoundError exceptions
+- Commands for getting sketches
+- Commands for a random image, record, record line
+- Commands for searching images, records, record lines
+
+### Changed
+
+- Increased required message length for warning for chapters
+- Purge commands are now 1 command
+- Lowered cache duration and purge cooldown for full record contents
+
+### Removed
+
+- "Too long" message for searches
+
 ## [0.5.0] - 2024-08-28
 
 ### Added

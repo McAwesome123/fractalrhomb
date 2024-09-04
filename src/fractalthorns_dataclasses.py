@@ -429,6 +429,131 @@ class ImageDescription:
 
 
 @dataclass
+class Sketch:
+	"""Data class containing a sketch."""
+
+	name: str
+	title: str
+	image_url: str
+	thumb_url: str
+	sketch_link: str
+
+	type SketchType = dict[str, str]
+
+	@staticmethod
+	def from_obj(sketch_link: str, obj: SketchType) -> "Sketch":
+		"""Create a Sketch from an object.
+
+		Arguments:
+		---------
+		sketch_link -- The link to the sketch.
+		obj -- The object to create a Sketch from.
+		(Expected: an item from all_sketches["sketches"].
+		all_sketches needs to be converted from json first.
+		["image_url"] and ["thumb_url"] should have the full URL.)
+		"""
+		return Sketch(
+			obj["name"], obj["title"], obj["image_url"], obj["thumb_url"], sketch_link
+		)
+
+	def __str__(self) -> str:
+		"""Return the class' contents, separated by newlines."""
+		str_list = []
+
+		str_list.extend(
+			(
+				f"name: {self.name}",
+				f"title: {self.title}",
+				f"image url: {self.image_url}",
+				f"thumb url: {self.thumb_url}",
+				f"sketch link: {self.sketch_link}",
+			)
+		)
+
+		return "\n".join(str_list)
+
+	def format(self, formatting: dict[str, bool] | None = None) -> str:
+		"""Return a string with discord formatting.
+
+		Keyword Arguments:
+		-----------------
+		formatting -- Defines which items to show and in what order (based on dict order).
+		Items that shouldn't be shown don't need to be included. Non-existent items are ignored.
+
+		Valid formatting items:
+		-----------------------
+		"title" -- Title of the sketch (can contain a link to the sketch) (default: True),
+		"name" -- Identifying name of the sketch (default: False),
+		"image_url" -- URL with the image data (default: False)
+		"thumb_url" -- URL with the thumbnail data (default: False)
+		"sketch_link" -- URL to the sketch itself (default: True)
+		"""
+		if formatting is None:
+			formatting = {
+				"title": True,
+				"name": False,
+				"image_url": False,
+				"thumb_url": False,
+				"sketch_link": True,
+			}
+
+		valid_formatting = [
+			"title",
+			"name",
+			"image_url",
+			"thumb_url",
+			"sketch_link",
+		]
+		formatting = [
+			i for i, j in formatting.items() if i in valid_formatting and j is True
+		]
+
+		image_join_list = []
+		image_url_done = False
+		thumb_url_done = False
+
+		for format_ in formatting:
+			if format_ == "name":
+				image_join_list.append(f"> ___{self.name}___")
+
+			if format_ == "title":
+				title = self.title
+				if "sketch_link" in formatting:
+					title = f"[{title}](<{self.sketch_link}>)"
+				image_join_list.append(f"> ## {title}")
+
+			if format_ == "image_url" and not thumb_url_done:
+				image_url = f"{self.image_url}"
+				image_url = f"> [image url](<{image_url}>)"
+				if "thumb_url" in formatting:
+					thumb_url = f"{self.thumb_url}"
+					thumb_url = f"[thumbnail url](<{thumb_url}>)"
+					image_url = f"{image_url} | {thumb_url}"
+				image_join_list.append(image_url)
+				image_url_done = True
+
+			if format_ == "thumb_url" and not image_url_done:
+				thumb_url = f"{self.thumb_url}"
+				thumb_url = f"> [thumbnail url](<{thumb_url}>)"
+				if "image_url" in formatting:
+					image_url = f"{self.image_url}"
+					image_url = f"[image url](<{image_url}>)"
+					thumb_url = f"{thumb_url} | {image_url}"
+				image_join_list.append(thumb_url)
+				thumb_url_done = True
+
+			if format_ == "sketch_link" and "title" not in formatting:
+				sketch_link = f"> <{self.sketch_link}>"
+				image_join_list.append(sketch_link)
+
+		return "\n".join(image_join_list)
+
+	def format_inline(self) -> str:
+		"""Return a string with discord formatting (without linebreaks)."""
+		return f"> **[{self.title}](<{self.sketch_link}>)** (_{self.name}_)"
+
+
+@dataclass
 class Record:
 	"""Data class containing record metadata."""
 
@@ -698,16 +823,18 @@ class RecordLine:
 		last_character -- The character returned by the last formatted line (or None).
 		last_language -- The language returned by the last formatted line (or None).
 		"""
-		text = self.text
-		if not (re.search(r"\n *\* ", text) or re.search(r"\n *- ", text)):
-			text = text.replace("\n", " ")
-			text = re.sub(r" {2,}", " ", text)
+		text = self.format_text()
 
 		if text.startswith(("- ", "* ")):
 			text = f"\n{text}"
 
 		if self.character is None:
-			line_string = f"`< {text} >`" if text == "..." else f"`< {text}>`"
+			if text.count("**") == 2:  # noqa: PLR2004
+				text = text.replace("**", "")
+				line_string = f"`< {text}>`" if text.endswith(" ") else f"`< {text} >`"
+				line_string = f"**{line_string}**"
+			else:
+				line_string = f"`< {text}>`" if text.endswith(" ") else f"`< {text} >`"
 		else:
 			speaker = []
 
@@ -727,8 +854,8 @@ class RecordLine:
 				speaker.append(f"({self.emphasis})")
 
 			line_string = " ".join(speaker)
-			if text.startswith("* "):
-				line_string = f"{line_string} :\n{text}"
+			if text.startswith(("* ", "- ")):
+				line_string = f"{line_string} **:**\n{text}"
 			else:
 				line_string = f"{line_string} **:** {text}"
 
@@ -739,6 +866,20 @@ class RecordLine:
 		line_string = line_string.replace("\n", "\n> ")
 		line_string = line_string.removesuffix("\n> ")
 		return (line_string, last_character, last_language)
+
+	def format_text(self) -> str:
+		"""Get the text without newlines and whitespace in the middle."""
+		text = self.text
+
+		if self.character is None:
+			return text
+
+		text = re.sub(r"(  ++|\n *+)(?![\*-])", " ", text)
+
+		if text.startswith(("- ", "* ")):
+			text = f"\n{text}"
+
+		return text
 
 
 @dataclass
@@ -805,7 +946,7 @@ class RecordText:
 				break
 
 		if requested:
-			record_join_list.append(os.getenv("NSIRP_EMOJIS", "> NSIRP"))
+			record_join_list.append(os.getenv("NSIRP_EMOJI", "> NSIRP"))
 		record_join_list.append(f"> ## [{self.title}](<{self.record_link}>)")
 
 		pre_header = f"> (_iteration: {self.iteration}; language(s): "
@@ -984,3 +1125,85 @@ class SearchResult:
 					results_join_list.append(f"{record_text}")
 
 				return "\n".join(results_join_list)
+
+
+@dataclass
+class MatchResult:
+	"""Data class containing a search result."""
+
+	record: Record
+	record_line: RecordLine
+	line_match: re.Match
+
+	def __str__(self) -> str:
+		"""Return the class' contents, separated by newlines."""
+		str_list = []
+
+		str_list.extend(
+			(
+				f"record: {self.record}",
+				f"record_line: {self.record_line}",
+				f"line_match: {self.line_match}",
+			)
+		)
+
+		return "\n".join(str_list)
+
+	def format(self, last_record: Record | None = None) -> str:
+		"""Return a string with discord formatting."""
+		results_join_list = []
+
+		if last_record != self.record:
+			if last_record is not None:
+				results_join_list.append("")
+
+			record_str = self.record.format_inline(
+				show_iteration=False, show_chapter=False
+			)
+			results_join_list.append(record_str)
+
+		if self.record.solved:
+			matching_text: str = self.record_line.text
+
+			match_start = self.line_match.start()
+			match_end = self.line_match.end()
+			matching_text = f"{matching_text[:match_start]}**{matching_text[match_start:match_end]}**{matching_text[match_end:]}"
+
+			split_text = matching_text.split("\n")
+			scan_len = 0
+			for i in range(len(split_text)):
+				current_len = len(split_text[i])
+				if (
+					scan_len < match_start and scan_len + current_len < match_start
+				) or (scan_len > match_end and scan_len + current_len > match_end):
+					split_text[i] = None
+				scan_len += current_len
+
+			for i in range(1, len(split_text)):
+				while (
+					i < len(split_text)
+					and split_text[i] is None
+					and split_text[i - 1] is None
+				):
+					split_text.pop(i)
+				if (
+					i < len(split_text)
+					and split_text[i - 1] is None
+					and split_text[i].startswith("  ")
+				):
+					split_text[i] = split_text[i].lstrip(" ")
+
+			for i in range(len(split_text)):
+				if split_text[i] is None:
+					split_text[i] = "[ ... ]"
+
+			edited_line = RecordLine(
+				self.record_line.character,
+				self.record_line.language,
+				self.record_line.emphasis,
+				"\n".join(split_text),
+			)
+			record_text = edited_line.format(None, None)[0]
+			results_join_list.append(f"{record_text}")
+
+		return "\n".join(results_join_list)

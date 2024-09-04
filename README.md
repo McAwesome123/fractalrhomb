@@ -14,7 +14,7 @@ Make sure the `.env` file contains a valid bot token.
 
 If successful, it should say "Logged in as [user]"
 
-Otherwise, it likely would have given an erorr.
+Otherwise, it likely would have given an error.
 
 To view command line parameters, add `-h` to the end.
 
