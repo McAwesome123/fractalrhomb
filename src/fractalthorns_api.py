@@ -12,6 +12,7 @@ import asyncio
 import datetime as dt
 import json
 import logging
+import re
 from copy import deepcopy
 from dataclasses import asdict
 from enum import Enum, StrEnum
@@ -43,6 +44,7 @@ class FractalthornsAPI(API):
 		SINGLE_IMAGE = "single_image"
 		IMAGE_DESCRIPTION = "image_description"
 		ALL_IMAGES = "all_images"
+		ALL_SKETCHES = "all_sketches"
 		FULL_EPISODIC = "full_episodic"
 		SINGLE_RECORD = "single_record"
 		RECORD_TEXT = "record_text"
@@ -61,11 +63,14 @@ class FractalthornsAPI(API):
 		IMAGES = "images"
 		IMAGE_CONTENTS = "image contents"
 		IMAGE_DESCRIPTIONS = "image descriptions"
+		SKETCHES = "sketches"
+		SKETCH_CONTENTS = "sketch contents"
 		CHAPTERS = "chapters"
 		RECORDS = "records"
 		RECORD_CONTENTS = "record contents"
 		SEARCH_RESULTS = "search results"
 		FULL_RECORD_CONTENTS = "full record contents"
+		FULL_IMAGE_DESCRIPTIONS = "full image descriptions"
 		CACHE_METADATA = "cache metadata"
 
 	def __init__(self) -> None:
@@ -85,6 +90,8 @@ class FractalthornsAPI(API):
 		)
 
 		__all_images = Request(self.ValidRequests.ALL_IMAGES.value, None)
+
+		__all_sketches = Request(self.ValidRequests.ALL_SKETCHES.value, None)
 
 		__full_episodic = Request(self.ValidRequests.FULL_EPISODIC.value, None)
 
@@ -111,6 +118,7 @@ class FractalthornsAPI(API):
 			self.ValidRequests.SINGLE_IMAGE.value: __single_image,
 			self.ValidRequests.IMAGE_DESCRIPTION.value: __image_description,
 			self.ValidRequests.ALL_IMAGES.value: __all_images,
+			self.ValidRequests.ALL_SKETCHES.value: __all_sketches,
 			self.ValidRequests.FULL_EPISODIC.value: __full_episodic,
 			self.ValidRequests.SINGLE_RECORD.value: __single_record,
 			self.ValidRequests.RECORD_TEXT.value: __record_text,
@@ -129,6 +137,10 @@ class FractalthornsAPI(API):
 		self.__cached_image_descriptions: dict[
 			str, tuple[ftd.ImageDescription, dt.datetime]
 		] = {}
+		self.__cached_sketches: tuple[dict[str, ftd.Sketch], dt.datetime] | None = None
+		self.__cached_sketch_contents: dict[
+			str, tuple[tuple[Image.Image, Image.Image], dt.datetime]
+		] = {}
 		self.__cached_chapters: tuple[dict[str, ftd.Chapter], dt.datetime] | None = None
 		self.__cached_records: dict[str, tuple[ftd.Record, dt.datetime]] = {}
 		self.__cached_record_contents: dict[
@@ -145,6 +157,9 @@ class FractalthornsAPI(API):
 		self.__cached_full_record_contents: (
 			tuple[dict[str, ftd.RecordText], dt.datetime] | None
 		) = None
+		self.__cached_full_image_descriptions: (
+			tuple[dict[str, ftd.ImageDescription], dt.datetime] | None
+		) = None
 		self.__last_all_images_cache: dt.datetime | None = None
 		self.__last_full_episodic_cache: dt.datetime | None = None
 		self.__last_cache_purge: dict[self.CacheTypes, dt.datetime] = {}
@@ -160,22 +175,28 @@ class FractalthornsAPI(API):
 		CacheTypes.IMAGES: dt.timedelta(hours=12),
 		CacheTypes.IMAGE_CONTENTS: dt.timedelta(hours=72),
 		CacheTypes.IMAGE_DESCRIPTIONS: dt.timedelta(hours=72),
+		CacheTypes.SKETCHES: dt.timedelta(hours=12),
+		CacheTypes.SKETCH_CONTENTS: dt.timedelta(hours=72),
 		CacheTypes.CHAPTERS: dt.timedelta(hours=12),
 		CacheTypes.RECORDS: dt.timedelta(hours=12),
 		CacheTypes.RECORD_CONTENTS: dt.timedelta(hours=72),
 		CacheTypes.SEARCH_RESULTS: dt.timedelta(hours=12),
-		CacheTypes.FULL_RECORD_CONTENTS: dt.timedelta(hours=730),
+		CacheTypes.FULL_RECORD_CONTENTS: dt.timedelta(hours=168),
+		CacheTypes.FULL_IMAGE_DESCRIPTIONS: dt.timedelta(hours=168),
 	}
 	__CACHE_PURGE_COOLDOWN: ClassVar[dict[CacheTypes, dt.timedelta]] = {
 		CacheTypes.NEWS_ITEMS: dt.timedelta(hours=1),
 		CacheTypes.IMAGES: dt.timedelta(hours=1),
 		CacheTypes.IMAGE_CONTENTS: dt.timedelta(hours=3),
 		CacheTypes.IMAGE_DESCRIPTIONS: dt.timedelta(hours=3),
+		CacheTypes.SKETCHES: dt.timedelta(hours=1),
+		CacheTypes.SKETCH_CONTENTS: dt.timedelta(hours=3),
 		CacheTypes.CHAPTERS: dt.timedelta(hours=1),
 		CacheTypes.RECORDS: dt.timedelta(hours=1),
 		CacheTypes.RECORD_CONTENTS: dt.timedelta(hours=3),
 		CacheTypes.SEARCH_RESULTS: dt.timedelta(hours=1),
-		CacheTypes.FULL_RECORD_CONTENTS: dt.timedelta(hours=24),
+		CacheTypes.FULL_RECORD_CONTENTS: dt.timedelta(hours=12),
+		CacheTypes.FULL_IMAGE_DESCRIPTIONS: dt.timedelta(hours=12),
 	}
 	__REQUEST_TIMEOUT: float = 10.0
 	__DEFAULT_HEADERS: ClassVar[dict[str, str]] = {
@@ -279,7 +300,9 @@ class FractalthornsAPI(API):
 			case self.CacheTypes.SEARCH_RESULTS:
 				self.__cached_search_results = {}
 			case self.CacheTypes.FULL_RECORD_CONTENTS:
-				self.__full_record_contents = None
+				self.__cached_full_record_contents = None
+			case self.CacheTypes.FULL_IMAGE_DESCRIPTIONS:
+				self.__cached_full_image_descriptions = None
 			case _:
 				msg = f"Purge failed: {self.InvalidPurgeReasons.INVALID_CACHE.value}"
 				self.logger.warning(msg)
@@ -299,6 +322,7 @@ class FractalthornsAPI(API):
 		| dict[str, tuple[ftd.Image, dt.datetime, dt.datetime]]
 		| dict[str, tuple[tuple[Image.Image, Image.Image], dt.datetime, dt.datetime]]
 		| dict[str, tuple[ftd.ImageDescription, dt.datetime, dt.datetime]]
+		| tuple[dict[str, ftd.Sketch], dt.datetime, dt.datetime]
 		| tuple[dict[str, ftd.Chapter], dt.datetime, dt.datetime]
 		| dict[str, tuple[ftd.Record, dt.datetime, dt.datetime]]
 		| dict[str, tuple[ftd.RecordText, dt.datetime, dt.datetime]]
@@ -306,6 +330,8 @@ class FractalthornsAPI(API):
 			tuple[str, Literal["image", "episodic-item", "episodic-line"]],
 			tuple[list[ftd.SearchResult], dt.datetime, dt.datetime],
 		]
+		| tuple[dict[str, ftd.RecordText], dt.datetime, dt.datetime]
+		| tuple[dict[str, ftd.ImageDescription], dt.datetime, dt.datetime]
 		| dict[
 			str,
 			tuple[dt.datetime, dt.datetime]
@@ -329,10 +355,14 @@ class FractalthornsAPI(API):
 		IMAGES -- {Name: (Image, Cache Time, Expiry Time)}
 		IMAGE_CONTENTS -- {Name: ((Main Image, Thumbnail), Cache Time, Expiry Time)}
 		IMAGE_DESCRIPTION -- {Name: (Description, Cache Time, Expiry Time)}
+		SKETCHES -- ({Name: Sketch}, Cache Time, Expiry Time) | None
+		SKETCH_CONTENTS -- {Name: ((Main Image, Thumbnail), Cache Time, Expiry Time)}
 		CHAPTERS -- ({Name: Chapter}, Cache Time, Expiry Time) | None
 		RECORDS -- {Name: (Record, Cache Time, Expiry Time)}
-		RECORD_CONTENTS -- {Name: (RecordText, Cache Time, Expiry Time)}
+		RECORD_CONTENTS -- {Name: (Record Text, Cache Time, Expiry Time)}
 		SEARCH_RESULTS -- {(Search Term, Search Type): (Record, Cache Time, Expiry Time)}
+		FULL_RECORD_CONTENTS -- ({Name: Record Texts}, Cache Time, Expiry Time) | None
+		FULL_IMAGE_DESCRIPTIONS -- ({Name: Description}, Cache Time, Expiry Time) | None
 		CACHE_METADATA -- {
 			"last_all_images_cache": (Cache Time, Expiry Time) | None
 			"last_full_episodic_cache": (Cache Time, Expiry Time) | None
@@ -363,6 +393,12 @@ class FractalthornsAPI(API):
 			case self.CacheTypes.IMAGE_DESCRIPTIONS:
 				cached_items = deepcopy(self.__cached_image_descriptions)
 
+			case self.CacheTypes.SKETCHES:
+				cached_items = deepcopy(self.__cached_sketches)
+
+			case self.CacheTypes.SKETCH_CONTENTS:
+				cached_items = deepcopy(self.__cached_sketch_contents)
+
 			case self.CacheTypes.CHAPTERS:
 				cached_items = deepcopy(self.__cached_chapters)
 
@@ -374,6 +410,12 @@ class FractalthornsAPI(API):
 
 			case self.CacheTypes.SEARCH_RESULTS:
 				cached_items = deepcopy(self.__cached_search_results)
+
+			case self.CacheTypes.FULL_RECORD_CONTENTS:
+				cached_items = deepcopy(self.__cached_full_record_contents)
+
+			case self.CacheTypes.FULL_IMAGE_DESCRIPTIONS:
+				cached_items = deepcopy(self.__cached_full_image_descriptions)
 
 			case self.CacheTypes.CACHE_METADATA:
 				last_full_images_cache = deepcopy(self.__last_all_images_cache)
@@ -403,7 +445,13 @@ class FractalthornsAPI(API):
 		if cached_items is None:
 			return None
 
-		if cache in {self.CacheTypes.NEWS_ITEMS, self.CacheTypes.CHAPTERS}:
+		if cache in {
+			self.CacheTypes.NEWS_ITEMS,
+			self.CacheTypes.SKETCHES,
+			self.CacheTypes.CHAPTERS,
+			self.CacheTypes.FULL_RECORD_CONTENTS,
+			self.CacheTypes.FULL_IMAGE_DESCRIPTIONS,
+		}:
 			if (
 				not ignore_stale
 				and now > cached_items[1] + self.__CACHE_DURATION[cache]
@@ -416,6 +464,7 @@ class FractalthornsAPI(API):
 			self.CacheTypes.IMAGES,
 			self.CacheTypes.IMAGE_CONTENTS,
 			self.CacheTypes.IMAGE_DESCRIPTIONS,
+			self.CacheTypes.SKETCH_CONTENTS,
 			self.CacheTypes.RECORDS,
 			self.CacheTypes.RECORD_CONTENTS,
 			self.CacheTypes.SEARCH_RESULTS,
@@ -431,9 +480,14 @@ class FractalthornsAPI(API):
 	async def get_all_news(self, session: aiohttp.ClientSession) -> list[ftd.NewsEntry]:
 		"""Get news items from fractalthorns.
 
-		Raises
+		Arguments:
+		---------
+		session -- The session to use.
+
+		Raises:
 		------
 		aiohttp.client_exceptions.ClientError (from __get_all_news) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_all_news) -- A client error occurred
 		"""
 		return await self.__get_all_news(session)
 
@@ -444,11 +498,13 @@ class FractalthornsAPI(API):
 
 		Arguments:
 		---------
+		session -- The session to use.
 		name -- Identifying name of the image.
 
 		Raises:
 		------
 		aiohttp.client_exceptions.ClientError (from __get_single_image and __get_image_contents) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_single_image and __get_image_contents) -- A client error occurred
 		"""
 		image_info = await self.__get_single_image(session, name)
 		image_contents = await self.__get_image_contents(session, name)
@@ -462,31 +518,87 @@ class FractalthornsAPI(API):
 
 		Arguments:
 		---------
+		session -- The session to use.
 		name -- Identifying name of the image.
 
 		Raises:
 		------
 		aiohttp.client_exceptions.ClientError (from __get_image_description) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_image_description) -- A client error occurred
 		"""
 		return await self.__get_image_description(session, name)
 
 	async def get_all_images(self, session: aiohttp.ClientSession) -> list[ftd.Image]:
 		"""Get all images from fractalthorns.
 
-		Raises
+		Arguments:
+		---------
+		session -- The session to use.
+
+		Raises:
 		------
 		aiohttp.client_exceptions.ClientError (from __get_all_images) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_all_images) -- A client error occurred
 		"""
 		return await self.__get_all_images(session)
+
+	async def get_all_sketches(
+		self, session: aiohttp.ClientSession
+	) -> list[ftd.Sketch]:
+		"""Get all sketches from fractalthorns.
+
+		Arguments:
+		---------
+		session -- The session to use.
+
+		Raises:
+		------
+		aiohttp.client_exceptions.ClientError (from __get_all_sketches) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_all_sketches) -- A client error occurred
+		"""
+		sketches = await self.__get_all_sketches(session)
+		return list(sketches.values())
+
+	async def get_single_sketch(
+		self, session: aiohttp.ClientSession, name: str | None = None
+	) -> tuple[ftd.Sketch, tuple[Image.Image, Image.Image]]:
+		"""Get all sketches from fractalthorns.
+
+		Arguments:
+		---------
+		session -- The session to use.
+
+		Raises:
+		------
+		aiohttp.client_exceptions.ClientError (from __get_all_sketches and __get_sketch_contents) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_all_sketches and __get_sketch_contents) -- A client error occurred
+		"""
+		sketches = await self.__get_all_sketches(session)
+		if name is None:
+			sketch = next(iter(sketches.values()))
+			name = sketch.name
+		elif name in sketches:
+			sketch = sketches[name]
+		else:
+			raise fte.SketchNotFoundError
+
+		images = await self.__get_sketch_contents(session, name)
+
+		return (sketch, images)
 
 	async def get_full_episodic(
 		self, session: aiohttp.ClientSession
 	) -> list[ftd.Chapter]:
 		"""Get the full episodic from fractalthorns.
 
-		Raises
+		Arguments:
+		---------
+		session -- The session to use.
+
+		Raises:
 		------
 		aiohttp.client_exceptions.ClientError (from __get_full_episodic) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_full_episodic) -- A client error occurred
 		"""
 		return await self.__get_full_episodic(session)
 
@@ -497,11 +609,13 @@ class FractalthornsAPI(API):
 
 		Arguments:
 		---------
+		session -- The session to use.
 		name -- Identifying name of the record.
 
 		Raises:
 		------
 		aiohttp.client_exceptions.ClientError (from __get_single_record) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_single_record) -- A client error occurred
 		"""
 		return await self.__get_single_record(session, name)
 
@@ -512,11 +626,13 @@ class FractalthornsAPI(API):
 
 		Arguments:
 		---------
+		session -- The session to use.
 		name -- Identifying name of the record.
 
 		Raises:
 		------
 		aiohttp.client_exceptions.ClientError (from __get_record_text) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_record_text) -- A client error occurred
 		"""
 		return await self.__get_record_text(session, name)
 
@@ -530,6 +646,7 @@ class FractalthornsAPI(API):
 
 		Arguments:
 		---------
+		session -- The session to use.
 		term -- The term to search for.
 		type_ -- Type of search (valid: "image", "episodic-item", "episodic-line").
 
@@ -537,8 +654,387 @@ class FractalthornsAPI(API):
 		------
 		fractalthorns_exceptions.InvalidSearchType (from __get_domain_search) -- Not a valid search type
 		aiohttp.client_exceptions.ClientError (from __get_domain_search) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_domain_search) -- A client error occurred
 		"""
 		return await self.__get_domain_search(session, term, type_)
+
+	async def get_full_record_contents(
+		self,
+		session: aiohttp.ClientSession,
+		*,
+		gather: bool | None = None,
+	) -> dict[str, ftd.RecordText]:
+		"""Get the full record contents from fractalthorns.
+
+		Arguments:
+		---------
+		session -- The session to use.
+		gather -- if True, gather the records. Raises an exception if the last usage was too recent. If False, raises an exception if the record contents are uncached.
+
+		Raises:
+		------
+		fractalthorns_exceptions.ItemsUngatheredError (from __get_full_record_contents) -- Gather was not True and items are uncached
+		fractalthorns_exceptions.CachePurgeError (from __get_full_record_contents) -- Too soon since the last gather
+		aiohttp.client_exceptions.ClientError (from get_full_record_contents) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from get_full_record_contents) -- A client error occurred
+		"""
+		return await self.__get_full_record_contents(session, gather=gather)
+
+	async def get_full_image_descriptions(
+		self,
+		session: aiohttp.ClientSession,
+		*,
+		gather: bool | None = None,
+	) -> dict[str, ftd.RecordText]:
+		"""Get the full record contents from fractalthorns.
+
+		Arguments:
+		---------
+		session -- The session to use.
+		gather -- if True, gather the records. Raises an exception if the last usage was too recent. If False, raises an exception if the record contents are uncached.
+
+		Raises:
+		------
+		fractalthorns_exceptions.ItemsUngatheredError (from __get_full_image_descriptions) -- Gather was not True and items are uncached
+		fractalthorns_exceptions.CachePurgeError (from __get_full_image_descriptions) -- Too soon since the last gather
+		aiohttp.client_exceptions.ClientError (from __get_full_image_descriptions) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_full_image_descriptions) -- A client error occurred
+		"""
+		return await self.__get_full_image_descriptions(session, gather=gather)
+
+	async def search_images(
+		self,
+		session: aiohttp.ClientSession,
+		name: str | None = None,
+		description: str | None = None,
+		canon: str | None = None,
+		character: str | None = None,
+		*,
+		has_description: bool | None = None,
+	) -> list[ftd.Image]:
+		"""Search for images from fractalthorns.
+
+		Arguments:
+		---------
+		session -- The session to use.
+		name -- Returns images whose title contain this.
+		description -- Returns images whose description contain this.
+		canon -- Returns images whose canon match this.
+		character -- Returns images whose characters match this.
+
+		Raises:
+		------
+		aiohttp.client_exceptions.ClientError (from __get_full_image_descriptions and __get_all_images) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_full_image_descriptions and __get_all_images) -- A client error occurred
+		fractalthorns_exceptions.ItemsUngatheredError (from __get_full_image_descriptions) -- Items are uncached
+		re.error (from re.search) -- Invalid regular expression
+		"""
+		if description is not None:
+			image_descriptions = await self.__get_full_image_descriptions(session)
+		images = await self.__get_all_images(session)
+
+		if canon is not None:
+			canon = canon.lower().split(" ")
+			for i in range(len(canon)):
+				match canon[i]:
+					case "vollux":
+						canon[i] = "209151"
+					case "moth":
+						canon[i] = "209151"
+					case "llokin":
+						canon[i] = "265404"
+					case "chevrin":
+						canon[i] = "265404"
+					case "osmite":
+						canon[i] = "768220"
+					case "nyxite":
+						canon[i] = "768221"
+					case "director":
+						canon[i] = "0"
+
+		if character is not None:
+			character = character.lower().split(" ")
+
+		matched_images = []
+
+		for i in images:
+			name_matches = name is None or re.search(name, i.name, re.IGNORECASE)
+			description_matches = description is None or (
+				image_descriptions[i.name].description is not None
+				and re.search(
+					description,
+					image_descriptions[i.name].description,
+					re.IGNORECASE,
+				)
+			)
+			canon_matches = (
+				canon is None
+				or (i.canon is None and "none" in canon)
+				or (i.canon is not None and i.canon.lower() in canon)
+			)
+			character_matches = (
+				character is None
+				or (len(i.characters) < 1 and "none" in character)
+				or [j for j in i.characters if j.lower() in character]
+			)
+			has_description_matches = (
+				has_description is None or i.has_description == has_description
+			)
+
+			if (
+				name_matches
+				and description_matches
+				and canon_matches
+				and character_matches
+				and has_description_matches
+			):
+				matched_images.append(i)
+
+		return matched_images
+
+	async def search_records(
+		self,
+		session: aiohttp.ClientSession,
+		name: str | None = None,
+		chapter: str | None = None,
+		iteration: str | None = None,
+		language: str | None = None,
+		character: str | None = None,
+		*,
+		requested: bool | None = None,
+	) -> list[ftd.Record]:
+		"""Search for records from fractalthorns.
+
+		Arguments:
+		---------
+		session -- The session to use.
+		name -- Returns records whose title contain this.
+		chapter -- Returns records whose chapter match this.
+		iteration -- Returns records whose iteration match this.
+		language -- Returns records whose languages match this.
+		character -- Returns records whose characters match this.
+		requested -- Returns records that are or aren't requested.
+
+		Raises:
+		------
+		aiohttp.client_exceptions.ClientError (from __get_full_record_contents and __get_full_episodic) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_full_record_contents and __get_full_episodic) -- A client error occurred
+		fractalthorns_exceptions.ItemsUngatheredError (from __get_full_record_contents) -- Items are uncached
+		re.error (from re.search) -- Invalid regular expression
+		"""
+		if language is not None or character is not None or requested is not None:
+			record_contents = await self.__get_full_record_contents(session)
+
+		chapters = await self.__get_full_episodic(session)
+		records: list[ftd.Record] = []
+		for i in chapters:
+			records.extend(i.records)
+
+		if chapter is not None:
+			chapter = chapter.lower().split(" ")
+
+		if iteration is not None:
+			iteration = iteration.lower().split(" ")
+			for i in range(len(iteration)):
+				match iteration[i]:
+					case "vollux":
+						iteration[i] = "209151"
+					case "moth":
+						iteration[i] = "209151"
+					case "llokin":
+						iteration[i] = "265404"
+					case "chevrin":
+						iteration[i] = "265404"
+					case "osmite":
+						iteration[i] = "768220"
+					case "nyxite":
+						iteration[i] = "768221"
+					case "director":
+						iteration[i] = "0"
+
+		if language is not None:
+			language = language.lower().split(" ")
+
+		if character is not None:
+			character = character.lower().split(" ")
+
+		matching_records = []
+
+		for i in records:
+			name_matches = name is None or re.search(name, i.name, re.IGNORECASE)
+			chapter_matches = chapter is None or i.chapter.lower() in chapter
+			iteration_matches = iteration is None or i.iteration.lower() in iteration
+			language_matches = language is None or [
+				j for j in record_contents[i.name].languages if j.lower() in language
+			]
+			character_matches = character is None or [
+				j for j in record_contents[i.name].characters if j.lower() in character
+			]
+			requested_matches = (
+				requested is None
+				or bool(
+					[
+						j
+						for j in record_contents[i.name].header_lines
+						if "unrequested" in j
+					]
+				)
+				!= requested
+			)
+
+			if (
+				name_matches
+				and chapter_matches
+				and iteration_matches
+				and language_matches
+				and character_matches
+				and requested_matches
+			):
+				matching_records.append(i)
+
+		return matching_records
+
+	async def search_record_lines(
+		self,
+		session: aiohttp.ClientSession,
+		text: str,
+		language: str | None = None,
+		character: str | None = None,
+		emphasis: str | None = None,
+		name: str | None = None,
+		chapter: str | None = None,
+		iteration: str | None = None,
+		*,
+		requested: bool | None = None,
+	) -> list[ftd.MatchResult]:
+		"""Search for record lines from fractalthorns.
+
+		Arguments:
+		---------
+		session -- The session to use.
+		text -- Returns lines whose text contain this.
+		language -- Returns lines whose language match this.
+		character -- Returns lines whose character match this.
+		emphasis -- Returns lines whose emphasis contain this.
+		name -- Returns lines whose records' title contain this.
+		chapter -- Returns lines whose records' chapter match this.
+		iteration -- Returns lines whose records' iteration match this.
+		requested -- Returns lines whose records are or aren't requested.
+
+		Raises:
+		------
+		aiohttp.client_exceptions.ClientError (from __get_full_record_contents and __get_full_episodic) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_full_record_contents and __get_full_episodic) -- A client error occurred
+		fractalthorns_exceptions.ItemsUngatheredError (from __get_full_record_contents) -- Items are uncached
+		re.error (from re.search) -- Invalid regular expression
+		RuntimeError -- Loop ran for too long.
+		"""
+		record_contents = await self.__get_full_record_contents(session)
+
+		chapters = await self.__get_full_episodic(session)
+		records: list[ftd.Record] = []
+		for i in chapters:
+			records.extend(i.records)
+
+		if language is not None:
+			language = language.lower().split(" ")
+
+		if character is not None:
+			character = character.lower().split(" ")
+
+		if chapter is not None:
+			chapter = chapter.lower().split(" ")
+
+		if iteration is not None:
+			iteration = iteration.lower().split(" ")
+			for i in range(len(iteration)):
+				match iteration[i]:
+					case "vollux":
+						iteration[i] = "209151"
+					case "moth":
+						iteration[i] = "209151"
+					case "llokin":
+						iteration[i] = "265404"
+					case "chevrin":
+						iteration[i] = "265404"
+					case "osmite":
+						iteration[i] = "768220"
+					case "nyxite":
+						iteration[i] = "768221"
+					case "director":
+						iteration[i] = "0"
+
+		matching_lines = []
+
+		for i in records:
+			name_matches = name is None or re.search(name, i.name, re.IGNORECASE)
+			chapter_matches = chapter is None or i.chapter.lower() in chapter
+			iteration_matches = iteration is None or i.iteration.lower() in iteration
+			language_matches = language is None or [
+				j for j in record_contents[i.name].languages if j.lower() in language
+			]
+			character_matches = character is None or [
+				j for j in record_contents[i.name].characters if j.lower() in character
+			]
+			requested_matches = (
+				requested is None
+				or bool(
+					[
+						j
+						for j in record_contents[i.name].header_lines
+						if "unrequested" in j
+					]
+				)
+				!= requested
+			)
+
+			if not (
+				name_matches
+				and chapter_matches
+				and iteration_matches
+				and language_matches
+				and character_matches
+				and requested_matches
+			):
+				continue
+
+			for j in record_contents[i.name].lines:
+				language_matches = language is None or (
+					j.language is not None and j.language.lower() in language
+				)
+				character_matches = character is None or (
+					j.character is not None and j.character.lower() in character
+				)
+				emphasis_matches = emphasis is None or (
+					j.emphasis is not None
+					and re.search(emphasis, j.emphasis, re.IGNORECASE) is not None
+				)
+				text_matches = re.search(text, j.text, re.IGNORECASE) is not None
+
+				if not (
+					language_matches
+					and character_matches
+					and emphasis_matches
+					and text_matches
+				):
+					continue
+
+				j.text = j.format_text()
+				line_text = j.text
+
+				max_loop = 100000
+				for k in re.finditer(text, line_text, re.IGNORECASE):
+					max_loop -= 1
+					if max_loop < 0:  # infinite loop safeguard
+						msg = "Loop running for too long."
+						raise RuntimeError(msg)
+
+					if k.end() - k.start() == 0:
+						continue
+
+					matching_lines.append(ftd.MatchResult(i, j, k))
+
+		return matching_lines
 
 	async def __get_all_news(
 		self, session: aiohttp.ClientSession
@@ -828,6 +1324,133 @@ class FractalthornsAPI(API):
 
 		return [j[0] for i, j in self.__cached_images.items() if i is not None]
 
+	async def __get_all_sketches(
+		self, session: aiohttp.ClientSession
+	) -> dict[str, ftd.Sketch]:
+		"""Get all sketches.
+
+		Raises
+		------
+		aiohttp.client_exceptions.ClientError (from _make_request) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
+		"""
+		if (
+			self.__cached_sketches is None
+			or dt.datetime.now(dt.UTC)
+			> self.__cached_sketches[1]
+			+ self.__CACHE_DURATION[self.CacheTypes.SKETCHES]
+		):
+			msg = f"({self.CacheTypes.SKETCHES.value}) {self.__STALE_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+			r = await self._make_request(
+				session, self.ValidRequests.ALL_SKETCHES.value, None
+			)
+			async with r as resp:
+				resp.raise_for_status()
+				sketches = json.loads(await resp.text())["sketches"]
+
+			sketches_dict = {}
+
+			for sketch in sketches:
+				sketch["image_url"] = f"{self._base_url}{sketch["image_url"]}"
+				sketch["thumb_url"] = f"{self._base_url}{sketch["thumb_url"]}"
+				sketch_link = f"{self.__BASE_IMAGE_URL}{sketch["name"]}"
+				sketches_dict.update(
+					{sketch["name"]: ftd.Sketch.from_obj(sketch_link, sketch)}
+				)
+
+			self.__cached_sketches = (sketches_dict, dt.datetime.now(dt.UTC))
+
+			self.__cache_saved[self.CacheTypes.SKETCHES] = False
+
+			msg = f"({self.CacheTypes.SKETCHES.value}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = f"({self.CacheTypes.SKETCHES.value}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
+
+		return self.__cached_sketches[0]
+
+	async def __get_sketch_contents(
+		self, session: aiohttp.ClientSession, sketch: str
+	) -> tuple[Image.Image, Image.Image]:
+		"""Get the contents of an image.
+
+		Raises
+		------
+		aiohttp.client_exceptions.ClientError (from _make_request) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
+		fractalthorns_exceptions.SketchNotFoundError -- Sketch not found
+		"""
+		if (
+			sketch not in self.__cached_sketch_contents
+			or dt.datetime.now(dt.UTC)
+			> self.__cached_sketch_contents[sketch][1]
+			+ self.__CACHE_DURATION[self.CacheTypes.SKETCH_CONTENTS]
+		):
+			msg = f"({self.CacheTypes.SKETCH_CONTENTS.value} - {sketch}) {self.__STALE_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+			sketch_metadata = await self.__get_all_sketches(session)
+			if sketch not in sketch_metadata:
+				raise fte.SketchNotFoundError
+
+			sketch_metadata = sketch_metadata[sketch]
+
+			async with asyncio.TaskGroup() as tg:
+				image_req = tg.create_task(
+					session.get(
+						f"{sketch_metadata.image_url}",
+						timeout=self.__REQUEST_TIMEOUT,
+						headers=self.__DEFAULT_HEADERS,
+						raise_for_status=True,
+					)
+				)
+				thumb_req = tg.create_task(
+					session.get(
+						f"{sketch_metadata.thumb_url}",
+						timeout=self.__REQUEST_TIMEOUT,
+						headers=self.__DEFAULT_HEADERS,
+						raise_for_status=True,
+					)
+				)
+
+			async with (
+				image_req.result() as image_resp,
+				thumb_req.result() as thumb_resp,
+				asyncio.TaskGroup() as tg,
+			):
+				image_bytes = tg.create_task(image_resp.read())
+				thumb_bytes = tg.create_task(thumb_resp.read())
+
+			loop = asyncio.get_running_loop()
+			image_contents, image_thumbnail = await asyncio.gather(
+				loop.run_in_executor(None, Image.open, BytesIO(image_bytes.result())),
+				loop.run_in_executor(None, Image.open, BytesIO(thumb_bytes.result())),
+			)
+
+			self.__cached_sketch_contents.update(
+				{
+					sketch: (
+						(image_contents, image_thumbnail),
+						dt.datetime.now(dt.UTC),
+					)
+				}
+			)
+
+			self.__cache_saved[self.CacheTypes.SKETCH_CONTENTS] = False
+
+			msg = f"({self.CacheTypes.SKETCH_CONTENTS.value} - {sketch}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = f"({self.CacheTypes.SKETCH_CONTENTS.value} - {sketch}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
+
+		return self.__cached_sketch_contents[sketch][0]
+
 	async def __get_full_episodic(
 		self, session: aiohttp.ClientSession
 	) -> list[ftd.Chapter]:
@@ -1075,13 +1698,160 @@ class FractalthornsAPI(API):
 
 		return self.__cached_search_results[term, type_][0]
 
+	async def __get_full_record_contents(
+		self, session: aiohttp.ClientSession, *, gather: bool | None = None
+	) -> dict[str, ftd.RecordText]:
+		"""Get the full record contents.
+
+		Raises
+		------
+		fractalthorns_exceptions.ItemsUngatheredError -- Gather was not True and items are uncached
+		fractalthorns_exceptions.CachePurgeError -- Too soon since the last gather
+		aiohttp.client_exceptions.ClientError (from _make_request) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
+		"""
+		cache_stale = (
+			self.__cached_full_record_contents is None
+			or dt.datetime.now(dt.UTC)
+			> self.__cached_full_record_contents[1]
+			+ self.__CACHE_DURATION[self.CacheTypes.FULL_RECORD_CONTENTS]
+		)
+		if gather is True or cache_stale:
+			if cache_stale:
+				msg = f"({self.CacheTypes.FULL_RECORD_CONTENTS.value}) {self.__STALE_CACHE_MESSAGE}"
+				self.logger.info(msg)
+			else:
+				msg = f"({self.CacheTypes.FULL_RECORD_CONTENTS.value}) cache is not stale but gather was requested."
+				self.logger.info(msg)
+
+			if gather is False:
+				msg = f"({self.CacheTypes.FULL_RECORD_CONTENTS.value}) no cache to retrieve and gather was set to False."
+				self.logger.warning(msg)
+				raise fte.ItemsUngatheredError
+
+			try:
+				self.purge_cache(self.CacheTypes.FULL_RECORD_CONTENTS)
+			except fte.CachePurgeError:
+				if self.__cached_full_record_contents is not None:
+					raise
+
+			self.purge_cache(self.CacheTypes.CHAPTERS, force_purge=True)
+			self.purge_cache(self.CacheTypes.RECORDS, force_purge=True)
+			self.purge_cache(self.CacheTypes.RECORD_CONTENTS, force_purge=True)
+
+			chapters = await self.__get_full_episodic(session)
+			records: list[ftd.Record] = []
+			for i in chapters:
+				records.extend([j for j in i.records if j.solved])
+
+			tasks: list[asyncio.Task] = []
+			async with asyncio.TaskGroup() as tg:
+				tasks.extend(
+					[
+						tg.create_task(self.__get_record_text(session, i.name))
+						for i in records
+					]
+				)
+
+			record_contents = {
+				records[i].name: tasks[i].result() for i in range(len(records))
+			}
+			self.__cached_full_record_contents = (
+				record_contents,
+				dt.datetime.now(dt.UTC),
+			)
+
+			self.__cache_saved[self.CacheTypes.FULL_RECORD_CONTENTS] = False
+
+			msg = f"({self.CacheTypes.FULL_RECORD_CONTENTS.value}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = f"({self.CacheTypes.FULL_RECORD_CONTENTS.value}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
+
+		return self.__cached_full_record_contents[0]
+
+	async def __get_full_image_descriptions(
+		self, session: aiohttp.ClientSession, *, gather: bool | None = None
+	) -> dict[str, ftd.ImageDescription]:
+		"""Get the full record contents.
+
+		Raises
+		------
+		fractalthorns_exceptions.ItemsUngatheredError -- Gather was not True and items are uncached
+		fractalthorns_exceptions.CachePurgeError -- Too soon since the last gather
+		aiohttp.client_exceptions.ClientError (from _make_request) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
+		"""
+		cache_stale = (
+			self.__cached_full_image_descriptions is None
+			or dt.datetime.now(dt.UTC)
+			> self.__cached_full_image_descriptions[1]
+			+ self.__CACHE_DURATION[self.CacheTypes.FULL_IMAGE_DESCRIPTIONS]
+		)
+		if gather is True or cache_stale:
+			if cache_stale:
+				msg = f"({self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value}) {self.__STALE_CACHE_MESSAGE}"
+				self.logger.info(msg)
+			else:
+				msg = f"({self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value}) cache is not stale but gather was requested."
+				self.logger.info(msg)
+
+			if gather is False:
+				msg = f"({self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value}) no cache to retrieve and gather was set to False."
+				self.logger.warning(msg)
+				raise fte.ItemsUngatheredError
+
+			try:
+				self.purge_cache(self.CacheTypes.FULL_IMAGE_DESCRIPTIONS)
+			except fte.CachePurgeError:
+				if self.__cached_full_image_descriptions is not None:
+					raise
+
+			self.purge_cache(self.CacheTypes.IMAGE_DESCRIPTIONS, force_purge=True)
+			self.purge_cache(self.CacheTypes.IMAGES, force_purge=True)
+
+			images = await self.__get_all_images(session)
+
+			tasks: list[asyncio.Task] = []
+			async with asyncio.TaskGroup() as tg:
+				tasks.extend(
+					[
+						tg.create_task(self.__get_image_description(session, i.name))
+						for i in images
+					]
+				)
+
+			image_descriptions = {
+				images[i].name: tasks[i].result() for i in range(len(images))
+			}
+			self.__cached_full_image_descriptions = (
+				image_descriptions,
+				dt.datetime.now(dt.UTC),
+			)
+
+			self.__cache_saved[self.CacheTypes.FULL_IMAGE_DESCRIPTIONS] = False
+
+			msg = f"({self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value}) {self.__RENEWED_CACHE_MESSAGE}"
+			self.logger.info(msg)
+
+		else:
+			msg = f"({self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(msg)
+
+		return self.__cached_full_image_descriptions[0]
+
 	async def load_cache(self, cache: CacheTypes) -> None:
 		"""Load the specified cache."""
 		msg = f"({cache.value} loading cache."
 		self.logger.info(msg)
 
 		try:
-			if cache == self.CacheTypes.IMAGE_CONTENTS:
+			if cache in {
+				self.CacheTypes.IMAGE_CONTENTS,
+				self.CacheTypes.SKETCH_CONTENTS,
+			}:
 				cache_path = "".join((self.__CACHE_PATH, cache.value.replace(" ", "_")))
 
 				if not Path(cache_path).exists():
@@ -1119,14 +1889,24 @@ class FractalthornsAPI(API):
 					if name == "__None__":
 						name = None
 
-					self.__cached_image_contents.update(
-						{
-							name: (
-								(image, thumb),
-								timestamp,
-							)
-						}
-					)
+					if cache == self.CacheTypes.IMAGE_CONTENTS:
+						self.__cached_image_contents.update(
+							{
+								name: (
+									(image, thumb),
+									timestamp,
+								)
+							}
+						)
+					elif cache == self.CacheTypes.SKETCH_CONTENTS:
+						self.__cached_sketch_contents.update(
+							{
+								name: (
+									(image, thumb),
+									timestamp,
+								)
+							}
+						)
 
 			else:
 				cache_path = "".join(
@@ -1166,6 +1946,15 @@ class FractalthornsAPI(API):
 							for i, j in cache_contents.items()
 						}
 						self.__cached_image_descriptions = cache_contents
+					case self.CacheTypes.SKETCHES:
+						cache_contents = (
+							{
+								i: ftd.Sketch.from_obj(j["sketch_link"], j)
+								for i, j in cache_contents[0].items()
+							},
+							dt.datetime.fromtimestamp(cache_contents[1], tz=dt.UTC),
+						)
+						self.__cached_sketches = cache_contents
 					case self.CacheTypes.CHAPTERS:
 						cache_contents = (
 							{
@@ -1212,12 +2001,25 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.FULL_RECORD_CONTENTS:
 						cache_contents = (
 							{
-								i: ftd.RecordText.from_obj(j["title"], j)
+								i: ftd.RecordText.from_obj(
+									j["title"], j["record_link"], j
+								)
 								for i, j in cache_contents[0].items()
 							},
 							dt.datetime.fromtimestamp(cache_contents[1], tz=dt.UTC),
 						)
 						self.__cached_full_record_contents = cache_contents
+					case self.CacheTypes.FULL_IMAGE_DESCRIPTIONS:
+						cache_contents = (
+							{
+								i: ftd.ImageDescription.from_obj(
+									j["title"], j["image_link"], j
+								)
+								for i, j in cache_contents[0].items()
+							},
+							dt.datetime.fromtimestamp(cache_contents[1], tz=dt.UTC),
+						)
+						self.__cached_full_image_descriptions = cache_contents
 					case self.CacheTypes.CACHE_METADATA:
 						self.__last_all_images_cache = cache_contents.get(
 							"__last_all_images_cache"
@@ -1266,14 +2068,22 @@ class FractalthornsAPI(API):
 		self.logger.info(msg)
 
 		try:
-			if cache == self.CacheTypes.IMAGE_CONTENTS:
+			if cache in {
+				self.CacheTypes.IMAGE_CONTENTS,
+				self.CacheTypes.SKETCH_CONTENTS,
+			}:
 				cache_path = "".join((self.__CACHE_PATH, cache.value.replace(" ", "_")))
 
 				Path(cache_path).mkdir(parents=True, exist_ok=True)
 
 				saved_images = {}
 
-				for i, j in self.__cached_image_contents.items():
+				if cache == self.CacheTypes.IMAGE_CONTENTS:
+					cached_items = self.__cached_image_contents.items()
+				elif cache == self.CacheTypes.SKETCH_CONTENTS:
+					cached_items = self.__cached_sketch_contents.items()
+
+				for i, j in cached_items:
 					name = i
 					if name is None:
 						name = "__None__"
@@ -1289,11 +2099,11 @@ class FractalthornsAPI(API):
 							thumb_path, f"{thumb_path}{self.__CACHE_BAK}"
 						)
 
-						loop = asyncio.get_running_loop()
-						await asyncio.gather(
-							loop.run_in_executor(None, image.save, image_path),
-							loop.run_in_executor(None, thumb.save, thumb_path),
-						)
+					loop = asyncio.get_running_loop()
+					await asyncio.gather(
+						loop.run_in_executor(None, image.save, image_path),
+						loop.run_in_executor(None, thumb.save, thumb_path),
+					)
 
 					saved_images.update({name: j[1].timestamp()})
 
@@ -1341,6 +2151,12 @@ class FractalthornsAPI(API):
 							i: (asdict(j[0]), j[1].timestamp())
 							for i, j in cache_contents.items()
 						}
+					case self.CacheTypes.SKETCHES:
+						cache_contents = self.__cached_sketches
+						cache_contents = (
+							{i: asdict(j) for i, j in cache_contents[0].items()},
+							cache_contents[1].timestamp(),
+						)
 					case self.CacheTypes.CHAPTERS:
 						cache_contents = self.__cached_chapters
 						cache_contents = (
@@ -1370,6 +2186,12 @@ class FractalthornsAPI(API):
 						}
 					case self.CacheTypes.FULL_RECORD_CONTENTS:
 						cache_contents = self.__cached_full_record_contents
+						cache_contents = (
+							{i: asdict(j) for i, j in cache_contents[0].items()},
+							cache_contents[1].timestamp(),
+						)
+					case self.CacheTypes.FULL_IMAGE_DESCRIPTIONS:
+						cache_contents = self.__cached_full_image_descriptions
 						cache_contents = (
 							{i: asdict(j) for i, j in cache_contents[0].items()},
 							cache_contents[1].timestamp(),

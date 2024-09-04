@@ -9,15 +9,21 @@
 """Fractalthorns cog for the bot."""
 
 import asyncio
+import datetime as dt
 import logging
 import logging.handlers
+import random
+import re
 from io import BytesIO
+from math import ceil
 
 import aiohttp.client_exceptions as client_exc
 import discord
 import discord.utils
 
 import src.fractalrhomb_globals as frg
+import src.fractalthorns_dataclasses as ftd
+import src.fractalthorns_exceptions as fte
 from src.fractalthorns_api import fractalthorns_api
 
 
@@ -75,6 +81,9 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show the latest news."""
+		msg = f"All news command used ({limit=}, {start_index=}, {show=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -218,6 +227,9 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show an image."""
+		msg = f"Single image command used ({name=}, {image=}, {show=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -322,6 +334,9 @@ class Fractalthorns(discord.Cog):
 		name: str,
 	) -> None:
 		"""Show the description of an image."""
+		msg = f"Image description command used ({name=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -386,6 +401,9 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Show a list of all images."""
+		msg = f"All images command used ({limit=}, {start_index=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -444,6 +462,214 @@ class Fractalthorns(discord.Cog):
 			)
 
 	@staticmethod
+	async def single_sketch_name(_: discord.AutocompleteContext) -> list[str]:
+		"""Give available sketch names."""
+		sketches = fractalthorns_api.get_cached_items(
+			fractalthorns_api.CacheTypes.SKETCHES, ignore_stale=True
+		)
+
+		if sketches is None:
+			return []
+
+		return list(sketches[0].keys())
+
+	@staticmethod
+	async def single_sketch_show(ctx: discord.AutocompleteContext) -> list[str]:
+		"""Give available items for show."""
+		options = [
+			"title",
+			"name",
+			"image_url",
+			"thumb_url",
+			"sketch_link",
+		]
+
+		used_options = ctx.value.split()
+		if (
+			len(used_options) > 0
+			and not ctx.value.endswith(" ")
+			and used_options[-1] not in options
+		):
+			used_options.pop()
+
+		if len(used_options) > 0:
+			possible_options = [" ".join(used_options)]
+			possible_options += [
+				" ".join([*used_options, i]) for i in options if i not in used_options
+			]
+			return possible_options
+
+		return options
+
+	@discord.slash_command(name="sketch")
+	@discord.option(
+		"name",
+		str,
+		description="The (URL) name of the sketch (default: (latest))",
+		autocomplete=discord.utils.basic_autocomplete(single_sketch_name),
+	)
+	@discord.option(
+		"image",
+		str,
+		description="Which kind of image to show (default: image)",
+		choices=["image", "thumbnail", "none"],
+	)
+	@discord.option(
+		"show",
+		str,
+		description="What information to show and in what order (default: title sketch_link)",
+		autocomplete=discord.utils.basic_autocomplete(single_sketch_show),
+	)
+	async def single_sketch(
+		self,
+		ctx: discord.ApplicationContext,
+		name: str | None = None,
+		image: str = "image",
+		show: str | None = None,
+	) -> None:
+		"""Show a sketch."""
+		msg = f"Single sketch command used ({name=}, {image=}, {show=})"
+		self.logger.info(msg)
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		deferred = False
+		if not ctx.response.is_done():
+			await ctx.defer()
+			deferred = True
+
+		if name is not None:
+			name = name.lower()
+
+		formatting = frg.get_formatting(show)
+
+		try:
+			response = await fractalthorns_api.get_single_sketch(frg.session, name)
+			response_text = response[0].format(formatting)
+			response_image = None
+			if image == "image":
+				response_image = response[1][0]
+			elif image == "thumbnail":
+				response_image = response[1][1]
+
+			file = None
+			if response_image is not None:
+				io = BytesIO()
+				response_image.save(io, "PNG")
+				io.seek(0)
+				file = discord.File(io, filename=f"{response[0].name}.png")
+			elif len(response_text) < 1:
+				response_text = frg.EMPTY_MESSAGE
+
+			if deferred:
+				if file is not None:
+					await ctx.respond(response_text, file=file)
+				else:
+					await ctx.respond(response_text)
+			elif file is not None:
+				await ctx.send(
+					f"<@{ctx.author.id}>\n{response_text}", file=file, silent=True
+				)
+			else:
+				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
+
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.SKETCHES)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.SKETCH_CONTENTS
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* fte.SketchNotFoundError:
+			response = "sketch not found"
+			if deferred:
+				await ctx.respond(response)
+			else:
+				await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+
+		except* (TimeoutError, client_exc.ClientError) as exc:
+			await frg.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.single_sketch"
+			)
+
+	@discord.slash_command(name="allsketches")
+	@discord.option("limit", int, description="How many sketches to show (default: 10)")
+	@discord.option(
+		"start",
+		int,
+		description="Where to start from (negative numbers start from the end) (default: 1)",
+		parameter_name="start_index",
+	)
+	async def all_sketches(
+		self,
+		ctx: discord.ApplicationContext,
+		limit: int = 10,
+		start_index: int = 1,
+	) -> None:
+		"""Show a list of all sketches."""
+		msg = f"All sketches command used ({limit=}, {start_index=})"
+		self.logger.info(msg)
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		if start_index > 0:
+			start_index -= 1
+
+		try:
+			sketches = await fractalthorns_api.get_all_sketches(frg.session)
+
+			total_items = len(sketches)
+			sketches = sketches[start_index :: frg.sign(start_index)]
+
+			if limit >= 0:
+				sketches = sketches[:limit]
+
+			response = [i.format_inline() for i in sketches]
+
+			too_many = frg.truncated_message(
+				total_items, len(response), limit, start_index, "sketches"
+			)
+			if too_many is not None:
+				response.append(f"\n{too_many}")
+
+			responses = frg.split_message(response, "\n")
+
+			if not await frg.message_length_warning(ctx, responses, 1000):
+				return
+
+			user = f"<@{ctx.author.id}>\n"
+			for i in responses:
+				if not ctx.response.is_done():
+					await ctx.respond(i)
+				else:
+					await ctx.send(f"{user}{i}", silent=True)
+					user = ""
+
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.SKETCHES)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* (TimeoutError, client_exc.ClientError) as exc:
+			await frg.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.all_sketches"
+			)
+
+	@staticmethod
 	async def full_episodic_name(ctx: discord.AutocompleteContext) -> list[str]:
 		"""Give available chapter names."""
 		cached_chapters = fractalthorns_api.get_cached_items(
@@ -487,6 +713,9 @@ class Fractalthorns(discord.Cog):
 		chapter: str | None = None,
 	) -> None:
 		"""Show a list of records in a chapter."""
+		msg = f"Full episodic command used ({chapter=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -504,7 +733,7 @@ class Fractalthorns(discord.Cog):
 
 			responses = frg.split_message(response, "\n\n")
 
-			if not await frg.message_length_warning(ctx, responses, 600):
+			if not await frg.message_length_warning(ctx, responses, 1200):
 				return
 
 			user = f"<@{ctx.author.id}>\n"
@@ -593,6 +822,9 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show a record entry."""
+		msg = f"Single record command used ({name=}, {show=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -646,6 +878,9 @@ class Fractalthorns(discord.Cog):
 	)
 	async def record_text(self, ctx: discord.ApplicationContext, name: str) -> None:
 		"""Show a record's text."""
+		msg = f"Record text command used ({name=})"
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -720,6 +955,11 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Make a search."""
+		msg = (
+			f"Domain search command used ({term=}, {type_=}, {limit=}, {start_index=})"
+		)
+		self.logger.info(msg)
+
 		if not await frg.bot_channel_warning(ctx):
 			return
 
@@ -728,12 +968,6 @@ class Fractalthorns(discord.Cog):
 			await ctx.respond(msg)
 		else:
 			await ctx.send(f"<@{ctx.author.id}> {msg}", silent=True)
-
-		async def too_long() -> None:
-			await asyncio.sleep(10)
-			await ctx.send("this is taking a while...")
-
-		too_long_task = asyncio.create_task(too_long())
 
 		if start_index > 0:
 			start_index -= 1
@@ -780,8 +1014,6 @@ class Fractalthorns(discord.Cog):
 
 			responses = frg.split_message(response, "\n")
 
-			too_long_task.cancel()
-
 			if not await frg.message_length_warning(ctx, responses, 1200):
 				await ctx.send("the search was cancelled.")
 				return
@@ -820,8 +1052,1079 @@ class Fractalthorns(discord.Cog):
 				ctx, self.logger, exc, "Fractalthorns.domain_search"
 			)
 
-		finally:
-			too_long_task.cancel()
+	get_random_group = discord.SlashCommandGroup(
+		"random", "Get a select random item from fractalthorns"
+	)
+
+	@staticmethod
+	async def get_image_canon(ctx: discord.AutocompleteContext) -> list[str]:
+		"""Give available items for canons."""
+		images_cache = fractalthorns_api.get_cached_items(
+			fractalthorns_api.CacheTypes.IMAGES, ignore_stale=True
+		)
+		images: list[ftd.Image] = [i[0] for i in images_cache.values()]
+
+		options = {i.canon.lower() for i in images if i.canon is not None}
+		options.add("none")
+		options = {i.lower() for i in options}
+
+		canon_aliases = {
+			"eykwyrm": "154373",
+			"vollux": "209151",
+			"moth": "209151",
+			"llokin": "265404",
+			"chevrin": "265404",
+			"osmite": "768220",
+			"nyxite": "768221",
+		}
+
+		used_options = ctx.value.lower().split()
+		formatted_options = [canon_aliases.get(i, i) for i in used_options]
+
+		if (
+			len(formatted_options) > 0
+			and not ctx.value.endswith(" ")
+			and formatted_options[-1] not in options
+		):
+			used_options.pop()
+			formatted_options.pop()
+
+		if len(used_options) > 0:
+			possible_options = [" ".join(used_options)]
+			possible_options += [
+				" ".join([*used_options, i])
+				for i in options
+				if i not in formatted_options
+			]
+			return possible_options
+
+		return list(options)
+
+	@staticmethod
+	async def get_image_characters(ctx: discord.AutocompleteContext) -> list[str]:
+		"""Give available items for canons."""
+		images_cache = fractalthorns_api.get_cached_items(
+			fractalthorns_api.CacheTypes.IMAGES, ignore_stale=True
+		)
+		images: list[ftd.Image] = [i[0] for i in images_cache.values()]
+
+		options = set()
+		for i in images:
+			options.update(i.characters)
+		options.add("none")
+		options.discard(None)
+		options = {i.lower() for i in options}
+
+		used_options = ctx.value.lower().split()
+
+		if (
+			len(used_options) > 0
+			and not ctx.value.endswith(" ")
+			and used_options[-1] not in options
+		):
+			used_options.pop()
+
+		if len(used_options) > 0:
+			possible_options = [" ".join(used_options)]
+			possible_options += [
+				" ".join([*used_options, i]) for i in options if i not in used_options
+			]
+			return possible_options
+
+		return list(options)
+
+	@get_random_group.command(name="image")
+	@discord.option(
+		"name",
+		str,
+		description="Only images whose names contain this (regex)",
+	)
+	@discord.option(
+		"description",
+		str,
+		description="Only images whose descriptions contain this (regex)",
+	)
+	@discord.option(
+		"canon",
+		str,
+		description="Only images from these canons",
+		autocomplete=discord.utils.basic_autocomplete(get_image_canon),
+	)
+	@discord.option(
+		"character",
+		str,
+		description="Only images with these characters",
+		autocomplete=discord.utils.basic_autocomplete(get_image_characters),
+	)
+	@discord.option(
+		"has_description",
+		bool,
+		description="Only images that do or don't have a description",
+	)
+	async def get_random_image(
+		self,
+		ctx: discord.ApplicationContext,
+		name: str | None = None,
+		description: str | None = None,
+		canon: str | None = None,
+		character: str | None = None,
+		*,
+		has_description: bool | None = None,
+	) -> None:
+		"""Get a random image."""
+		msg = f"Random image command used ({name=}, {description=}, {canon=}, {character=}, {has_description=})"
+		self.logger.info(msg)
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		deferred = False
+		if not ctx.response.is_done():
+			deferred = True
+			await ctx.defer()
+
+		try:
+			try:
+				images_list = await fractalthorns_api.search_images(
+					frg.session,
+					name=name,
+					description=description,
+					canon=canon,
+					character=character,
+					has_description=has_description,
+				)
+
+			except re.error:
+				if name is not None and description is not None:
+					response = frg.regex_incorrectly_formatted(
+						"name or description", "are"
+					)
+				elif description is not None:
+					response = frg.regex_incorrectly_formatted("description")
+				else:
+					response = frg.regex_incorrectly_formatted("name")
+
+				if deferred:
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			if len(images_list) < 1:
+				response = frg.NO_ITEMS_MATCH_SEARCH
+				if deferred:
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			random.seed()
+			random_item = random.choice(images_list)  # noqa: S311  # this is not cryptographic you fuck
+
+			random_item = await fractalthorns_api.get_single_image(
+				frg.session, random_item.name
+			)
+
+			response_text = random_item[0].format()
+
+			response_image = random_item[1][0]
+			io = BytesIO()
+			response_image.save(io, "PNG")
+			io.seek(0)
+			file = discord.File(io, filename=f"{random_item[0].name}.png")
+
+			if deferred:
+				await ctx.respond(response_text, file=file)
+			else:
+				await ctx.send(
+					f"<@{ctx.author.id}>\n{response_text}", file=file, silent=True
+				)
+
+			await fractalthorns_api.save_all_caches()
+
+		except* (TimeoutError, client_exc.ClientError) as exc:
+			await frg.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.get_random_image"
+			)
+
+	@staticmethod
+	async def get_record_iteration(ctx: discord.AutocompleteContext) -> list[str]:
+		"""Give available items for iteration."""
+		chapters_cache = fractalthorns_api.get_cached_items(
+			fractalthorns_api.CacheTypes.CHAPTERS, ignore_stale=True
+		)
+		records = []
+		for i in chapters_cache[0].values():
+			records.extend(i.records)
+
+		options = {i.iteration.lower() for i in records}
+
+		iteration_aliases = {
+			"vollux": "209151",
+			"moth": "209151",
+			"llokin": "265404",
+			"chevrin": "265404",
+			"osmite": "768220",
+			"nyxite": "768221",
+			"director": "0",
+		}
+
+		used_options = ctx.value.lower().split()
+		formatted_options = [iteration_aliases.get(i, i) for i in used_options]
+
+		if (
+			len(formatted_options) > 0
+			and not ctx.value.endswith(" ")
+			and formatted_options[-1] not in options
+		):
+			used_options.pop()
+			formatted_options.pop()
+
+		if len(used_options) > 0:
+			possible_options = [" ".join(used_options)]
+			possible_options += [
+				" ".join([*used_options, i])
+				for i in options
+				if i not in formatted_options
+			]
+			return possible_options
+
+		return list(options)
+
+	@staticmethod
+	async def get_record_language(ctx: discord.AutocompleteContext) -> list[str]:
+		"""Give available items for language."""
+		records_cache = fractalthorns_api.get_cached_items(
+			fractalthorns_api.CacheTypes.FULL_RECORD_CONTENTS, ignore_stale=True
+		)
+		records = records_cache[0].values()
+
+		options = set()
+		for i in records:
+			options.update(i.languages)
+		options = {i.lower() for i in options}
+
+		used_options = ctx.value.lower().split()
+
+		if (
+			len(used_options) > 0
+			and not ctx.value.endswith(" ")
+			and used_options[-1] not in options
+		):
+			used_options.pop()
+
+		if len(used_options) > 0:
+			possible_options = [" ".join(used_options)]
+			possible_options += [
+				" ".join([*used_options, i]) for i in options if i not in used_options
+			]
+			return possible_options
+
+		return list(options)
+
+	@staticmethod
+	async def get_record_character(ctx: discord.AutocompleteContext) -> list[str]:
+		"""Give available items for character."""
+		records_cache = fractalthorns_api.get_cached_items(
+			fractalthorns_api.CacheTypes.FULL_RECORD_CONTENTS, ignore_stale=True
+		)
+		records = records_cache[0].values()
+
+		options = set()
+		for i in records:
+			options.update(i.characters)
+		options = {i.lower() for i in options}
+
+		used_options = ctx.value.lower().split()
+
+		if (
+			len(used_options) > 0
+			and not ctx.value.endswith(" ")
+			and used_options[-1] not in options
+		):
+			used_options.pop()
+
+		if len(used_options) > 0:
+			possible_options = [" ".join(used_options)]
+			possible_options += [
+				" ".join([*used_options, i]) for i in options if i not in used_options
+			]
+			return possible_options
+
+		return list(options)
+
+	@get_random_group.command(name="record")
+	@discord.option(
+		"name",
+		str,
+		description="Only images whose names contain this (regex)",
+	)
+	@discord.option(
+		"chapter",
+		str,
+		description="Only records from these chapters",
+		autocomplete=discord.utils.basic_autocomplete(full_episodic_name),
+	)
+	@discord.option(
+		"iteration",
+		str,
+		description="Only records from these iterations",
+		autocomplete=discord.utils.basic_autocomplete(get_record_iteration),
+	)
+	@discord.option(
+		"language",
+		str,
+		description="Only records with these languages",
+		autocomplete=discord.utils.basic_autocomplete(get_record_language),
+	)
+	@discord.option(
+		"character",
+		str,
+		description="Only records with these characters",
+		autocomplete=discord.utils.basic_autocomplete(get_record_character),
+	)
+	@discord.option(
+		"requested",
+		bool,
+		description="Only records that are or aren't requested",
+	)
+	async def get_random_record(
+		self,
+		ctx: discord.ApplicationContext,
+		name: str | None = None,
+		chapter: str | None = None,
+		iteration: str | None = None,
+		language: str | None = None,
+		character: str | None = None,
+		*,
+		requested: bool | None = None,
+	) -> None:
+		"""Get a random record."""
+		msg = f"Random record command used ({name=}, {chapter=}, {iteration=}, {language=}, {character=}, {requested=})"
+		self.logger.info(msg)
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		deferred = False
+		record_contents_required = (
+			language is not None or character is not None or requested is not None
+		)
+		if not ctx.response.is_done() and record_contents_required:
+			try:
+				await fractalthorns_api.get_full_record_contents(
+					frg.session, gather=False
+				)
+			except fte.ItemsUngatheredError:
+				await ctx.defer()
+				deferred = True
+
+		try:
+			try:
+				records_list = await fractalthorns_api.search_records(
+					frg.session,
+					name=name,
+					chapter=chapter,
+					iteration=iteration,
+					language=language,
+					character=character,
+					requested=requested,
+				)
+
+			except re.error:
+				response = frg.regex_incorrectly_formatted("name")
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			if len(records_list) < 1:
+				response = frg.NO_ITEMS_MATCH_SEARCH
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			random.seed()
+			random_item = random.choice(records_list)  # noqa: S311  # this is not cryptographic you fuck
+
+			random_item = await fractalthorns_api.get_single_record(
+				frg.session, random_item.name
+			)
+
+			response_text = random_item.format()
+
+			if deferred or not ctx.response.is_done():
+				await ctx.respond(response_text)
+			else:
+				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
+
+			await fractalthorns_api.save_all_caches()
+
+		except* (TimeoutError, client_exc.ClientError) as exc:
+			await frg.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.get_random_record"
+			)
+
+	@get_random_group.command(name="line")
+	@discord.option(
+		"text",
+		str,
+		description="Only lines containing this text (regex)",
+	)
+	@discord.option(
+		"language",
+		str,
+		description="Only lines from these languages",
+		autocomplete=discord.utils.basic_autocomplete(get_record_language),
+	)
+	@discord.option(
+		"character",
+		str,
+		description="Only lines from these characters",
+		autocomplete=discord.utils.basic_autocomplete(get_record_character),
+	)
+	@discord.option(
+		"emphasis",
+		str,
+		description="Only lines containing this emphasis (regex)",
+	)
+	@discord.option(
+		"name",
+		str,
+		description="Only lines from records whose names contain this (regex)",
+	)
+	@discord.option(
+		"chapter",
+		str,
+		description="Only lines from records from these chapters",
+		autocomplete=discord.utils.basic_autocomplete(full_episodic_name),
+	)
+	@discord.option(
+		"iteration",
+		str,
+		description="Only lines from records from these iterations",
+		autocomplete=discord.utils.basic_autocomplete(get_record_iteration),
+	)
+	@discord.option(
+		"requested",
+		bool,
+		description="Only lines from records that are or aren't requested",
+	)
+	async def get_random_record_line(
+		self,
+		ctx: discord.ApplicationContext,
+		text: str,
+		language: str | None = None,
+		character: str | None = None,
+		emphasis: str | None = None,
+		name: str | None = None,
+		chapter: str | None = None,
+		iteration: str | None = None,
+		*,
+		requested: bool | None = None,
+	) -> None:
+		"""Get a random record line."""
+		msg = f"Random record line command used ({text=}, {language=}, {character=}, {emphasis=}, {name=}, {chapter=}, {iteration=}, {requested=})"
+		self.logger.info(msg)
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		deferred = False
+		if not ctx.response.is_done():
+			try:
+				await fractalthorns_api.get_full_record_contents(
+					frg.session, gather=False
+				)
+			except fte.ItemsUngatheredError:
+				await ctx.defer()
+				deferred = True
+
+		try:
+			try:
+				lines_list = await fractalthorns_api.search_record_lines(
+					frg.session,
+					text=text,
+					language=language,
+					character=character,
+					emphasis=emphasis,
+					name=name,
+					chapter=chapter,
+					iteration=iteration,
+					requested=requested,
+				)
+
+			except re.error:
+				response = frg.regex_incorrectly_formatted("name")
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			if len(lines_list) < 1:
+				response = frg.NO_ITEMS_MATCH_SEARCH
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			random.seed()
+			random_item = random.choice(lines_list)  # noqa: S311  # this is not cryptographic you fuck
+
+			response_text = random_item.format()
+
+			if deferred or not ctx.response.is_done():
+				await ctx.respond(response_text)
+			else:
+				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
+
+			await fractalthorns_api.save_all_caches()
+
+		except* (TimeoutError, client_exc.ClientError) as exc:
+			await frg.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.get_random_record_line"
+			)
+
+	search_group = discord.SlashCommandGroup(
+		"search", "Search for items from fractalthorns"
+	)
+
+	@search_group.command(name="images")
+	@discord.option(
+		"name",
+		str,
+		description="Only images whose names contain this (regex)",
+	)
+	@discord.option(
+		"description",
+		str,
+		description="Only images whose descriptions contain this (regex)",
+	)
+	@discord.option(
+		"canon",
+		str,
+		description="Only images from these canons",
+		autocomplete=discord.utils.basic_autocomplete(get_image_canon),
+	)
+	@discord.option(
+		"character",
+		str,
+		description="Only images with these characters",
+		autocomplete=discord.utils.basic_autocomplete(get_image_characters),
+	)
+	@discord.option(
+		"has_description",
+		bool,
+		description="Only images that do or don't have a description",
+	)
+	@discord.option("limit", int, description="How many images to show (default: 10)")
+	@discord.option(
+		"start",
+		int,
+		description="Where to start from (negative numbers start from the end) (default: 1)",
+		parameter_name="start_index",
+	)
+	async def search_images(
+		self,
+		ctx: discord.ApplicationContext,
+		name: str | None = None,
+		description: str | None = None,
+		canon: str | None = None,
+		character: str | None = None,
+		*,
+		has_description: bool | None = None,
+		limit: int = 10,
+		start_index: int = 1,
+	) -> None:
+		"""Search for images."""
+		msg = f"Search images command used ({name=}, {description=}, {canon=}, {character=}, {has_description=}, {limit=}, {start_index=})"
+		self.logger.info(msg)
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		if start_index > 0:
+			start_index -= 1
+
+		deferred = False
+		if not ctx.response.is_done() and description is not None:
+			try:
+				await fractalthorns_api.get_full_image_descriptions(
+					frg.session, gather=False
+				)
+			except fte.ItemsUngatheredError:
+				await ctx.defer()
+				deferred = True
+
+		try:
+			try:
+				images_list = await fractalthorns_api.search_images(
+					frg.session,
+					name=name,
+					description=description,
+					canon=canon,
+					character=character,
+					has_description=has_description,
+				)
+
+			except re.error:
+				if name is not None and description is not None:
+					response = frg.regex_incorrectly_formatted(
+						"name or description", "are"
+					)
+				elif description is not None:
+					response = frg.regex_incorrectly_formatted("description")
+				else:
+					response = frg.regex_incorrectly_formatted("name")
+
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			if len(images_list) < 1:
+				response = frg.NO_ITEMS_MATCH_SEARCH
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			total_items = len(images_list)
+			images_list = images_list[start_index :: frg.sign(start_index)]
+
+			if limit >= 0:
+				images_list = images_list[:limit]
+
+			response = [i.format_inline() for i in images_list]
+
+			too_many = frg.truncated_message(
+				total_items, len(response), limit, start_index, "images"
+			)
+			if too_many is not None:
+				response.append(f"\n{too_many}")
+
+			responses = frg.split_message(response, "\n")
+
+			if not await frg.message_length_warning(ctx, responses, 1800):
+				return
+
+			user = f"<@{ctx.author.id}>"
+			for i in responses:
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(i)
+				else:
+					await ctx.send(f"{user}{i}", silent=True)
+					user = ""
+
+			await fractalthorns_api.save_all_caches()
+
+		except* (TimeoutError, client_exc.ClientError) as exc:
+			await frg.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.search_images"
+			)
+
+	@search_group.command(name="records")
+	@discord.option(
+		"name",
+		str,
+		description="Only images whose names contain this (regex)",
+	)
+	@discord.option(
+		"chapter",
+		str,
+		description="Only records from these chapters",
+		autocomplete=discord.utils.basic_autocomplete(full_episodic_name),
+	)
+	@discord.option(
+		"iteration",
+		str,
+		description="Only records from these iterations",
+		autocomplete=discord.utils.basic_autocomplete(get_record_iteration),
+	)
+	@discord.option(
+		"language",
+		str,
+		description="Only records with these languages",
+		autocomplete=discord.utils.basic_autocomplete(get_record_language),
+	)
+	@discord.option(
+		"character",
+		str,
+		description="Only records with these characters",
+		autocomplete=discord.utils.basic_autocomplete(get_record_character),
+	)
+	@discord.option(
+		"requested",
+		bool,
+		description="Only records that are or aren't requested",
+	)
+	@discord.option("limit", int, description="How many images to show (default: 10)")
+	@discord.option(
+		"start",
+		int,
+		description="Where to start from (negative numbers start from the end) (default: 1)",
+		parameter_name="start_index",
+	)
+	async def search_records(
+		self,
+		ctx: discord.ApplicationContext,
+		name: str | None = None,
+		chapter: str | None = None,
+		iteration: str | None = None,
+		language: str | None = None,
+		character: str | None = None,
+		*,
+		requested: bool | None = None,
+		limit: int = 10,
+		start_index: int = 1,
+	) -> None:
+		"""Search for images."""
+		msg = f"Search records command used ({name=}, {chapter=}, {iteration=}, {language=}, {character=}, {requested=}, {limit=}, {start_index=})"
+		self.logger.info(msg)
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		if start_index > 0:
+			start_index -= 1
+
+		deferred = False
+		record_contents_required = (
+			language is not None or character is not None or requested is not None
+		)
+		if not ctx.response.is_done() and record_contents_required:
+			try:
+				await fractalthorns_api.get_full_record_contents(
+					frg.session, gather=False
+				)
+			except fte.ItemsUngatheredError:
+				await ctx.defer()
+				deferred = True
+
+		try:
+			try:
+				records_list = await fractalthorns_api.search_records(
+					frg.session,
+					name=name,
+					chapter=chapter,
+					iteration=iteration,
+					language=language,
+					character=character,
+					requested=requested,
+				)
+
+			except re.error:
+				response = frg.regex_incorrectly_formatted("name")
+
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			if len(records_list) < 1:
+				response = frg.NO_ITEMS_MATCH_SEARCH
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			total_items = len(records_list)
+			records_list = records_list[start_index :: frg.sign(start_index)]
+
+			if limit >= 0:
+				records_list = records_list[:limit]
+
+			response = [i.format_inline() for i in records_list]
+
+			too_many = frg.truncated_message(
+				total_items, len(response), limit, start_index, "records"
+			)
+			if too_many is not None:
+				response.append(f"\n{too_many}")
+
+			responses = frg.split_message(response, "\n")
+
+			if not await frg.message_length_warning(ctx, responses, 1200):
+				return
+
+			user = f"<@{ctx.author.id}>"
+			for i in responses:
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(i)
+				else:
+					await ctx.send(f"{user}{i}", silent=True)
+					user = ""
+
+			await fractalthorns_api.save_all_caches()
+
+		except* (TimeoutError, client_exc.ClientError) as exc:
+			await frg.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.search_records"
+			)
+
+	@search_group.command(name="text")
+	@discord.option(
+		"text",
+		str,
+		description="Only lines containing this text (regex)",
+	)
+	@discord.option(
+		"language",
+		str,
+		description="Only lines from these languages",
+		autocomplete=discord.utils.basic_autocomplete(get_record_language),
+	)
+	@discord.option(
+		"character",
+		str,
+		description="Only lines from these characters",
+		autocomplete=discord.utils.basic_autocomplete(get_record_character),
+	)
+	@discord.option(
+		"emphasis",
+		str,
+		description="Only lines containing this emphasis (regex)",
+	)
+	@discord.option(
+		"name",
+		str,
+		description="Only lines from records whose names contain this (regex)",
+	)
+	@discord.option(
+		"chapter",
+		str,
+		description="Only lines from records from these chapters",
+		autocomplete=discord.utils.basic_autocomplete(full_episodic_name),
+	)
+	@discord.option(
+		"iteration",
+		str,
+		description="Only lines from records from these iterations",
+		autocomplete=discord.utils.basic_autocomplete(get_record_iteration),
+	)
+	@discord.option(
+		"requested",
+		bool,
+		description="Only lines from records that are or aren't requested",
+	)
+	@discord.option("limit", int, description="How many images to show (default: 10)")
+	@discord.option(
+		"start",
+		int,
+		description="Where to start from (negative numbers start from the end) (default: 1)",
+		parameter_name="start_index",
+	)
+	async def search_record_lines(
+		self,
+		ctx: discord.ApplicationContext,
+		text: str,
+		language: str | None = None,
+		character: str | None = None,
+		emphasis: str | None = None,
+		name: str | None = None,
+		chapter: str | None = None,
+		iteration: str | None = None,
+		*,
+		requested: bool | None = None,
+		limit: int = 10,
+		start_index: int = 1,
+	) -> None:
+		"""Search for images."""
+		msg = f"Search record lines command used ({text=}, {language=}, {character=}, {emphasis=}, {name=}, {chapter=}, {iteration=}, {requested=}, {limit=}, {start_index=})"
+		self.logger.info(msg)
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		if start_index > 0:
+			start_index -= 1
+
+		deferred = False
+		if not ctx.response.is_done():
+			try:
+				await fractalthorns_api.get_full_record_contents(
+					frg.session, gather=False
+				)
+			except fte.ItemsUngatheredError:
+				await ctx.defer()
+				deferred = True
+
+		try:
+			try:
+				lines_list = await fractalthorns_api.search_record_lines(
+					frg.session,
+					text=text,
+					language=language,
+					character=character,
+					emphasis=emphasis,
+					name=name,
+					chapter=chapter,
+					iteration=iteration,
+					requested=requested,
+				)
+
+			except re.error:
+				response = frg.regex_incorrectly_formatted("name")
+
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			if len(lines_list) < 1:
+				response = frg.NO_ITEMS_MATCH_SEARCH
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(response)
+				else:
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				return
+
+			total_items = len(lines_list)
+			lines_list = lines_list[start_index :: frg.sign(start_index)]
+
+			if limit >= 0:
+				lines_list = lines_list[:limit]
+
+			response = []
+			last_record = None
+			for i in lines_list:
+				response.append(i.format(last_record))
+				last_record = i.record
+
+			too_many = frg.truncated_message(
+				total_items, len(response), limit, start_index, "results"
+			)
+			if too_many is not None:
+				response.append(f"\n{too_many}")
+
+			responses = frg.split_message(response, "\n")
+
+			if not await frg.message_length_warning(ctx, responses, 1800):
+				return
+
+			user = f"<@{ctx.author.id}>"
+			for i in responses:
+				if deferred or not ctx.response.is_done():
+					await ctx.respond(i)
+				else:
+					await ctx.send(f"{user}{i}", silent=True)
+					user = ""
+
+			await fractalthorns_api.save_all_caches()
+
+		except* (TimeoutError, client_exc.ClientError) as exc:
+			await frg.standard_exception_handler(
+				ctx, self.logger, exc, "Fractalthorns.search_record_lines"
+			)
+
+	gather_group = discord.SlashCommandGroup(
+		"fractalthorns", "Gather stuff from fractalthorns"
+	)
+
+	@gather_group.command(name="gather")
+	async def gather_all(self, ctx: discord.ApplicationContext) -> None:
+		"""Gather record texts and image descriptions in bulk."""
+		self.logger.info("Gather all command used")
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		user = str(ctx.author.id)
+
+		time = frg.bot_data.gather_cooldowns.get(user)
+		if (
+			time is not None
+			and dt.datetime.now(dt.UTC)
+			< dt.datetime.fromtimestamp(time, dt.UTC) + frg.FULL_GATHER_COOLDOWN
+		):
+			time += frg.FULL_GATHER_COOLDOWN.total_seconds()
+			response = f"you cannot do that. try again <t:{ceil(time)}:R>"
+			if ctx.response.is_done():
+				response = f"<@{ctx.author.id}> {response}"
+				await ctx.send(response, silent=True)
+			else:
+				await ctx.respond(response)
+			return
+
+		try:
+
+			async def delayed_send(delay: float = 0.25) -> None:
+				await asyncio.sleep(delay)
+				response = "gathering items. this may take a bit"
+				if ctx.response.is_done():
+					response = f"<@{ctx.author.id}> {response}"
+					await ctx.send(response, silent=True)
+				else:
+					await ctx.respond(response)
+
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.get_full_record_contents(frg.session, gather=True)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.get_full_image_descriptions(
+						frg.session, gather=True
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(delayed_send())
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* fte.CachePurgeError as exc:
+			exc = exc.exceptions[0]
+			if exc.allowed_time is not None:
+				response = f"this command was used too recently. try again <t:{ceil(exc.args[1].timestamp())}:R>"
+			else:
+				response = "this command was used too recently"
+
+			if ctx.response.is_done():
+				response = f"<@{ctx.author.id}> {response}"
+				await ctx.send(response, silent=True)
+			else:
+				await ctx.respond(response)
+
+		else:
+			response = "successfully gathered all records and descriptions"
+			await ctx.send(response)
+
+			frg.bot_data.gather_cooldowns.update(
+				{user: dt.datetime.now(dt.UTC).timestamp()}
+			)
+			try:
+				await frg.bot_data.save(frg.BOT_DATA_PATH)
+			except Exception:
+				self.logger.exception("Could not save bot data.")
+
+		await fractalthorns_api.save_all_caches()
 
 
 def setup(bot: discord.Bot) -> None:

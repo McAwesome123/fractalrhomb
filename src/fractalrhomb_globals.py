@@ -36,6 +36,13 @@ bot = discord.Bot(intents=intents, activity=activity)
 
 MAX_MESSAGE_LENGTH = 1950
 EMPTY_MESSAGE = "give me something to show"
+NO_ITEMS_MATCH_SEARCH = "no items match the requested parameters"
+
+
+def regex_incorrectly_formatted(regex: str = "regex", is_or_are: str = "is") -> str:
+	"""Get a string for reporting an incorrectly formatted regex."""
+	return f"the {regex} {is_or_are} not formatted correctly. please try again"
+
 
 discord_logger = logging.getLogger("discord")
 session: aiohttp.ClientSession = None
@@ -47,6 +54,7 @@ class BotData:
 
 	bot_channels: dict[str, list[str]]
 	purge_cooldowns: dict[str, dict[str, float]]
+	gather_cooldowns: dict[str, float]
 
 	async def load(self, fp: str) -> None:
 		"""Load data from file."""
@@ -64,6 +72,9 @@ class BotData:
 			if data.get("purge_cooldowns") is not None:
 				discord_logger.info("Loaded saved purge cooldowns.")
 				self.purge_cooldowns = data["purge_cooldowns"]
+			if data.get("gather_cooldowns") is not None:
+				discord_logger.info("Loaded saved purge cooldowns.")
+				self.gather_cooldowns = data["gather_cooldowns"]
 
 	async def save(self, fp: str) -> None:
 		"""Save data to file."""
@@ -78,9 +89,10 @@ class BotData:
 			discord_logger.info("Saved bot data.")
 
 
-bot_data = BotData({}, {})
+bot_data = BotData({}, {}, {})
 
 USER_PURGE_COOLDOWN = dt.timedelta(hours=12)
+FULL_GATHER_COOLDOWN = dt.timedelta(hours=72)
 BOT_DATA_PATH = "bot_data.json"
 
 

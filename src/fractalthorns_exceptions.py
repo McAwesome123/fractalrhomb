@@ -36,3 +36,11 @@ class CacheFetchError(APIError):
 
 class InvalidSearchTypeError(APIError):
 	"""Not a valid search type."""
+
+
+class ItemsUngatheredError(APIError):
+	"""The full items are not cached."""
+
+
+class SketchNotFoundError(APIError):
+	"""The requested sketch was not found."""
