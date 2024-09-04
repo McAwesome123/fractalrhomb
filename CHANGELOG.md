@@ -30,7 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- "Too long" message for searches
+- "Taking too long" message for searches
+
+### Fixed
+
+- Image contents cache not being saved
 
 ## [0.5.0] - 2024-08-28
 
