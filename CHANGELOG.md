@@ -15,8 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - API coroutines for getting sketches
 - API coroutine for searching images, records, record lines
-- Sketch and MatchResult dataclasses
-- ItemsUngatheredError and SketchNotFoundError exceptions
+- `Sketch` and `MatchResult` dataclasses
+- `ItemsUngatheredError` and `SketchNotFoundError` exceptions
+- `format_text` to `RecordLine` (removes random whitespace)
 - Commands for getting sketches
 - Commands for a random image, record, record line
 - Commands for searching images, records, record lines
@@ -24,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Increased required message length for warning for chapters
-- Purge commands are now 1 command
+- Purge commands are now a single command
 - Lowered cache duration and purge cooldown for full record contents
 
 ### Removed
