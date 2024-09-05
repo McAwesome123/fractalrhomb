@@ -1773,7 +1773,7 @@ class Fractalthorns(discord.Cog):
 		bool,
 		description="Only records that are or aren't requested",
 	)
-	@discord.option("limit", int, description="How many images to show (default: 10)")
+	@discord.option("limit", int, description="How many records to show (default: 10)")
 	@discord.option(
 		"start",
 		int,
@@ -1793,7 +1793,7 @@ class Fractalthorns(discord.Cog):
 		limit: int = 10,
 		start_index: int = 1,
 	) -> None:
-		"""Search for images."""
+		"""Search for records."""
 		msg = f"Search records command used ({name=}, {chapter=}, {iteration=}, {language=}, {character=}, {requested=}, {limit=}, {start_index=})"
 		self.logger.info(msg)
 
@@ -1926,7 +1926,7 @@ class Fractalthorns(discord.Cog):
 		bool,
 		description="Only lines from records that are or aren't requested",
 	)
-	@discord.option("limit", int, description="How many images to show (default: 10)")
+	@discord.option("limit", int, description="How many record lines to show (default: 10)")
 	@discord.option(
 		"start",
 		int,
@@ -1948,7 +1948,7 @@ class Fractalthorns(discord.Cog):
 		limit: int = 10,
 		start_index: int = 1,
 	) -> None:
-		"""Search for images."""
+		"""Search for record lines."""
 		msg = f"Search record lines command used ({text=}, {language=}, {character=}, {emphasis=}, {name=}, {chapter=}, {iteration=}, {requested=}, {limit=}, {start_index=})"
 		self.logger.info(msg)
 

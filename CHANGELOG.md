@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.6.1] - 2024-09-05
+
+### Fixed
+
+- Description of `/search records` and `/search text`
+- Description of the `limit` parameter of `/search records` and `/search text`
+
 ## [0.6.0] - 2024-09-04
 
 ### Added
@@ -27,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Increased required message length for warning for chapters
 - Purge commands are now a single command
 - Lowered cache duration and purge cooldown for full record contents
+- Renamed `NSIRP_EMOJIS` to `NSIRP_EMOJI`
 
 ### Removed
 
