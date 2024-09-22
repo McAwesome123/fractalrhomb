@@ -486,7 +486,7 @@ def parse_arguments() -> None:
 		"-V",
 		"--version",
 		action="version",
-		version="%(prog)s 0.6.0",
+		version="%(prog)s 0.6.2",
 	)
 	parser.add_argument(
 		"-v",

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.6.2] - 2024-09-22
+
+### Fixed
+
+- Sketch links should now properly link to the sketches
+
 ## [0.6.1] - 2024-09-05
 
 ### Fixed
