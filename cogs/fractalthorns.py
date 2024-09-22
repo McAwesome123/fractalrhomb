@@ -1926,7 +1926,9 @@ class Fractalthorns(discord.Cog):
 		bool,
 		description="Only lines from records that are or aren't requested",
 	)
-	@discord.option("limit", int, description="How many record lines to show (default: 10)")
+	@discord.option(
+		"limit", int, description="How many record lines to show (default: 10)"
+	)
 	@discord.option(
 		"start",
 		int,

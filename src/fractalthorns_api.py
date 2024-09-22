@@ -127,6 +127,7 @@ class FractalthornsAPI(API):
 
 		super().__init__("https://fractalthorns.com", "/api/v1/", __requests_list)
 		self.__BASE_IMAGE_URL = f"{self._base_url}/image/"
+		self.__BASE_SKETCH_URL = f"{self._base_url}/sketch/"
 		self.__BASE_RECORD_URL = f"{self._base_url}/episodic/"
 
 		self.__cached_news_items: tuple[list[ftd.NewsEntry], dt.datetime] | None = None
@@ -1355,7 +1356,7 @@ class FractalthornsAPI(API):
 			for sketch in sketches:
 				sketch["image_url"] = f"{self._base_url}{sketch["image_url"]}"
 				sketch["thumb_url"] = f"{self._base_url}{sketch["thumb_url"]}"
-				sketch_link = f"{self.__BASE_IMAGE_URL}{sketch["name"]}"
+				sketch_link = f"{self.__BASE_SKETCH_URL}{sketch["name"]}"
 				sketches_dict.update(
 					{sketch["name"]: ftd.Sketch.from_obj(sketch_link, sketch)}
 				)
