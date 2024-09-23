@@ -20,16 +20,19 @@ from src.fractalrhomb_globals import bot
 notifs_logger = logging.getLogger("notifs")
 
 async def listen_for_notifications() -> None:
-    async with sse_client.EventSource('http://localhost:4321/notifications') as event_source:
-        async for event in event_source:
-            await handle_notification(event)
+    async with sse_client.EventSource('https://fractalthorns.com/notifications') as event_source:
+        try:
+            async for event in event_source:
+                await handle_notification(event)
+        except ConnectionError:
+            pass
 
 async def handle_notification(notification):
     notifs_logger.info(f'caught a sse notification: {notification}')
     body = notification.data
 
     if '/' not in body:
-        notifs_logger.info(f'sse notification was malformed')
+        notifs_logger.info(f'sse notification is missing a type delimiter! ignoring')
         return
 
     notification_type, payload = body.split('/', maxsplit=1)
@@ -39,7 +42,7 @@ async def handle_notification(notification):
         case 'news_update':
             await post_news_update(json.loads(payload))
         case _:
-            notifs_logger.info(f'sse notification had an unknown type')
+            notifs_logger.info(f'sse notification had an unknown type: {notification_type}')
             pass
 
 async def post_news_update(news_item):
@@ -49,12 +52,12 @@ async def post_news_update(news_item):
         notifs_logger.warning(f'wanted to post a notification, but no update channels are configured!')
 
     for channel in news_channels:
+        notifs_logger.info(f'posting a news update')
+
         discord_channel = bot.get_channel(int(channel))
         await discord_channel.send(make_news_update_string(news_item))
 
 def make_news_update_string(news_item):
-    print(news_item)
-
     # This is 100% going to cause a problem later, but YOLO
     strip_html_tags = lambda s: re.sub('<[^<]+?>', '', s)
 
