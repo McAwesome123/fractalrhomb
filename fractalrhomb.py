@@ -27,6 +27,7 @@ import src.fractalrhomb_globals as frg
 from src.fractalrhomb_globals import bot
 from src.fractalthorns_api import FractalthornsAPI, fractalthorns_api
 from src.fractalthorns_exceptions import CachePurgeError
+import src.fractalthorns_notifications as ft_notifs
 
 load_dotenv()
 
@@ -571,7 +572,11 @@ async def main() -> None:
 
 		token = getenv("DISCORD_BOT_TOKEN")
 		async with bot:
-			await bot.start(token)
+			bot_task = asyncio.create_task(bot.start(token))
+			notifs_listen_task = asyncio.create_task(ft_notifs.listen_for_notifications())
+
+			await bot_task
+			await notifs_listen_task
 
 
 if __name__ == "__main__":
