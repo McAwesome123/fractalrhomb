@@ -64,7 +64,6 @@ async def handle_notification(notification):
             await post_news_update(json.loads(payload))
         case _:
             notifs_logger.info(f'sse notification had an unknown type: {notification_type}')
-            pass
 
 async def post_news_update(news_item):
     news_channels = json.loads(getenv("NEWS_UPDATE_POST_CHANNELS", "[]"))
