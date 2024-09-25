@@ -24,7 +24,29 @@ notifs_logger = logging.getLogger("discord")
 BASE_RETRY_INTERVAL = timedelta(seconds=30)
 MAX_RETRY_INTERVAL = timedelta(hours=1)
 
+resume_event = asyncio.Event()
+
+async def start_and_watch_notification_listener() -> None:
+    while True:
+        listener_task = asyncio.create_task(listen_for_notifications())
+        await asyncio.wait([listener_task], return_when=asyncio.FIRST_EXCEPTION)
+
+        if listener_task.cancelled():
+            notifs_logger.warning(f'sse listener was cancelled.')
+
+        if (listener_exception := listener_task.exception()) is not None:
+            notifs_logger.warning(f'sse listener failed with {type(listener_exception)} "{listener_exception}", the client will need to be manually restarted')
+
+        notifs_logger.info(f'sse listener stopped. waiting to be manually resumed')
+        await resume_event.wait()
+
+        notifs_logger.info(f'sse listener is resuming')
+        resume_event.clear()
+        
+
 async def listen_for_notifications() -> None:
+    raise Exception('e')
+
     retry_interval = BASE_RETRY_INTERVAL
 
     while True:
@@ -35,7 +57,7 @@ async def listen_for_notifications() -> None:
                     await handle_notification(event)
                     retry_interval = BASE_RETRY_INTERVAL
 
-        except (ClientPayloadError, ConnectionError) as ex:
+        except (aiohttp.ClientPayloadError, ConnectionError) as ex:
             # This SSE client does have its own retry logic, but it will only 
             # retry on certain very specific failures.
             # These two exception types cover the most common reasons the connection
@@ -43,17 +65,12 @@ async def listen_for_notifications() -> None:
             # 2) it is broken and spitting 400s or 500s - which are NOT
             # automatically retried by the client and have to be picked up
             # by us.
-            notifs_logger.warning(f'couldn\'t connect to the sse server because of {type(ex)=} "{ex=}", trying again in {retry_interval.total_seconds()} seconds')
+            notifs_logger.warning(f'couldn\'t connect to the sse server because of {type(ex)} "{ex}", trying again in {retry_interval.total_seconds()} seconds')
 
             await asyncio.sleep(retry_interval.total_seconds())
 
             retry_interval *= 2
             retry_interval = MAX_RETRY_INTERVAL if retry_interval > MAX_RETRY_INTERVAL else retry_interval
-
-        except Exception as ex: 
-            notifs_logger.warning(f'unknown exception when connecting to see server {type(ex)=} "{ex=}", the client will need to be manually restarted')
-            raise
-
         
 async def handle_notification(notification):
     notifs_logger.info(f'caught a sse notification: {notification}')

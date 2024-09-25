@@ -477,6 +477,21 @@ async def test_command(ctx: discord.ApplicationContext) -> None:
 	frg.discord_logger.info("Test command used")
 	await ctx.respond(getenv("LOOK2_EMOJI", ":look2:"))
 
+@bot.slash_command(name="restart-notification-listener")
+async def restart_notification_listener(ctx: discord.ApplicationContext) -> None:
+	# TODO: I don't want to add 100 lists of users for every little operation
+	# that might be privileged, so I'm just gonna reuse this one.
+	# Maybe we could just have one ADMIN_USERS list. PS
+	privileged_users = json.loads(getenv("FORCE_PURGE_ALLOWED"))
+
+	if ctx.author.id not in privileged_users:
+		discord_logger.warning(f"Unauthorized notif listener restart attempt by {ctx.author.id}.")
+		await ctx.respond("you cannot do that.")
+		return
+
+	ft_notifs.resume_event.set()
+	await ctx.respond("listener has been restarted.")
+	return
 
 def parse_arguments() -> None:
 	"""Parse command line arguments."""
@@ -553,7 +568,6 @@ def parse_arguments() -> None:
 		else:
 			root_logger.setLevel(args.root_log_level)
 
-
 async def main() -> None:
 	"""Do main."""
 	parse_arguments()
@@ -572,12 +586,10 @@ async def main() -> None:
 
 		token = getenv("DISCORD_BOT_TOKEN")
 		async with bot:
-			bot_task = asyncio.create_task(bot.start(token))
-			notifs_listen_task = asyncio.create_task(ft_notifs.listen_for_notifications())
+			main_bot_task = asyncio.create_task(bot.start(token))
+			notifs_listen_task = asyncio.create_task(ft_notifs.start_and_watch_notification_listener())
 
-			await bot_task
-			await notifs_listen_task
-
+			await asyncio.wait([main_bot_task, notifs_listen_task])
 
 if __name__ == "__main__":
 	with contextlib.suppress(KeyboardInterrupt):
