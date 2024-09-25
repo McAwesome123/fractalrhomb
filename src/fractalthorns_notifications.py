@@ -9,6 +9,7 @@
 """Code responsible for listening to and relaying SSE notifications."""
 
 import asyncio
+import aiohttp
 import json
 import logging
 import re
@@ -18,6 +19,7 @@ from datetime import timedelta
 from aiohttp_sse_client2 import client as sse_client
 
 from src.fractalrhomb_globals import bot
+import src.fractalthorns_dataclasses as ftd
 
 notifs_logger = logging.getLogger("discord")
 
@@ -45,8 +47,6 @@ async def start_and_watch_notification_listener() -> None:
         
 
 async def listen_for_notifications() -> None:
-    raise Exception('e')
-
     retry_interval = BASE_RETRY_INTERVAL
 
     while True:
@@ -65,7 +65,7 @@ async def listen_for_notifications() -> None:
             # 2) it is broken and spitting 400s or 500s - which are NOT
             # automatically retried by the client and have to be picked up
             # by us.
-            notifs_logger.warning(f'couldn\'t connect to the sse server because of {type(ex)} "{ex}", trying again in {retry_interval.total_seconds()} seconds')
+            notifs_logger.warning(f'lost connection to sse server because of {type(ex)} "{ex}", trying again in {retry_interval.total_seconds()} seconds')
 
             await asyncio.sleep(retry_interval.total_seconds())
 
@@ -85,7 +85,8 @@ async def handle_notification(notification):
 
     match notification_type:
         case 'news_update':
-            await post_news_update(json.loads(payload))
+            news_item = ftd.NewsEntry.from_obj(json.loads(payload))
+            await post_news_update(news_item)
         case _:
             notifs_logger.info(f'sse notification had an unknown type: {notification_type}')
 
@@ -99,16 +100,4 @@ async def post_news_update(news_item):
         notifs_logger.info(f'posting a news update')
 
         discord_channel = bot.get_channel(int(channel))
-        await discord_channel.send(make_news_update_string(news_item))
-
-def make_news_update_string(news_item):
-    # This is 100% going to cause a problem later, but YOLO
-    strip_html_tags = lambda s: re.sub('<[^<]+?>', '', s)
-
-    string = (
-        f'**fractalthorns update for** {news_item['date']}\n'
-        f'## {news_item['title']}\n'
-        f'{"* " + "\n* ".join(map(strip_html_tags, news_item['items']))}'
-    )
-
-    return string
+        await discord_channel.send(news_item.format())
