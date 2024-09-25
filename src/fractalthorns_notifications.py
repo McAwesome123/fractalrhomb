@@ -52,7 +52,8 @@ async def listen_for_notifications() -> None:
     while True:
         notifs_logger.info(f'trying to connect to sse endpoint')
         try:
-            async with sse_client.EventSource('http://localhost:4321/notifications-test', timeout=None) as event_source:
+            # change this path to /notifications-test to get test messages
+            async with sse_client.EventSource('https://fractalthorns.com/notifications', timeout=None) as event_source:
                 # Yes, you are reading that correctly. I just passed timeout=None to a SSE client.
                 # Guess what happens if you don't? The request times out after 5 minutes, as is the aiohttp default.
                 #
@@ -69,10 +70,10 @@ async def listen_for_notifications() -> None:
 
         except (aiohttp.ClientPayloadError, ConnectionError) as ex:
             # This SSE client does have its own retry logic, but it will only retry on certain very specific failures.
-            # These two exception types cover the most common reasons the connection might fail - those being 
+            # These two exception types cover the most common reasons the connection might fail, those being:
             # 1) the server is entirely down, or 
-            # 2) it is broken and spitting 400s or 500s...
-            # neither of which are  automatically retried by the client and have to be picked up by us.
+            # 2) the backend is down and spitting 400s or 500s
+            # Neither of these are automatically retried by the client and have to be picked up by us.
             notifs_logger.warning(f'lost connection to sse server because of {type(ex)} "{ex}", trying again in {retry_interval.total_seconds()} seconds')
 
             await asyncio.sleep(retry_interval.total_seconds())
@@ -81,7 +82,8 @@ async def listen_for_notifications() -> None:
             retry_interval = MAX_RETRY_INTERVAL if retry_interval > MAX_RETRY_INTERVAL else retry_interval
 
         except TimeoutError:
-            # Just in case aiohttp is still unhappy with leaving a single HTTP request open for a week.
+            # Even though I asked it for no timeout, aiohttp may still be unhappy with 
+            # leaving a single GET request open for a week. So just in case...
             notifs_logger.warning(f'sse client timed out, reconnecting...')
         
 async def handle_notification(notification):
