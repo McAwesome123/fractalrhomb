@@ -30,23 +30,30 @@ async def listen_for_notifications() -> None:
     while True:
         notifs_logger.info(f'trying to connect to sse endpoint')
         try:
-            async with sse_client.EventSource('https://fractalthorns.com/notifications') as event_source:
+            async with sse_client.EventSource('http://localhost:4321/notifications-test') as event_source:
                 async for event in event_source:
                     await handle_notification(event)
                     retry_interval = BASE_RETRY_INTERVAL
 
-        except Exception:
+        except (ClientPayloadError, ConnectionError) as ex:
             # This SSE client does have its own retry logic, but it will only 
             # retry on certain very specific failures.
-            # If the server 503s, for example, it will permanently give up.
-            # If it can't get a connection for any reason, I still want the bot 
-            # to continually retry no matter what so that it doesn't have to be
-            # restarted, so we need a little bit of custom retry logic.
-            notifs_logger.warning(f'couldn\'t connect to the sse server, trying again in {retry_interval.total_seconds()} seconds')
+            # These two exception types cover the most common reasons the connection
+            # might fail - those being 1) the server is entirely down or
+            # 2) it is broken and spitting 400s or 500s - which are NOT
+            # automatically retried by the client and have to be picked up
+            # by us.
+            notifs_logger.warning(f'couldn\'t connect to the sse server because of {type(ex)=} "{ex=}", trying again in {retry_interval.total_seconds()} seconds')
+
             await asyncio.sleep(retry_interval.total_seconds())
 
             retry_interval *= 2
             retry_interval = MAX_RETRY_INTERVAL if retry_interval > MAX_RETRY_INTERVAL else retry_interval
+
+        except Exception as ex: 
+            notifs_logger.warning(f'unknown exception when connecting to see server {type(ex)=} "{ex=}", the client will need to be manually restarted')
+            raise
+
         
 async def handle_notification(notification):
     notifs_logger.info(f'caught a sse notification: {notification}')
