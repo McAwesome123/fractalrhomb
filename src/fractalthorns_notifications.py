@@ -35,8 +35,7 @@ async def start_and_watch_notification_listener() -> None:
 
         if listener_task.cancelled():
             notifs_logger.warning(f'sse listener was cancelled.')
-
-        if (listener_exception := listener_task.exception()) is not None:
+        elif (listener_exception := listener_task.exception()) is not None:
             notifs_logger.warning(f'sse listener failed with {type(listener_exception)} "{listener_exception}", the client will need to be manually restarted')
 
         notifs_logger.info(f'sse listener stopped. waiting to be manually resumed')
