@@ -18,7 +18,7 @@ from datetime import timedelta
 
 from aiohttp_sse_client2 import client as sse_client
 
-from src.fractalrhomb_globals import bot
+from src.fractalrhomb_globals import bot, bot_data
 import src.fractalthorns_dataclasses as ftd
 
 notifs_logger = logging.getLogger("notifs")
@@ -104,7 +104,7 @@ async def handle_notification(notification):
             notifs_logger.info(f'sse notification had an unknown type: {notification_type}')
 
 async def post_news_update(news_item):
-    news_channels = json.loads(getenv("NEWS_UPDATE_POST_CHANNELS", "[]"))
+    news_channels = bot_data.news_post_channels
 
     if len(news_channels) == 0:
         notifs_logger.warning(f'wanted to post a notification, but no update channels are configured!')
