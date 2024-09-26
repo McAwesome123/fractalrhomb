@@ -484,7 +484,7 @@ async def restart_notification_listener(ctx: discord.ApplicationContext) -> None
 	# Maybe we could just have one ADMIN_USERS list.
 	privileged_users = json.loads(getenv("FORCE_PURGE_ALLOWED", "[]"))
 
-    user_id = str(ctx.author.id)
+	user_id = str(ctx.author.id)
 	if user_id not in privileged_users:
 		discord_logger.warning(f"Unauthorized notif listener restart attempt by {user_id}.")
 		await ctx.respond("you cannot do that.")
