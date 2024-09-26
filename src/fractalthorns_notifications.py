@@ -21,7 +21,7 @@ from aiohttp_sse_client2 import client as sse_client
 from src.fractalrhomb_globals import bot
 import src.fractalthorns_dataclasses as ftd
 
-notifs_logger = logging.getLogger("discord")
+notifs_logger = logging.getLogger("notifs")
 
 BASE_RETRY_INTERVAL = timedelta(seconds=30)
 MAX_RETRY_INTERVAL = timedelta(hours=1)
