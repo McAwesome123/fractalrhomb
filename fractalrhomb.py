@@ -353,15 +353,21 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 
 
 bot_channel_group = bot.create_group(
-	"botchannel",
-	"Manage bot channels.",
+	"channel",
+	"Manage special channels.",
 	contexts={discord.InteractionContextType.guild},
 	default_member_permissions=discord.Permissions(manage_guild=True),
 )
 
 
 @bot_channel_group.command(name="add")
-@discord.default_permissions(manage_guild=True)
+@discord.option(
+	"type",
+	str,
+	choices=["bot", "news"],
+	desrciption="What type of channel to add it as",
+	parameter_name="type_",
+)
 @discord.option(
 	"channel",
 	discord.SlashCommandOptionType.channel,
@@ -370,41 +376,61 @@ bot_channel_group = bot.create_group(
 @discord.option("hidden", bool, description="Only visible for you (default: No)")
 async def add_bot_channel(
 	ctx: discord.ApplicationContext,
+	type_: str,
 	channel: discord.abc.GuildChannel | discord.abc.Messageable | None = None,
 	*,
 	hidden: bool = False,
 ) -> None:
-	"""Add the channel as a bot channel (requires Manage Server permission)."""
-	msg = f"Add bot channel command used ({channel=}, {hidden=})"
+	"""Mark a channel as a special type (requires Manage Server permission)."""
+	msg = f"Add special channel command used ({type_=}, {channel=}, {hidden=})"
 	frg.discord_logger.info(msg)
 
 	if channel is not None:
 		if isinstance(channel, discord.abc.Messageable):
 			channel_id = str(channel.id)
 		else:
-			response = "not a valid channel."
+			response = "not a valid channel"
 			await ctx.respond(response, ephemeral=hidden)
 			return
 	else:
 		channel_id = str(ctx.channel_id)
 
-	guild_id = str(ctx.guild_id)
+	match type_:
+		case "bot":
+			guild_id = str(ctx.guild_id)
 
-	if guild_id not in frg.bot_data.bot_channels:
-		frg.bot_data.bot_channels.update({guild_id: []})
+			if guild_id not in frg.bot_data.bot_channels:
+				frg.bot_data.bot_channels.update({guild_id: []})
 
-	if channel_id not in frg.bot_data.bot_channels[guild_id]:
-		frg.bot_data.bot_channels[guild_id].append(channel_id)
-		await frg.bot_data.save(frg.BOT_DATA_PATH)
-		response = f"successfully added channel ({channel_id})"
-	else:
-		response = f"channel is already a bot channel ({channel_id})"
+			if channel_id not in frg.bot_data.bot_channels[guild_id]:
+				frg.bot_data.bot_channels[guild_id].append(channel_id)
+				await frg.bot_data.save(frg.BOT_DATA_PATH)
+				response = f"successfully added bot channel ({channel_id})"
+			else:
+				response = f"channel is already a bot channel ({channel_id})"
+
+		case "news":
+			if channel_id not in frg.bot_data.news_post_channels:
+				frg.bot_data.news_post_channels.append(channel_id)
+				await frg.bot_data.save(frg.BOT_DATA_PATH)
+				response = f"successfully added news channel ({channel_id})"
+			else:
+				response = f"channel is already a news channel ({channel_id})"
+
+		case _:
+			response = f"not a valid type ({type_})"
 
 	await ctx.respond(response, ephemeral=hidden)
 
 
 @bot_channel_group.command(name="remove")
-@discord.default_permissions(manage_guild=True)
+@discord.option(
+	"type",
+	str,
+	choices=["bot", "news"],
+	desrciption="What type of channel to remove it as",
+	parameter_name="type_",
+)
 @discord.option(
 	"channel",
 	discord.SlashCommandOptionType.channel,
@@ -413,60 +439,93 @@ async def add_bot_channel(
 @discord.option("hidden", bool, description="Only visible for you (default: No)")
 async def remove_bot_channel(
 	ctx: discord.ApplicationContext,
+	type_: str,
 	channel: discord.abc.GuildChannel | discord.abc.Messageable | None = None,
 	*,
 	hidden: bool = False,
 ) -> None:
-	"""Remove the channel as a bot channel (requires Manage Server permission)."""
-	msg = f"Remove bot channel command used ({channel=}, {hidden=})"
+	"""Unmark a channel as a special type (requires Manage Server permission)."""
+	msg = f"Remove special channel command used ({type_=}, {channel=}, {hidden=})"
 	frg.discord_logger.info(msg)
 
 	if channel is not None:
 		if isinstance(channel, discord.abc.Messageable):
 			channel_id = str(channel.id)
 		else:
-			response = "not a valid channel."
+			response = "not a valid channel"
 			await ctx.respond(response, ephemeral=hidden)
 			return
 	else:
 		channel_id = str(ctx.channel_id)
 
-	guild_id = str(ctx.guild_id)
+	match type_:
+		case "bot":
+			guild_id = str(ctx.guild_id)
 
-	if guild_id not in frg.bot_data.bot_channels:
-		frg.bot_data.bot_channels.update({guild_id: []})
+			if guild_id not in frg.bot_data.bot_channels:
+				frg.bot_data.bot_channels.update({guild_id: []})
 
-	if channel_id in frg.bot_data.bot_channels[guild_id]:
-		frg.bot_data.bot_channels[guild_id].remove(channel_id)
-		await frg.bot_data.save(frg.BOT_DATA_PATH)
-		response = f"successfully removed channel ({channel_id})"
-	else:
-		response = f"channel is not a bot channel ({channel_id})"
+			if channel_id in frg.bot_data.bot_channels[guild_id]:
+				frg.bot_data.bot_channels[guild_id].remove(channel_id)
+				await frg.bot_data.save(frg.BOT_DATA_PATH)
+				response = f"successfully removed bot channel ({channel_id})"
+			else:
+				response = f"channel is not a bot channel ({channel_id})"
+
+		case "news":
+			if channel_id in frg.bot_data.news_post_channels:
+				frg.bot_data.news_post_channels.remove(channel_id)
+				await frg.bot_data.save(frg.BOT_DATA_PATH)
+				response = f"successfully removed news channel ({channel_id})"
+			else:
+				response = f"channel is not a news channel ({channel_id})"
+
+		case _:
+			response = f"not a valid type ({type_})"
 
 	await ctx.respond(response, ephemeral=hidden)
 
 
 @bot_channel_group.command(name="removeall")
-@discord.default_permissions(manage_guild=True)
+@discord.option(
+	"type",
+	str,
+	choices=["bot", "news"],
+	desrciption="What type of channels to remove",
+	parameter_name="type_",
+)
 @discord.option("hidden", bool, description="Only visible for you (default: No)")
 async def remove_all_bot_channels(
-	ctx: discord.ApplicationContext, *, hidden: bool = False
+	ctx: discord.ApplicationContext, type_: str, *, hidden: bool = False
 ) -> None:
-	"""Remove all channels as a bot channel (requires Manage Server permission)."""
-	msg = f"Remove all bot channels command used ({hidden=})"
+	"""Unmark all channels as a special type (requires Manage Server permission)."""
+	msg = f"Remove all bot channels command used ({type_=}, {hidden=})"
 	frg.discord_logger.info(msg)
 
-	guild_id = str(ctx.guild_id)
+	match type_:
+		case "bot":
+			guild_id = str(ctx.guild_id)
 
-	if guild_id not in frg.bot_data.bot_channels:
-		frg.bot_data.bot_channels.update({guild_id: []})
+			if guild_id not in frg.bot_data.bot_channels:
+				frg.bot_data.bot_channels.update({guild_id: []})
 
-	if len(frg.bot_data.bot_channels[guild_id]) > 0:
-		frg.bot_data.bot_channels[guild_id].clear()
-		await frg.bot_data.save(frg.BOT_DATA_PATH)
-		response = "successfully removed all channels"
-	else:
-		response = "server has no bot channels"
+			if len(frg.bot_data.bot_channels[guild_id]) > 0:
+				frg.bot_data.bot_channels[guild_id].clear()
+				await frg.bot_data.save(frg.BOT_DATA_PATH)
+				response = "successfully removed all bot channels"
+			else:
+				response = "server has no bot channels"
+
+		case "news":
+			if len(frg.bot_data.news_post_channels) > 0:
+				frg.bot_data.news_post_channels.clear()
+				await frg.bot_data.save(frg.BOT_DATA_PATH)
+				response = "successfully removed all news channels"
+			else:
+				response = "server has no news channels"
+
+		case _:
+			response = f"not a valid type ({type_})"
 
 	await ctx.respond(response, ephemeral=hidden)
 
@@ -503,7 +562,7 @@ def parse_arguments() -> None:
 		"-V",
 		"--version",
 		action="version",
-		version="%(prog)s 0.6.2",
+		version="%(prog)s 0.7.0",
 	)
 	parser.add_argument(
 		"-v",

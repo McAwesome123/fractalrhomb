@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SSE notification listening
   - Currently handles `news_update` notifications from `https://fractalthorns.com/notifications`
   - Sends a message in specified news channels upon receiving such a notification
+- Reworked bot channel command to work with multiple types (currently bot, news)
 
 ## [0.6.2] - 2024-09-22
 
