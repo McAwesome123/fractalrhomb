@@ -53,7 +53,7 @@ class BotData:
 	"""Data class containing bot data/config."""
 
 	bot_channels: dict[str, list[str]]
-	news_post_channels: dict[str, list[str]]
+	news_post_channels: list[str]
 	purge_cooldowns: dict[str, dict[str, float]]
 	gather_cooldowns: dict[str, float]
 
