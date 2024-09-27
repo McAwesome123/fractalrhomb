@@ -53,6 +53,7 @@ class BotData:
 	"""Data class containing bot data/config."""
 
 	bot_channels: dict[str, list[str]]
+	news_post_channels: list[str]
 	purge_cooldowns: dict[str, dict[str, float]]
 	gather_cooldowns: dict[str, float]
 
@@ -69,6 +70,9 @@ class BotData:
 			if data.get("bot_channels") is not None:
 				discord_logger.info("Loaded saved bot channels.")
 				self.bot_channels = data["bot_channels"]
+			if data.get("news_post_channels") is not None:
+				discord_logger.info("Loaded saved news post channels.")
+				self.news_post_channels = data["news_post_channels"]
 			if data.get("purge_cooldowns") is not None:
 				discord_logger.info("Loaded saved purge cooldowns.")
 				self.purge_cooldowns = data["purge_cooldowns"]
@@ -89,7 +93,7 @@ class BotData:
 			discord_logger.info("Saved bot data.")
 
 
-bot_data = BotData({}, {}, {})
+bot_data = BotData({}, [], {}, {})
 
 USER_PURGE_COOLDOWN = dt.timedelta(hours=12)
 FULL_GATHER_COOLDOWN = dt.timedelta(hours=72)
