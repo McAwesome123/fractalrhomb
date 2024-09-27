@@ -44,7 +44,7 @@ log_formatter = logging.Formatter(
 log_handler.setFormatter(log_formatter)
 root_logger.addHandler(log_handler)
 
-PING_LATENCY_HIGH = 9
+PING_LATENCY_HIGH = 10.0
 
 
 @bot.event
