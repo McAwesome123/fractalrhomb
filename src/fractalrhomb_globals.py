@@ -93,7 +93,7 @@ class BotData:
 			discord_logger.info("Saved bot data.")
 
 
-bot_data = BotData({}, {}, {}, {})
+bot_data = BotData({}, [], {}, {})
 
 USER_PURGE_COOLDOWN = dt.timedelta(hours=12)
 FULL_GATHER_COOLDOWN = dt.timedelta(hours=72)
