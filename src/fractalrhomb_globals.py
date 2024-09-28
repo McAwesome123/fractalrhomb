@@ -81,7 +81,7 @@ class BotData:
 			discord_logger.info("Did not find saved bot data.")
 			return
 
-		async with aiofiles.open(fp, "r") as f:
+		async with aiofiles.open(fp) as f:
 			data = json.loads(await f.read())
 			if data.get("bot_channels") is not None:
 				discord_logger.info("Loaded saved bot channels.")
