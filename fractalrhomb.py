@@ -24,10 +24,10 @@ import discord.utils
 from dotenv import load_dotenv
 
 import src.fractalrhomb_globals as frg
-from src.fractalrhomb_globals import bot
+import src.fractalthorns_notifications as ft_notifs
+from src.fractalrhomb_globals import FRACTALRHOMB_VERSION_FULL, bot
 from src.fractalthorns_api import FractalthornsAPI, fractalthorns_api
 from src.fractalthorns_exceptions import CachePurgeError
-import src.fractalthorns_notifications as ft_notifs
 
 load_dotenv()
 
@@ -65,19 +65,21 @@ async def private_commands(message: discord.Message) -> None:
 	user_id = str(message.author.id)
 
 	if message.content.startswith("-say"):
-		allowed = json.loads(getenv("SAY_COMMAND_ALLOWED", "[]"))
+		allowed = json.loads(getenv("BOT_ADMIN_USERS", "[]"))
 		if user_id not in allowed:
-			msg = f"User {user_id} tried to use -say, but is not part of {allowed}"
-			discord_logger.info(msg)
+			discord_logger.info(
+				"User %s tried to use -say, but is not part of %s", user_id, allowed
+			)
 			return
 
 		await say_message_command(message)
 
 	if message.content.startswith("-status"):
-		allowed = json.loads(getenv("STATUS_COMMAND_ALLOWED", "[]"))
+		allowed = json.loads(getenv("BOT_ADMIN_USERS", "[]"))
 		if user_id not in allowed:
-			msg = f"User {user_id} tried to use -status, but is not part of {allowed}"
-			discord_logger.info(msg)
+			discord_logger.info(
+				"User %s tried to use -status, but is not part of %s", user_id, allowed
+			)
 			return
 
 		await change_status_command(message)
@@ -87,29 +89,26 @@ async def say_message_command(message: discord.Message) -> None:
 	"""Send a message in a specified channel."""
 	args = message.content.split(" ", 2)
 
-	msg = f"Received -say command: {message.content}. Parsed as: {args}."
-	discord_logger.debug(msg)
+	discord_logger.debug(
+		"Received -say command: %s. Parsed as: %s.", message.content, args
+	)
 
 	if len(args) < 3:  # noqa: PLR2004
-		msg = "Command did not receive enough arguments."
-		discord_logger.debug(msg)
+		discord_logger.debug("Command did not receive enough arguments.")
 		return
 
 	channel = args[1]
 	content = args[2]
 
-	msg = f"Parsed channel as {channel} and content as {content}."
-	discord_logger.debug(msg)
+	discord_logger.debug("Parsed channel as %s and content as %s.", channel, content)
 
 	try:
 		discord_channel = bot.get_channel(int(channel))
 		if discord_channel is None:
-			msg = f"{channel} is not a valid channel."
-			discord_logger.debug(msg)
+			discord_logger.debug("%s is not a valid channel.", channel)
 			return
 	except ValueError:
-		msg = f"{channel} is not a channel id."
-		discord_logger.debug(msg)
+		discord_logger.debug("%s is not a channel id.", channel)
 		return
 
 	await discord_channel.send(content)
@@ -119,12 +118,12 @@ async def change_status_command(message: discord.Message) -> None:
 	"""Change the bot's status."""
 	args = message.content.split(" ", 1)
 
-	msg = f"Received -status command: {message.content}. Parsed as: {args}."
-	discord_logger.debug(msg)
+	discord_logger.debug(
+		"Received -status command: %s. Parsed as: %s.", message.content, args
+	)
 
 	if len(args) < 2:  # noqa: PLR2004
-		msg = "Did not receive enough arguments."
-		discord_logger.debug(msg)
+		discord_logger.debug("Did not receive enough arguments.")
 		return
 
 	content = args[1]
@@ -144,8 +143,7 @@ async def on_application_command_error(
 	"""Do stuff when there's a command error."""
 	response = "an unhandled exception occurred"
 	if ctx.response.is_done():
-		response = f"<@{ctx.author.id}> {response}"
-		await ctx.send(response, silent=True)
+		await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 	else:
 		await ctx.respond(response)
 	raise error
@@ -154,15 +152,11 @@ async def on_application_command_error(
 @bot.slash_command(description="Pong!")
 async def ping(ctx: discord.ApplicationContext) -> None:
 	"""Pong."""
-	frg.discord_logger.info("Ping command used")
+	frg.discord_logger.info(
+		"Ping command used. Latency: %s ms", round(bot.latency * 1000)
+	)
 
-	if bot.latency < PING_LATENCY_HIGH:
-		latency = f"{round(bot.latency * 1000)!s}ms"
-	else:
-		latency = f"{round(bot.latency, 2)!s}s"
-
-	response = f"pong! latency: {latency}."
-	await ctx.respond(response)
+	await ctx.respond(f"pong! latency: {f"{round(bot.latency * 1000)!s}ms"}.")
 
 
 @bot.slash_command(name="license")
@@ -200,25 +194,26 @@ async def show_license(ctx: discord.ApplicationContext) -> None:
 	],
 	description="Which cache to purge?",
 )
-@discord.option("force", bool)
+@discord.option(
+	"force",
+	bool,
+	description="Ignore cooldowns (parameter restricted to certain users)",
+)
 async def purge(
 	ctx: discord.ApplicationContext, cache: str, *, force: bool = False
 ) -> None:
 	"""Purge the bot's cache."""
-	msg = f"Purge command used ({cache=}, {force=})"
-	frg.discord_logger.info(msg)
+	frg.discord_logger.info("Purge command used (cache=%s, force=%s)", cache, force)
 
 	user = str(ctx.author.id)
 
 	if force:
-		force_purge_allowed = json.loads(getenv("FORCE_PURGE_ALLOWED"))
+		force_purge_allowed = json.loads(getenv("BOT_ADMIN_USERS"))
 
 		if user not in force_purge_allowed:
-			msg = f"Unauthorized force purge attempt by {user}."
-			discord_logger.warning(msg)
+			discord_logger.warning("Unauthorized force purge attempt by %s.", user)
 
-			response = "you cannot do that."
-			await ctx.respond(response)
+			await ctx.respond("you cannot do that.")
 			return
 
 	if cache == "all":
@@ -230,11 +225,9 @@ async def purge(
 	if force:
 		fractalthorns_api.purge_cache(cache, force_purge=True)
 
-		msg = f"'{cache.value}' force purged by {ctx.author.id}."
-		discord_logger.info(msg)
+		discord_logger.info('"%s" force purged by %s.', cache.value, ctx.author.id)
 
-		response = f"successfully force purged {cache.value}"
-		await ctx.respond(response)
+		await ctx.respond(f"successfully force purged {cache.value}")
 		return
 
 	user = frg.bot_data.purge_cooldowns.get(user)
@@ -246,8 +239,7 @@ async def purge(
 			< dt.datetime.fromtimestamp(time, dt.UTC) + frg.USER_PURGE_COOLDOWN
 		):
 			time += frg.USER_PURGE_COOLDOWN.total_seconds()
-			response = f"you cannot do that. try again <t:{ceil(time)}:R>"
-			await ctx.respond(response)
+			await ctx.respond(f"you cannot do that. try again <t:{ceil(time)}:R>")
 			return
 	try:
 		fractalthorns_api.purge_cache(cache)
@@ -262,8 +254,7 @@ async def purge(
 		await ctx.respond(response)
 
 	else:
-		response = f"successfully purged {cache.value}"
-		await ctx.respond(response)
+		await ctx.respond(f"successfully purged {cache.value}")
 
 		if str(ctx.author.id) not in frg.bot_data.purge_cooldowns:
 			frg.bot_data.purge_cooldowns.update({str(ctx.author.id): {}})
@@ -291,11 +282,9 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 
 			fractalthorns_api.purge_cache(cache, force_purge=True)
 
-		msg = f"All caches force purged by {user}."
-		discord_logger.info(msg)
+		discord_logger.info("All caches force purged by %s.", user)
 
-		response = "successfully force purged all caches"
-		await ctx.respond(response)
+		await ctx.respond("successfully force purged all caches")
 		return
 
 	user = frg.bot_data.purge_cooldowns.get(user)
@@ -335,11 +324,9 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 			)
 
 	if len(purged) > 0:
-		response = f"successfully purged {", ".join(purged)}"
-		await ctx.respond(response)
+		await ctx.respond(f"successfully purged {", ".join(purged)}")
 
-		msg = f"'{"', '".join(purged)} purged by {ctx.author.id}."
-		discord_logger.info(msg)
+		discord_logger.info("%s purged by %s.", ('", "'.join(purged)), ctx.author.id)
 
 		try:
 			await frg.bot_data.save(frg.BOT_DATA_PATH)
@@ -348,8 +335,9 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 	else:
 		earliest = min(cooldown, key=cooldown.get)
 
-		response = f"could not purge any caches.\nearliest available: '{earliest.value}' <t:{ceil(cooldown[earliest])}:R>"
-		await ctx.respond(response)
+		await ctx.respond(
+			f"could not purge any caches.\nearliest available: '{earliest.value}' <t:{ceil(cooldown[earliest])}:R>"
+		)
 
 
 bot_channel_group = bot.create_group(
@@ -360,18 +348,18 @@ bot_channel_group = bot.create_group(
 )
 
 
-@bot_channel_group.command(name="add")
+@bot_channel_group.command(name="set")
 @discord.option(
 	"type",
 	str,
 	choices=["bot", "news"],
-	desrciption="What type of channel to add it as",
+	description="What type of channel to set it as",
 	parameter_name="type_",
 )
 @discord.option(
 	"channel",
 	discord.SlashCommandOptionType.channel,
-	desrciption="The channel to add (default: (current channel))",
+	description="The channel to add (default: (current channel))",
 )
 @discord.option("hidden", bool, description="Only visible for you (default: No)")
 async def add_bot_channel(
@@ -382,15 +370,18 @@ async def add_bot_channel(
 	hidden: bool = False,
 ) -> None:
 	"""Mark a channel as a special type (requires Manage Server permission)."""
-	msg = f"Add special channel command used ({type_=}, {channel=}, {hidden=})"
-	frg.discord_logger.info(msg)
+	frg.discord_logger.info(
+		"Add special channel command used (type_=%s, channel=%s, hidden=%s)",
+		type_,
+		channel,
+		hidden,
+	)
 
 	if channel is not None:
 		if isinstance(channel, discord.abc.Messageable):
 			channel_id = str(channel.id)
 		else:
-			response = "not a valid channel"
-			await ctx.respond(response, ephemeral=hidden)
+			await ctx.respond("not a valid channel", ephemeral=hidden)
 			return
 	else:
 		channel_id = str(ctx.channel_id)
@@ -423,18 +414,18 @@ async def add_bot_channel(
 	await ctx.respond(response, ephemeral=hidden)
 
 
-@bot_channel_group.command(name="remove")
+@bot_channel_group.command(name="clear")
 @discord.option(
 	"type",
 	str,
 	choices=["bot", "news"],
-	desrciption="What type of channel to remove it as",
+	description="What type of channel to clear it as",
 	parameter_name="type_",
 )
 @discord.option(
 	"channel",
 	discord.SlashCommandOptionType.channel,
-	desrciption="The channel to remove (default: (current channel))",
+	description="The channel to remove (default: (current channel))",
 )
 @discord.option("hidden", bool, description="Only visible for you (default: No)")
 async def remove_bot_channel(
@@ -445,15 +436,18 @@ async def remove_bot_channel(
 	hidden: bool = False,
 ) -> None:
 	"""Unmark a channel as a special type (requires Manage Server permission)."""
-	msg = f"Remove special channel command used ({type_=}, {channel=}, {hidden=})"
-	frg.discord_logger.info(msg)
+	frg.discord_logger.info(
+		"Remove special channel command used (type_=%s, channel=%s, hidden=%s)",
+		type_,
+		channel,
+		hidden,
+	)
 
 	if channel is not None:
 		if isinstance(channel, discord.abc.Messageable):
 			channel_id = str(channel.id)
 		else:
-			response = "not a valid channel"
-			await ctx.respond(response, ephemeral=hidden)
+			await ctx.respond("not a valid channel", ephemeral=hidden)
 			return
 	else:
 		channel_id = str(ctx.channel_id)
@@ -486,12 +480,12 @@ async def remove_bot_channel(
 	await ctx.respond(response, ephemeral=hidden)
 
 
-@bot_channel_group.command(name="removeall")
+@bot_channel_group.command(name="clearall")
 @discord.option(
 	"type",
 	str,
 	choices=["bot", "news"],
-	desrciption="What type of channels to remove",
+	description="What type of channels to clear",
 	parameter_name="type_",
 )
 @discord.option("hidden", bool, description="Only visible for you (default: No)")
@@ -499,8 +493,9 @@ async def remove_all_bot_channels(
 	ctx: discord.ApplicationContext, type_: str, *, hidden: bool = False
 ) -> None:
 	"""Unmark all channels as a special type (requires Manage Server permission)."""
-	msg = f"Remove all bot channels command used ({type_=}, {hidden=})"
-	frg.discord_logger.info(msg)
+	frg.discord_logger.info(
+		"Remove all bot channels command used (type_=%s, hidden=%s)", type_, hidden
+	)
 
 	match type_:
 		case "bot":
@@ -536,22 +531,23 @@ async def test_command(ctx: discord.ApplicationContext) -> None:
 	frg.discord_logger.info("Test command used")
 	await ctx.respond(getenv("LOOK2_EMOJI", ":look2:"))
 
+
 @bot.slash_command(name="restart-notification-listener")
 async def restart_notification_listener(ctx: discord.ApplicationContext) -> None:
-	# TODO: I don't want to add 100 lists of users for every little operation
-	# that might be privileged, so I'm just gonna reuse this one.
-	# Maybe we could just have one ADMIN_USERS list.
-	privileged_users = json.loads(getenv("FORCE_PURGE_ALLOWED", "[]"))
+	"""Restart the notification listener (command restricted to certain users)."""
+	privileged_users = json.loads(getenv("BOT_ADMIN_USERS", "[]"))
 
 	user_id = str(ctx.author.id)
 	if user_id not in privileged_users:
-		discord_logger.warning(f"Unauthorized notif listener restart attempt by {user_id}.")
+		discord_logger.warning(
+			"Unauthorized notif listener restart attempt by %s.", user_id
+		)
 		await ctx.respond("you cannot do that.")
 		return
 
 	ft_notifs.resume_event.set()
 	await ctx.respond("listener has been restarted.")
-	return
+
 
 def parse_arguments() -> None:
 	"""Parse command line arguments."""
@@ -562,7 +558,7 @@ def parse_arguments() -> None:
 		"-V",
 		"--version",
 		action="version",
-		version="%(prog)s 0.7.0",
+		version=f"%(prog)s {FRACTALRHOMB_VERSION_FULL}",
 	)
 	parser.add_argument(
 		"-v",
@@ -628,6 +624,7 @@ def parse_arguments() -> None:
 		else:
 			root_logger.setLevel(args.root_log_level)
 
+
 async def main() -> None:
 	"""Do main."""
 	parse_arguments()
@@ -647,9 +644,12 @@ async def main() -> None:
 		token = getenv("DISCORD_BOT_TOKEN")
 		async with bot:
 			main_bot_task = asyncio.create_task(bot.start(token))
-			notifs_listen_task = asyncio.create_task(ft_notifs.start_and_watch_notification_listener())
+			notifs_listen_task = asyncio.create_task(
+				ft_notifs.start_and_watch_notification_listener()
+			)
 
 			await asyncio.wait([main_bot_task, notifs_listen_task])
+
 
 if __name__ == "__main__":
 	with contextlib.suppress(KeyboardInterrupt):

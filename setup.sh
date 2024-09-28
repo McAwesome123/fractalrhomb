@@ -14,9 +14,9 @@ echo Creating .env
 if [ ! -f ./.env ]; then
 	mv -ib .env .env.bak
 fi
-echo FRACTALTHORNS_USER_AGENT="Fractal-RHOMB" > .env
+echo FRACTALTHORNS_USER_AGENT="Fractal-RHOMB/{VERSION_SHORT}" > .env
 echo DISCORD_BOT_TOKEN="Replace me!" >> .env
-echo FORCE_PURGE_ALLOWED=[] >> .env
+echo BOT_ADMIN_USERS=[] >> .env
 
 echo Setup complete
 read -n1 -r -s -p "Press any key to continue..."

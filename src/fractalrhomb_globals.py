@@ -38,6 +38,22 @@ MAX_MESSAGE_LENGTH = 1950
 EMPTY_MESSAGE = "give me something to show"
 NO_ITEMS_MATCH_SEARCH = "no items match the requested parameters"
 
+# The full version number including anything extra.
+FRACTALRHOMB_VERSION_FULL = "0.7.0-pre.2"
+# Version number with only Major, Minor, and Patch version.
+FRACTALRHOMB_VERSION_LONG = "0.7.0"
+# Verison number with only Major and Minor version.
+FRACTALRHOMB_VERSION_SHORT = "0.7"
+
+FRACTALTHORNS_USER_AGENT = os.getenv(
+	"FRACTALTHORNS_USER_AGENT", "Fractal-RHOMB/{VERSION_SHORT}"
+)
+FRACTALTHORNS_USER_AGENT = (
+	FRACTALTHORNS_USER_AGENT.replace("{VERSION_FULL}", FRACTALRHOMB_VERSION_FULL)
+	.replace("{VERSION_LONG}", FRACTALRHOMB_VERSION_LONG)
+	.replace("{VERSION_SHORT}", FRACTALRHOMB_VERSION_SHORT)
+)
+
 
 def regex_incorrectly_formatted(regex: str = "regex", is_or_are: str = "is") -> str:
 	"""Get a string for reporting an incorrectly formatted regex."""
@@ -89,7 +105,7 @@ class BotData:
 			await aiofiles.os.replace(fp, backup)
 			discord_logger.info("Backed up old bot data file.")
 		async with aiofiles.open(fp, "w") as f:
-			await f.write(json.dumps(asdict(self)))
+			await f.write(json.dumps(asdict(self), indent=4))
 			discord_logger.info("Saved bot data.")
 
 
@@ -219,8 +235,7 @@ async def standard_exception_handler(
 	while isinstance(exc, ExceptionGroup):
 		max_loop -= 1
 		if max_loop < 0:
-			msg = "Loop running for too long."
-			logger.warning(msg, stack_info=True)
+			logger.warning("Loop running for too long.", stack_info=True)
 			break
 
 		exc = exc.exceptions[0]

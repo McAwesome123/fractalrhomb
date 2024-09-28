@@ -17,7 +17,6 @@ from copy import deepcopy
 from dataclasses import asdict
 from enum import Enum, StrEnum
 from io import BytesIO
-from os import getenv
 from pathlib import Path
 from typing import ClassVar, Literal
 
@@ -30,6 +29,7 @@ from PIL import Image
 import src.fractalthorns_dataclasses as ftd
 import src.fractalthorns_exceptions as fte
 from src.api_access import API, Request, RequestArgument
+from src.fractalrhomb_globals import FRACTALTHORNS_USER_AGENT
 
 load_dotenv()
 
@@ -199,9 +199,10 @@ class FractalthornsAPI(API):
 		CacheTypes.FULL_RECORD_CONTENTS: dt.timedelta(hours=12),
 		CacheTypes.FULL_IMAGE_DESCRIPTIONS: dt.timedelta(hours=12),
 	}
+
 	__REQUEST_TIMEOUT: float = 10.0
 	__DEFAULT_HEADERS: ClassVar[dict[str, str]] = {
-		"User-Agent": getenv("FRACTALTHORNS_USER_AGENT")
+		"User-Agent": FRACTALTHORNS_USER_AGENT
 	}
 	__CACHE_PATH: str = ".apicache/cache_"
 	__CACHE_EXT: str = ".json"
@@ -209,6 +210,9 @@ class FractalthornsAPI(API):
 	__STALE_CACHE_MESSAGE = "cache is missing or stale."
 	__RENEWED_CACHE_MESSAGE = "renewed cache."
 	__ALREADY_CACHED_MESSAGE = "already cached."
+	__NO_PARAMETER_CACHE_MESSAGE = "(%s) %s"
+	__ONE_PARAMETER_CACHE_MESSAGE = "(%s - %s) %s"
+	__TWO_PARAMETER_CACHE_MESSAGE = "(%s - %s, %s) %s"
 
 	async def _make_request(
 		self,
@@ -264,8 +268,7 @@ class FractalthornsAPI(API):
 		------
 		fractalthorns_exceptions.CachePurgeError -- Cannot purge the cache.
 		"""
-		msg = f"Purge for {cache.value} requested."
-		self.logger.info(msg)
+		self.logger.info("Purge for %s requested.", cache.value)
 
 		if (
 			not force_purge
@@ -273,8 +276,9 @@ class FractalthornsAPI(API):
 			and dt.datetime.now(dt.UTC)
 			< self.__last_cache_purge[cache] + self.__CACHE_PURGE_COOLDOWN[cache]
 		):
-			msg = f"Purge failed: {self.InvalidPurgeReasons.CACHE_PURGE.value}"
-			self.logger.info(msg)
+			self.logger.warning(
+				"Purge failed: %s", self.InvalidPurgeReasons.CACHE_PURGE.value
+			)
 
 			raise fte.CachePurgeError(
 				self.InvalidPurgeReasons.CACHE_PURGE.value,
@@ -305,16 +309,16 @@ class FractalthornsAPI(API):
 			case self.CacheTypes.FULL_IMAGE_DESCRIPTIONS:
 				self.__cached_full_image_descriptions = None
 			case _:
-				msg = f"Purge failed: {self.InvalidPurgeReasons.INVALID_CACHE.value}"
-				self.logger.warning(msg)
+				self.logger.warning(
+					"Purge failed: %s", self.InvalidPurgeReasons.INVALID_CACHE.value
+				)
 
 				msg = f"{self.InvalidPurgeReasons.INVALID_CACHE.value}: {cache}"
 				raise fte.CachePurgeError(msg)
 
 		self.__last_cache_purge.update({cache: dt.datetime.now(dt.UTC)})
 
-		msg = f"Successfully purged {cache.value}."
-		self.logger.info(msg)
+		self.logger.info("Successfully purged %s.", cache.value)
 
 	def get_cached_items(
 		self, cache: CacheTypes, *, ignore_stale: bool = False
@@ -1053,8 +1057,11 @@ class FractalthornsAPI(API):
 			> self.__cached_news_items[1]
 			+ self.__CACHE_DURATION[self.CacheTypes.NEWS_ITEMS]
 		):
-			msg = f"({self.CacheTypes.NEWS_ITEMS.value}) {self.__STALE_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.NEWS_ITEMS.value,
+				self.__STALE_CACHE_MESSAGE,
+			)
 
 			r = await self._make_request(
 				session, self.ValidRequests.ALL_NEWS.value, None
@@ -1073,14 +1080,18 @@ class FractalthornsAPI(API):
 
 			self.__cache_saved[self.CacheTypes.NEWS_ITEMS] = False
 
-			msg = f"({self.CacheTypes.NEWS_ITEMS.value}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.NEWS_ITEMS.value,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = (
-				f"({self.CacheTypes.NEWS_ITEMS.value}) {self.__ALREADY_CACHED_MESSAGE}"
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.NEWS_ITEMS.value,
+				self.__ALREADY_CACHED_MESSAGE,
 			)
-			self.logger.info(msg)
 
 		return self.__cached_news_items[0]
 
@@ -1100,8 +1111,12 @@ class FractalthornsAPI(API):
 			> self.__cached_images[image][1]
 			+ self.__CACHE_DURATION[self.CacheTypes.IMAGES]
 		):
-			msg = f"({self.CacheTypes.IMAGES.value} - {image}) {self.__STALE_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGES.value,
+				image,
+				self.__STALE_CACHE_MESSAGE,
+			)
 
 			r = await self._make_request(
 				session, self.ValidRequests.SINGLE_IMAGE.value, {"name": image}
@@ -1138,12 +1153,20 @@ class FractalthornsAPI(API):
 
 			self.__cache_saved[self.CacheTypes.IMAGES] = False
 
-			msg = f"({self.CacheTypes.IMAGES.value} - {image}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGES.value,
+				image,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.IMAGES.value}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGES.value,
+				image,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return self.__cached_images[image][0]
 
@@ -1163,8 +1186,12 @@ class FractalthornsAPI(API):
 			> self.__cached_image_contents[image][1]
 			+ self.__CACHE_DURATION[self.CacheTypes.IMAGE_CONTENTS]
 		):
-			msg = f"({self.CacheTypes.IMAGE_CONTENTS.value} - {image}) {self.__STALE_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGE_CONTENTS.value,
+				image,
+				self.__STALE_CACHE_MESSAGE,
+			)
 
 			image_metadata = await self.__get_single_image(session, image)
 
@@ -1211,12 +1238,20 @@ class FractalthornsAPI(API):
 
 			self.__cache_saved[self.CacheTypes.IMAGE_CONTENTS] = False
 
-			msg = f"({self.CacheTypes.IMAGE_CONTENTS.value} - {image}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGE_CONTENTS.value,
+				image,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.IMAGE_CONTENTS.value} - {image}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGE_CONTENTS.value,
+				image,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return self.__cached_image_contents[image][0]
 
@@ -1236,8 +1271,12 @@ class FractalthornsAPI(API):
 			> self.__cached_image_descriptions[image][1]
 			+ self.__CACHE_DURATION[self.CacheTypes.IMAGE_DESCRIPTIONS]
 		):
-			msg = f"({self.CacheTypes.IMAGE_DESCRIPTIONS.value} - {image}) {self.__STALE_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGE_DESCRIPTIONS.value,
+				image,
+				self.__STALE_CACHE_MESSAGE,
+			)
 
 			r = await self._make_request(
 				session, self.ValidRequests.IMAGE_DESCRIPTION.value, {"name": image}
@@ -1262,12 +1301,20 @@ class FractalthornsAPI(API):
 
 			self.__cache_saved[self.CacheTypes.IMAGE_DESCRIPTIONS] = False
 
-			msg = f"({self.CacheTypes.IMAGE_DESCRIPTIONS.value} - {image}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGE_DESCRIPTIONS.value,
+				image,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.IMAGE_DESCRIPTIONS.value} - {image}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGE_DESCRIPTIONS.value,
+				image,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return self.__cached_image_descriptions[image][0]
 
@@ -1285,8 +1332,11 @@ class FractalthornsAPI(API):
 			> self.__last_all_images_cache
 			+ self.__CACHE_DURATION[self.CacheTypes.IMAGES]
 		):
-			msg = f"({self.CacheTypes.IMAGES.value}) {self.__STALE_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGES.value,
+				self.__STALE_CACHE_MESSAGE,
+			)
 
 			r = await self._make_request(
 				session, self.ValidRequests.ALL_IMAGES.value, None
@@ -1316,12 +1366,18 @@ class FractalthornsAPI(API):
 			self.__cache_saved[self.CacheTypes.IMAGES] = False
 			self.__cache_saved[self.CacheTypes.CACHE_METADATA] = False
 
-			msg = f"({self.CacheTypes.IMAGES.value}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGES.value,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.IMAGES.value}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.IMAGES.value,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return [j[0] for i, j in self.__cached_images.items() if i is not None]
 
@@ -1341,8 +1397,11 @@ class FractalthornsAPI(API):
 			> self.__cached_sketches[1]
 			+ self.__CACHE_DURATION[self.CacheTypes.SKETCHES]
 		):
-			msg = f"({self.CacheTypes.SKETCHES.value}) {self.__STALE_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SKETCHES.value,
+				self.__STALE_CACHE_MESSAGE,
+			)
 
 			r = await self._make_request(
 				session, self.ValidRequests.ALL_SKETCHES.value, None
@@ -1365,12 +1424,18 @@ class FractalthornsAPI(API):
 
 			self.__cache_saved[self.CacheTypes.SKETCHES] = False
 
-			msg = f"({self.CacheTypes.SKETCHES.value}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SKETCHES.value,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.SKETCHES.value}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SKETCHES.value,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return self.__cached_sketches[0]
 
@@ -1391,8 +1456,12 @@ class FractalthornsAPI(API):
 			> self.__cached_sketch_contents[sketch][1]
 			+ self.__CACHE_DURATION[self.CacheTypes.SKETCH_CONTENTS]
 		):
-			msg = f"({self.CacheTypes.SKETCH_CONTENTS.value} - {sketch}) {self.__STALE_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SKETCH_CONTENTS.value,
+				sketch,
+				self.__STALE_CACHE_MESSAGE,
+			)
 
 			sketch_metadata = await self.__get_all_sketches(session)
 			if sketch not in sketch_metadata:
@@ -1443,12 +1512,20 @@ class FractalthornsAPI(API):
 
 			self.__cache_saved[self.CacheTypes.SKETCH_CONTENTS] = False
 
-			msg = f"({self.CacheTypes.SKETCH_CONTENTS.value} - {sketch}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SKETCH_CONTENTS.value,
+				sketch,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.SKETCH_CONTENTS.value} - {sketch}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SKETCH_CONTENTS.value,
+				sketch,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return self.__cached_sketch_contents[sketch][0]
 
@@ -1468,8 +1545,11 @@ class FractalthornsAPI(API):
 			> self.__last_full_episodic_cache
 			+ self.__CACHE_DURATION[self.CacheTypes.CHAPTERS]
 		):
-			msg = f"({self.CacheTypes.CHAPTERS.value}) {self.__STALE_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.CHAPTERS.value,
+				self.__STALE_CACHE_MESSAGE,
+			)
 
 			r = await self._make_request(
 				session, self.ValidRequests.FULL_EPISODIC.value, None
@@ -1503,12 +1583,18 @@ class FractalthornsAPI(API):
 			self.__cache_saved[self.CacheTypes.RECORDS] = False
 			self.__cache_saved[self.CacheTypes.CACHE_METADATA] = False
 
-			msg = f"({self.CacheTypes.CHAPTERS.value}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.CHAPTERS.value,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.CHAPTERS.value}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.CHAPTERS.value,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return list(self.__cached_chapters[0].values())
 
@@ -1528,8 +1614,12 @@ class FractalthornsAPI(API):
 			> self.__cached_records[name][1]
 			+ self.__CACHE_DURATION[self.CacheTypes.RECORDS]
 		):
-			msg = f"({self.CacheTypes.RECORDS.value} - {name}) {self.__STALE_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.RECORDS.value,
+				name,
+				self.__STALE_CACHE_MESSAGE,
+			)
 
 			r = await self._make_request(
 				session, self.ValidRequests.SINGLE_RECORD, {"name": name}
@@ -1553,12 +1643,20 @@ class FractalthornsAPI(API):
 
 			self.__cache_saved[self.CacheTypes.RECORDS] = False
 
-			msg = f"({self.CacheTypes.RECORDS.value} - {name}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.RECORDS.value,
+				name,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.RECORDS.value} - {name}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.RECORDS.value,
+				name,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return self.__cached_records[name][0]
 
@@ -1578,8 +1676,12 @@ class FractalthornsAPI(API):
 			> self.__cached_record_contents[name][1]
 			+ self.__CACHE_DURATION[self.CacheTypes.RECORD_CONTENTS]
 		):
-			msg = f"({self.CacheTypes.RECORD_CONTENTS.value} - {name}) {self.__STALE_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.RECORD_CONTENTS.value,
+				name,
+				self.__STALE_CACHE_MESSAGE,
+			)
 
 			r = await self._make_request(
 				session, self.ValidRequests.RECORD_TEXT.value, {"name": name}
@@ -1603,12 +1705,20 @@ class FractalthornsAPI(API):
 
 			self.__cache_saved[self.CacheTypes.RECORD_CONTENTS] = False
 
-			msg = f"({self.CacheTypes.RECORD_CONTENTS.value} - {name}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.RECORD_CONTENTS.value,
+				name,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.RECORD_CONTENTS.value} - {name}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.RECORD_CONTENTS.value,
+				name,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return self.__cached_record_contents[name][0]
 
@@ -1635,8 +1745,13 @@ class FractalthornsAPI(API):
 		) > self.__cached_search_results[term, type_][1] + self.__CACHE_DURATION[
 			self.CacheTypes.SEARCH_RESULTS
 		]:
-			msg = f"({self.CacheTypes.SEARCH_RESULTS.value} - {term}, {type_}) {self.__STALE_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__TWO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SEARCH_RESULTS.value,
+				term,
+				type_,
+				self.__STALE_CACHE_MESSAGE,
+			)
 
 			r = await self._make_request(
 				session,
@@ -1690,12 +1805,22 @@ class FractalthornsAPI(API):
 			self.__cache_saved[self.CacheTypes.SEARCH_RESULTS] = False
 			self.__cache_saved[self.CacheTypes.RECORD_CONTENTS] = False
 
-			msg = f"({self.CacheTypes.SEARCH_RESULTS.value} - {term}, {type_}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__TWO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SEARCH_RESULTS.value,
+				term,
+				type_,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.SEARCH_RESULTS.value} - {term}, {type_}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__TWO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SEARCH_RESULTS.value,
+				term,
+				type_,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return self.__cached_search_results[term, type_][0]
 
@@ -1719,15 +1844,22 @@ class FractalthornsAPI(API):
 		)
 		if gather is True or cache_stale:
 			if cache_stale:
-				msg = f"({self.CacheTypes.FULL_RECORD_CONTENTS.value}) {self.__STALE_CACHE_MESSAGE}"
-				self.logger.info(msg)
+				self.logger.info(
+					self.__NO_PARAMETER_CACHE_MESSAGE,
+					self.CacheTypes.FULL_RECORD_CONTENTS.value,
+					self.__STALE_CACHE_MESSAGE,
+				)
 			else:
-				msg = f"({self.CacheTypes.FULL_RECORD_CONTENTS.value}) cache is not stale but gather was requested."
-				self.logger.info(msg)
+				self.logger.info(
+					"(%s) cache is not stale but gather was requested.",
+					self.CacheTypes.FULL_RECORD_CONTENTS.value,
+				)
 
 			if gather is False:
-				msg = f"({self.CacheTypes.FULL_RECORD_CONTENTS.value}) no cache to retrieve and gather was set to False."
-				self.logger.warning(msg)
+				self.logger.warning(
+					"(%s) no cache to retrieve and gather was set to False.",
+					self.CacheTypes.FULL_RECORD_CONTENTS.value,
+				)
 				raise fte.ItemsUngatheredError
 
 			try:
@@ -1764,12 +1896,18 @@ class FractalthornsAPI(API):
 
 			self.__cache_saved[self.CacheTypes.FULL_RECORD_CONTENTS] = False
 
-			msg = f"({self.CacheTypes.FULL_RECORD_CONTENTS.value}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.FULL_RECORD_CONTENTS.value,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.FULL_RECORD_CONTENTS.value}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.FULL_RECORD_CONTENTS.value,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return self.__cached_full_record_contents[0]
 
@@ -1793,15 +1931,22 @@ class FractalthornsAPI(API):
 		)
 		if gather is True or cache_stale:
 			if cache_stale:
-				msg = f"({self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value}) {self.__STALE_CACHE_MESSAGE}"
-				self.logger.info(msg)
+				self.logger.info(
+					self.__NO_PARAMETER_CACHE_MESSAGE,
+					self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value,
+					self.__STALE_CACHE_MESSAGE,
+				)
 			else:
-				msg = f"({self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value}) cache is not stale but gather was requested."
-				self.logger.info(msg)
+				self.logger.info(
+					"(%s) cache is not stale but gather was requested.",
+					self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value,
+				)
 
 			if gather is False:
-				msg = f"({self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value}) no cache to retrieve and gather was set to False."
-				self.logger.warning(msg)
+				self.logger.warning(
+					"(%s) no cache to retrieve and gather was set to False.",
+					self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value,
+				)
 				raise fte.ItemsUngatheredError
 
 			try:
@@ -1834,19 +1979,24 @@ class FractalthornsAPI(API):
 
 			self.__cache_saved[self.CacheTypes.FULL_IMAGE_DESCRIPTIONS] = False
 
-			msg = f"({self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value}) {self.__RENEWED_CACHE_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
 
 		else:
-			msg = f"({self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value}) {self.__ALREADY_CACHED_MESSAGE}"
-			self.logger.info(msg)
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.FULL_IMAGE_DESCRIPTIONS.value,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
 
 		return self.__cached_full_image_descriptions[0]
 
 	async def load_cache(self, cache: CacheTypes) -> None:
 		"""Load the specified cache."""
-		msg = f"({cache.value} loading cache."
-		self.logger.info(msg)
+		self.logger.info("Loading cache - %s", cache.value)
 
 		try:
 			if cache in {
@@ -2061,12 +2211,10 @@ class FractalthornsAPI(API):
 	async def save_cache(self, cache: CacheTypes) -> None:
 		"""Save the specified cache."""
 		if self.__cache_saved[cache]:
-			msg = f"({cache.value}) cache already saved."
-			self.logger.info(msg)
+			self.logger.info("Cache already saved - %s", cache.value)
 			return
 
-		msg = f"({cache.value}) saving cache."
-		self.logger.info(msg)
+		self.logger.info("Saving cache - %s", cache.value)
 
 		try:
 			if cache in {
