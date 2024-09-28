@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All mentions of the version are now sourced from `src.fractalrhomb_globals`
 - Removed unnecessary message content variables when sending messages
 - Default user agent now includes the short version
+- Bot data should be slightly easier to read
 
 ### Fixed
 - Channel parameter description on /channel commands
