@@ -81,8 +81,12 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show the latest news."""
-		msg = f"All news command used ({limit=}, {start_index=}, {show=})"
-		self.logger.info(msg)
+		self.logger.info(
+			"All news command used (limit=%s, start_index=%s, show=%s)",
+			limit,
+			start_index,
+			show,
+		)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -227,8 +231,9 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show an image."""
-		msg = f"Single image command used ({name=}, {image=}, {show=})"
-		self.logger.info(msg)
+		self.logger.info(
+			"Single image command used (name=%s, image=%s, show=%s)", name, image, show
+		)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -334,8 +339,7 @@ class Fractalthorns(discord.Cog):
 		name: str,
 	) -> None:
 		"""Show the description of an image."""
-		msg = f"Image description command used ({name=})"
-		self.logger.info(msg)
+		self.logger.info("Image description command used (name=%s)", name)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -401,8 +405,9 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Show a list of all images."""
-		msg = f"All images command used ({limit=}, {start_index=})"
-		self.logger.info(msg)
+		self.logger.info(
+			"All images command used (limit=%s, start_index=%s)", limit, start_index
+		)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -528,8 +533,9 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show a sketch."""
-		msg = f"Single sketch command used ({name=}, {image=}, {show=})"
-		self.logger.info(msg)
+		self.logger.info(
+			"Single sketch command used (name=%s, image=%s, show=%s)", name, image, show
+		)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -617,8 +623,9 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Show a list of all sketches."""
-		msg = f"All sketches command used ({limit=}, {start_index=})"
-		self.logger.info(msg)
+		self.logger.info(
+			"All sketches command used (limit=%s, start_index=%s)", limit, start_index
+		)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -713,8 +720,7 @@ class Fractalthorns(discord.Cog):
 		chapter: str | None = None,
 	) -> None:
 		"""Show a list of records in a chapter."""
-		msg = f"Full episodic command used ({chapter=})"
-		self.logger.info(msg)
+		self.logger.info("Full episodic command used (chapter=%s)", chapter)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -822,8 +828,7 @@ class Fractalthorns(discord.Cog):
 		show: str | None = None,
 	) -> None:
 		"""Show a record entry."""
-		msg = f"Single record command used ({name=}, {show=})"
-		self.logger.info(msg)
+		self.logger.info("Single record command used (name=%s, show=%s)", name, show)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -878,8 +883,7 @@ class Fractalthorns(discord.Cog):
 	)
 	async def record_text(self, ctx: discord.ApplicationContext, name: str) -> None:
 		"""Show a record's text."""
-		msg = f"Record text command used ({name=})"
-		self.logger.info(msg)
+		self.logger.info("Record text command used (name=%s)", name)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -955,10 +959,13 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Make a search."""
-		msg = (
-			f"Domain search command used ({term=}, {type_=}, {limit=}, {start_index=})"
+		self.logger.info(
+			"Domain search command used (term=%s, type_=%s, limit=%s, start_index=%s)",
+			term,
+			type_,
+			limit,
+			start_index,
 		)
-		self.logger.info(msg)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -1172,8 +1179,14 @@ class Fractalthorns(discord.Cog):
 		has_description: bool | None = None,
 	) -> None:
 		"""Get a random image."""
-		msg = f"Random image command used ({name=}, {description=}, {canon=}, {character=}, {has_description=})"
-		self.logger.info(msg)
+		self.logger.info(
+			"Random image command used (name=%s, description=%s, canon=%s, character=%s, has_description=%s)",
+			name,
+			description,
+			canon,
+			character,
+			has_description,
+		)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -1216,8 +1229,7 @@ class Fractalthorns(discord.Cog):
 				if deferred:
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			random.seed()
@@ -1402,8 +1414,15 @@ class Fractalthorns(discord.Cog):
 		requested: bool | None = None,
 	) -> None:
 		"""Get a random record."""
-		msg = f"Random record command used ({name=}, {chapter=}, {iteration=}, {language=}, {character=}, {requested=})"
-		self.logger.info(msg)
+		self.logger.info(
+			"Random record command used (name=%s, chapter=%s, iteration=%s, language=%s, character=%s, requested=%s)",
+			name,
+			chapter,
+			iteration,
+			language,
+			character,
+			requested,
+		)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -1438,8 +1457,7 @@ class Fractalthorns(discord.Cog):
 				if deferred or not ctx.response.is_done():
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			if len(records_list) < 1:
@@ -1447,8 +1465,7 @@ class Fractalthorns(discord.Cog):
 				if deferred or not ctx.response.is_done():
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			random.seed()
@@ -1531,8 +1548,17 @@ class Fractalthorns(discord.Cog):
 		requested: bool | None = None,
 	) -> None:
 		"""Get a random record line."""
-		msg = f"Random record line command used ({text=}, {language=}, {character=}, {emphasis=}, {name=}, {chapter=}, {iteration=}, {requested=})"
-		self.logger.info(msg)
+		self.logger.info(
+			"Random record line command used (text=%s, language=%s, character=%s, emphasis=%s, name=%s, chapter=%s, iteration=%s, requested=%s)",
+			text,
+			language,
+			character,
+			emphasis,
+			name,
+			chapter,
+			iteration,
+			requested,
+		)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -1566,8 +1592,7 @@ class Fractalthorns(discord.Cog):
 				if deferred or not ctx.response.is_done():
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			if len(lines_list) < 1:
@@ -1575,8 +1600,7 @@ class Fractalthorns(discord.Cog):
 				if deferred or not ctx.response.is_done():
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			random.seed()
@@ -1648,8 +1672,16 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Search for images."""
-		msg = f"Search images command used ({name=}, {description=}, {canon=}, {character=}, {has_description=}, {limit=}, {start_index=})"
-		self.logger.info(msg)
+		self.logger.info(
+			"Search images command used (name=%s, description=%s, canon=%s, character=%s, has_description=%s, limit=%s, start_index=%s)",
+			name,
+			description,
+			canon,
+			character,
+			has_description,
+			limit,
+			start_index,
+		)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -1691,8 +1723,7 @@ class Fractalthorns(discord.Cog):
 				if deferred or not ctx.response.is_done():
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			if len(images_list) < 1:
@@ -1700,8 +1731,7 @@ class Fractalthorns(discord.Cog):
 				if deferred or not ctx.response.is_done():
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			total_items = len(images_list)
@@ -1794,8 +1824,17 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Search for records."""
-		msg = f"Search records command used ({name=}, {chapter=}, {iteration=}, {language=}, {character=}, {requested=}, {limit=}, {start_index=})"
-		self.logger.info(msg)
+		self.logger.info(
+			"Search records command used (name=%s, chapter=%s, iteration=%s, language=%s, character=%s, requested=%s, limit=%s, start_index=%s)",
+			name,
+			chapter,
+			iteration,
+			language,
+			character,
+			requested,
+			limit,
+			start_index,
+		)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -1834,8 +1873,7 @@ class Fractalthorns(discord.Cog):
 				if deferred or not ctx.response.is_done():
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			if len(records_list) < 1:
@@ -1843,8 +1881,7 @@ class Fractalthorns(discord.Cog):
 				if deferred or not ctx.response.is_done():
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			total_items = len(records_list)
@@ -1951,8 +1988,19 @@ class Fractalthorns(discord.Cog):
 		start_index: int = 1,
 	) -> None:
 		"""Search for record lines."""
-		msg = f"Search record lines command used ({text=}, {language=}, {character=}, {emphasis=}, {name=}, {chapter=}, {iteration=}, {requested=}, {limit=}, {start_index=})"
-		self.logger.info(msg)
+		self.logger.info(
+			"Search record lines command used (text=%s, language=%s, character=%s, emphasis=%s, name=%s, chapter=%s, iteration=%s, requested=%s, limit=%s, start_index=%s)",
+			text,
+			language,
+			character,
+			emphasis,
+			name,
+			chapter,
+			iteration,
+			requested,
+			limit,
+			start_index,
+		)
 
 		if not await frg.bot_channel_warning(ctx):
 			return
@@ -1990,8 +2038,7 @@ class Fractalthorns(discord.Cog):
 				if deferred or not ctx.response.is_done():
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			if len(lines_list) < 1:
@@ -1999,8 +2046,7 @@ class Fractalthorns(discord.Cog):
 				if deferred or not ctx.response.is_done():
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			total_items = len(lines_list)
@@ -2064,8 +2110,7 @@ class Fractalthorns(discord.Cog):
 			time += frg.FULL_GATHER_COOLDOWN.total_seconds()
 			response = f"you cannot do that. try again <t:{ceil(time)}:R>"
 			if ctx.response.is_done():
-				response = f"<@{ctx.author.id}> {response}"
-				await ctx.send(response, silent=True)
+				await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 			else:
 				await ctx.respond(response)
 			return
@@ -2076,8 +2121,7 @@ class Fractalthorns(discord.Cog):
 				await asyncio.sleep(delay)
 				response = "gathering items. this may take a bit"
 				if ctx.response.is_done():
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				else:
 					await ctx.respond(response)
 
@@ -2109,14 +2153,12 @@ class Fractalthorns(discord.Cog):
 				response = "this command was used too recently"
 
 			if ctx.response.is_done():
-				response = f"<@{ctx.author.id}> {response}"
-				await ctx.send(response, silent=True)
+				await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 			else:
 				await ctx.respond(response)
 
 		else:
-			response = "successfully gathered all records and descriptions"
-			await ctx.send(response)
+			await ctx.send("successfully gathered all records and descriptions")
 
 			frg.bot_data.gather_cooldowns.update(
 				{user: dt.datetime.now(dt.UTC).timestamp()}

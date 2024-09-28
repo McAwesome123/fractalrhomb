@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Nothing so far
+### Added
+
+- SSE notification listening
+  - Currently handles `news_update` notifications from `https://fractalthorns.com/notifications`
+  - Sends a message in specified news channels upon receiving such a notification
+  - Can be restarted by bot admin users
+- User agent can have `{VERSION_SHORT}`, `{VERSION_LONG}`, or `{VERSION_FULL}` to serve as a placeholder for the current version
+
+### Changed
+- Reworked bot channel commands to also work for other channel types (currently news)
+  - Command group renamed to `channel` (from `botchannel`)
+  - Subcommands renamed to `set`, `clear`, and `clearall` (from `add`, `remove`, and `removeall`)
+- All "bot admin" or otherwise restricted commands now use the `BOT_ADMIN_USERS` environment variable
+- All mentions of the version are now sourced from `src.fractalrhomb_globals`
+- Removed unnecessary message content variables when sending messages
+- Default user agent now includes the short version
+
+### Fixed
+- Channel parameter description on /channel commands
+- Logging now has proper formatting rather than using f-strings
 
 ## [0.6.2] - 2024-09-22
 
