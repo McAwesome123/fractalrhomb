@@ -1022,7 +1022,7 @@ class Fractalthorns(discord.Cog):
 			responses = frg.split_message(response, "\n")
 
 			if not await frg.message_length_warning(ctx, responses, 1200):
-				await ctx.send("the search was cancelled.")
+				await ctx.send("the search was cancelled")
 				return
 
 			for i in responses:
@@ -1220,8 +1220,7 @@ class Fractalthorns(discord.Cog):
 				if deferred:
 					await ctx.respond(response)
 				else:
-					response = f"<@{ctx.author.id}> {response}"
-					await ctx.send(response, silent=True)
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 				return
 
 			if len(images_list) < 1:
@@ -2109,10 +2108,10 @@ class Fractalthorns(discord.Cog):
 		):
 			time += frg.FULL_GATHER_COOLDOWN.total_seconds()
 			response = f"you cannot do that. try again <t:{ceil(time)}:R>"
-			if ctx.response.is_done():
-				await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
-			else:
+			if not ctx.response.is_done():
 				await ctx.respond(response)
+			else:
+				await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 			return
 
 		try:
@@ -2120,10 +2119,10 @@ class Fractalthorns(discord.Cog):
 			async def delayed_send(delay: float = 0.25) -> None:
 				await asyncio.sleep(delay)
 				response = "gathering items. this may take a bit"
-				if ctx.response.is_done():
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
-				else:
+				if not ctx.response.is_done():
 					await ctx.respond(response)
+				else:
+					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -2152,10 +2151,10 @@ class Fractalthorns(discord.Cog):
 			else:
 				response = "this command was used too recently"
 
-			if ctx.response.is_done():
-				await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
-			else:
+			if not ctx.response.is_done():
 				await ctx.respond(response)
+			else:
+				await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 
 		else:
 			await ctx.send("successfully gathered all records and descriptions")

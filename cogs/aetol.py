@@ -9,15 +9,17 @@
 """Aetol cog for the bot."""
 
 import csv
-from dataclasses import dataclass, astuple
-import asyncio
 import logging
 import logging.handlers
+import operator
+from dataclasses import dataclass
 from pathlib import Path
 
 import discord
 import discord.utils
 import rapidfuzz
+
+import src.fractalrhomb_globals as frg
 
 
 @dataclass
@@ -44,7 +46,18 @@ class AetolParticle:
 		if isinstance(category, str):
 			category = {category.strip()}
 
-		return AetolParticle(name.strip(), meaning.strip(), as_verb.strip(), as_noun.strip(), notes.strip(), category)
+		return AetolParticle(
+			name.strip(),
+			meaning.strip(),
+			as_verb.strip(),
+			as_noun.strip(),
+			notes.strip(),
+			category,
+		)
+
+	def format(self) -> str:
+		"""Return a discord formatted string."""
+		return f"**{self.name}**: [{self.meaning}]\nnoun: {self.as_noun}\nverb: {self.as_verb}\n{f"_{self.notes}_\n" if self.notes else ""}[{", ".join(self.category)}]"
 
 	def __eq__(self, other: "AetolParticle") -> bool:
 		"""Return True if the particles match (ignoring category)."""
@@ -59,7 +72,9 @@ class AetolParticle:
 			and self.notes == other.notes
 		)
 
-	__hash__ = None
+	def __hash__(self) -> int:
+		"""Return a hash for this object."""
+		return hash((self.name, self.meaning, self.as_verb, self.as_noun, self.notes))
 
 
 @dataclass
@@ -86,7 +101,18 @@ class AetolWord:
 		if isinstance(category, str):
 			category = {category.strip()}
 
-		return AetolWord(name.strip(), meaning.strip(), as_verb.strip(), as_noun.strip(), formation.strip(), category)
+		return AetolWord(
+			name.strip(),
+			meaning.strip(),
+			as_verb.strip(),
+			as_noun.strip(),
+			formation.strip(),
+			category,
+		)
+
+	def format(self) -> str:
+		"""Return a discord formatted string."""
+		return f"**{self.name}**: [{self.meaning}]\nnoun: {self.as_noun}\nverb: {self.as_verb}\n_{self.formation}_\n[{", ".join(self.category)}]"
 
 	def __eq__(self, other: "AetolWord") -> bool:
 		"""Return True if the words match (ignoring category)."""
@@ -101,7 +127,11 @@ class AetolWord:
 			and self.formation == other.formation
 		)
 
-	__hash__ = None
+	def __hash__(self) -> int:
+		"""Return a hash for this object."""
+		return hash(
+			(self.name, self.meaning, self.as_verb, self.as_noun, self.formation)
+		)
 
 
 @dataclass
@@ -122,9 +152,13 @@ class AetolIdiom:
 
 		return AetolIdiom(name.strip(), meaning.strip())
 
+	def format(self) -> str:
+		"""Return a discord formatted string."""
+		return f"**{self.name}** - {self.meaning}"
+
 
 class Aetol(discord.Cog):
-	"""Class defining the aetol cog."""
+	"""Class defining the Aetol cog."""
 
 	def __init__(self, bot: discord.Bot) -> "Aetol":
 		"""Initialize the cog."""
@@ -135,62 +169,325 @@ class Aetol(discord.Cog):
 		self.words: list[AetolWord] = []
 		self.idioms: list[AetolIdiom] = []
 
+		self.load_dictionaries()
+
 	def load_dictionaries(self) -> None:
 		"""Load Aetol dictionaries."""
-		with Path("aetol/particle_dictionary.tsv").open(encoding="utf-8") as tsvfile:
-			dialect = csv.Sniffer().sniff(tsvfile.read(1024), "\t")
-			tsvfile.seek(0)
-			reader = csv.reader(tsvfile, dialect)
+		self.__load_particles()
+		self.__load_words()
+		self.__load_idioms()
 
-			header = next(reader)
-			name = header.index("name")
-			meaning = header.index("meaning")
-			as_verb = header.index("as verb")
-			as_noun = header.index("as noun")
-			notes = header.index("notes")
-			category = header.index("category")
+		if len(self.particles) + len(self.words) + len(self.idioms) > 0:
+			self.logger.info("Dictionaries loaded.")
+			self.dictionaries_loaded = True
+		else:
+			self.logger.error("Could not load any dictionaries!")
+			self.dictionaries_loaded = False
 
-			for row in reader:
-				modified_row = [row[name], row[meaning], row[as_verb], row[as_noun], row[notes], row[category]]
-				particle = AetolParticle.from_list(modified_row)
-				if particle in self.particles:
-					other = self.particles[self.particles.index(particle)]
-					other.category.update(particle.category)
-				else:
-					self.particles.append(particle)
+	def __load_particles(self) -> None:
+		self.logger.info("Loading particles...")
+		if Path("aetol/particle_dictionary.tsv").exists():
+			with Path("aetol/particle_dictionary.tsv").open(
+				encoding="utf-8"
+			) as tsvfile:
+				dialect = csv.Sniffer().sniff(tsvfile.read(1024), "\t")
+				tsvfile.seek(0)
+				reader = csv.reader(tsvfile, dialect)
 
-		with Path("aetol/word_dictionary.tsv").open(encoding="utf-8") as tsvfile:
-			dialect = csv.Sniffer().sniff(tsvfile.read(1024), "\t")
-			tsvfile.seek(0)
-			reader = csv.reader(tsvfile, dialect)
+				header = next(reader)
+				name = header.index("name")
+				meaning = header.index("meaning")
+				as_verb = header.index("as verb")
+				as_noun = header.index("as noun")
+				notes = header.index("notes")
+				category = header.index("category")
 
-			header = next(reader)
-			name = header.index("name")
-			meaning = header.index("meaning")
-			as_verb = header.index("as verb")
-			as_noun = header.index("as noun")
-			formation = header.index("formation")
-			category = header.index("category")
+				for row in reader:
+					modified_row = [
+						row[name],
+						row[meaning],
+						row[as_verb],
+						row[as_noun],
+						row[notes],
+						row[category],
+					]
+					particle = AetolParticle.from_list(modified_row)
+					if not particle.name or not particle.meaning:
+						continue
+					if particle in self.particles:
+						other = self.particles[self.particles.index(particle)]
+						other.category.update(particle.category)
+					else:
+						self.particles.append(particle)
+			self.logger.info("Particles loaded.")
+		else:
+			self.logger.warning('"aetol/particle_dictionary.tsv" was not found!')
 
-			for row in reader:
-				modified_row = [row[name], row[meaning], row[as_verb], row[as_noun], row[formation], row[category]]
-				word = AetolWord.from_list(modified_row)
-				if word in self.words:
-					other = self.words[self.words.index(word)]
-					other.category.update(word.category)
-				else:
-					self.words.append(word)
+	def __load_words(self) -> None:
+		self.logger.info("Loading words...")
+		if Path("aetol/word_dictionary.tsv").exists():
+			with Path("aetol/word_dictionary.tsv").open(encoding="utf-8") as tsvfile:
+				dialect = csv.Sniffer().sniff(tsvfile.read(1024), "\t")
+				tsvfile.seek(0)
+				reader = csv.reader(tsvfile, dialect)
 
-		with Path("aetol/idiom_dictionary.tsv").open(encoding="utf-8") as tsvfile:
-			dialect = csv.Sniffer().sniff(tsvfile.read(1024), "\t")
-			tsvfile.seek(0)
-			reader = csv.reader(tsvfile, dialect)
+				header = next(reader)
+				name = header.index("name")
+				meaning = header.index("meaning")
+				as_verb = header.index("as verb")
+				as_noun = header.index("as noun")
+				formation = header.index("formation")
+				category = header.index("category")
 
-			header = next(reader)
-			name = header.index("idiom")
-			meaning = header.index("meaning")
+				for row in reader:
+					modified_row = [
+						row[name],
+						row[meaning],
+						row[as_verb],
+						row[as_noun],
+						row[formation],
+						row[category],
+					]
+					word = AetolWord.from_list(modified_row)
+					if not word.name or not word.meaning:
+						continue
+					if word in self.words:
+						other = self.words[self.words.index(word)]
+						other.category.update(word.category)
+					else:
+						self.words.append(word)
+			self.logger.info("Words loaded.")
+		else:
+			self.logger.warning('"aetol/word_dictionary.tsv" was not found!')
 
-			for row in reader:
-				modified_row = [row[name], row[meaning]]
-				idiom = AetolIdiom.from_list(modified_row)
-				self.idioms.append(idiom)
+	def __load_idioms(self) -> None:
+		self.logger.info("Loading idioms...")
+		if Path("aetol/idiom_dictionary.tsv").exists():
+			with Path("aetol/idiom_dictionary.tsv").open(encoding="utf-8") as tsvfile:
+				dialect = csv.Sniffer().sniff(tsvfile.read(1024), "\t")
+				tsvfile.seek(0)
+				reader = csv.reader(tsvfile, dialect)
+
+				header = next(reader)
+				name = header.index("idiom")
+				meaning = header.index("meaning")
+
+				for row in reader:
+					modified_row = [row[name], row[meaning]]
+					idiom = AetolIdiom.from_list(modified_row)
+					if not idiom.name or not idiom.meaning:
+						continue
+					self.idioms.append(idiom)
+			self.logger.info("Idioms loaded.")
+		else:
+			self.logger.warning('"aetol/idiom_dictionary.tsv" was not found!')
+
+	aetol_group = discord.SlashCommandGroup("aetol", "Various Aetol commands")
+
+	@aetol_group.command(name="alphabet")
+	async def show_alphabet(self, ctx: discord.ApplicationContext) -> None:
+		"""Show the Aetol alphabet."""
+		self.logger.info("Show alphabet command used.")
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		response = (
+			"Vowels:\na - [ɑ]; â (aj) - [aɪ]; æ (ae) - [eɪ]; e - [ɛ]; i - [ɪ]; u - [ə]; y - [i]\n\n"  # noqa: RUF001
+			"Consonants:\nl - [l]; k - [k]; g - [g]; t - [t]; d - [d]; n - [n]; s - [s]; š (sh) - [ʃ]; ž (zs) - [ʒ]; ţ (ts) - [t͡s]; j - [j]; ĺ (lj) - [ʎ]; ł (lh) - [ɮ] / [ɬ]; x - [χ]"
+		)
+
+		if not ctx.response.is_done():
+			await ctx.respond(response)
+		else:
+			await ctx.send(f"<@{ctx.author.id}>\n{response}", silent=True)
+
+	@aetol_group.command(name="idioms")
+	async def show_idioms(self, ctx: discord.ApplicationContext) -> None:
+		"""Show a list of Aetol idioms."""
+		self.logger.info("Show idioms command used.")
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		if len(self.idioms) > 0:
+			response = "\n".join([i.format() for i in self.idioms])
+		else:
+			response = "no idioms were loaded"
+
+		if not ctx.response.is_done():
+			await ctx.respond(response)
+		else:
+			await ctx.send(f"<@{ctx.author.id}>\n{response}", silent=True)
+
+	@aetol_group.command(name="search")
+	@discord.option(
+		"term",
+		str,
+		description="Search for this term",
+	)
+	@discord.option(
+		"score_cutoff",
+		float,
+		description="How closely the term needs to match for a result to be shown (0.0 - 100.0) (default: 80.0)",
+	)
+	@discord.option("limit", int, description="How many results to show (default: 3)")
+	@discord.option(
+		"start",
+		int,
+		description="Where to start (negative numbers start from the end) (default: 1)",
+		parameter_name="start_index",
+	)
+	@discord.option(
+		"convert",
+		bool,
+		description="Auto convert certain letter combinations to Aetol letters (i.e ae -> æ) (default: Yes)",
+	)
+	async def search_word(
+		self,
+		ctx: discord.ApplicationContext,
+		term: str,
+		score_cutoff: float = 80.0,
+		limit: int = 3,
+		start_index: int = 1,
+		*,
+		convert: bool = True,
+	) -> None:
+		"""Search for Aetol words using fuzzy search."""
+		self.logger.info(
+			"Search word command used (term=%s, score_cutoff=%s, limit=%s, start_index=%s, convert=%s).",
+			term,
+			score_cutoff,
+			limit,
+			start_index,
+			convert,
+		)
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		msg = f"searching aetol for `{term}`"
+		if not ctx.response.is_done():
+			await ctx.respond(msg)
+		else:
+			await ctx.send(f"<@{ctx.author.id}> {msg}", silent=True)
+
+		if start_index > 0:
+			start_index -= 1
+
+		term = term.lower()
+		original_term = term
+
+		if convert:
+			replace_dictionary = {
+				"aj": "â",
+				"ae": "æ",
+				"sh": "š",
+				"zs": "ž",
+				"ts": "ţ",
+				"lj": "ĺ",
+				"lh": "ł",
+			}
+
+			for i, j in replace_dictionary.items():
+				term = term.replace(i, j)
+
+		aetol_words = {i.name.lower() for i in self.particles}
+		aetol_words.update({i.name.lower() for i in self.words})
+
+		aetol_meanings = {i.meaning.lower() for i in self.particles}
+		aetol_meanings.update({i.meaning.lower() for i in self.words})
+
+		aetol_nouns = {i.as_noun.lower() for i in self.particles if i.as_noun}
+		aetol_nouns.update({i.as_noun.lower() for i in self.words if i.as_noun})
+
+		aetol_verbs = {i.as_verb.lower() for i in self.particles if i.as_verb}
+		aetol_verbs.update({i.as_verb.lower() for i in self.words if i.as_verb})
+
+		matches = []
+		matches.extend(
+			rapidfuzz.process.extract_iter(
+				term,
+				aetol_words,
+				scorer=rapidfuzz.fuzz.ratio,
+				score_cutoff=score_cutoff,
+			)
+		)
+		matches.extend(
+			rapidfuzz.process.extract_iter(
+				original_term,
+				aetol_meanings,
+				scorer=rapidfuzz.fuzz.WRatio,
+				score_cutoff=score_cutoff,
+			)
+		)
+		matches.extend(
+			rapidfuzz.process.extract_iter(
+				original_term,
+				aetol_nouns,
+				scorer=rapidfuzz.fuzz.WRatio,
+				score_cutoff=score_cutoff,
+			)
+		)
+		matches.extend(
+			rapidfuzz.process.extract_iter(
+				original_term,
+				aetol_verbs,
+				scorer=rapidfuzz.fuzz.WRatio,
+				score_cutoff=score_cutoff,
+			)
+		)
+
+		matches.sort(key=operator.itemgetter(1), reverse=True)
+
+		if len(matches) < 1:
+			await ctx.send("nothing was found")
+			return
+
+		matching_words = []
+		for i in matches:
+			for j in self.particles:
+				if j not in {k[0] for k in matching_words} and (
+					i[0] == j.name
+					or i[0] == j.meaning
+					or i[0] == j.as_noun
+					or i[0] == j.as_verb
+				):
+					matching_words.append((j, i[1]))
+			for j in self.words:
+				if j not in {k[0] for k in matching_words} and (
+					i[0] == j.name
+					or i[0] == j.meaning
+					or i[0] == j.as_noun
+					or i[0] == j.as_verb
+				):
+					matching_words.append((j, i[1]))
+
+		total_items = len(matching_words)
+		matching_words = matching_words[start_index :: frg.sign(start_index)]
+
+		if limit >= 0:
+			matching_words = matching_words[:limit]
+
+		too_many = frg.truncated_message(
+			total_items, len(matching_words), limit, start_index
+		)
+
+		response = [f"({i[1]:.1f}) {i[0].format()}" for i in matching_words]
+
+		if too_many is not None:
+			response.append(too_many)
+
+		responses = frg.split_message(response, "\n\n")
+
+		if not await frg.message_length_warning(ctx, responses, 500):
+			await ctx.send("the search was cancelled")
+			return
+
+		for i in responses:
+			await ctx.send(i.strip())
+
+
+def setup(bot: discord.Bot) -> None:
+	"""Set up the cog."""
+	bot.add_cog(Aetol(bot))

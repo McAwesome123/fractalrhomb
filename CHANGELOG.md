@@ -9,11 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- SSE notification listening
+- aiohttp-sse-client2 (0.3.0) and RapidFuzz (3.10.0) as dependencies
+  - RapidFuzz requires Visual C++ 2019 (:cvheadache:)
+- SSE notification listening (Special Thanks: BerylRose/pierce-smith1)
   - Currently handles `news_update` notifications from `https://fractalthorns.com/notifications`
   - Sends a message in specified news channels upon receiving such a notification
   - Can be restarted by bot admin users
 - User agent can have `{VERSION_SHORT}`, `{VERSION_LONG}`, or `{VERSION_FULL}` to serve as a placeholder for the current version
+- Ability to load an Aetol dictionary
+  - Requires: `aetol/particle_dictionary.tsv` or `aetol/word_dictionary.tsv`; Also supports `aetol/idiom_dictionary.tsv`
+    - Expected particle format: `name`, `meaning`, `as verb`, `as noun`, `notes`, `category`
+    - Expected word format: `name`, `meaning`, `as verb`, `as noun`, `formation`, `category`
+    - Expected idiom format: `name`, `meaning`
+    - Dictionaries not included at this time(?)
+  - Particles and words can be searched using `/aetol search`
+  - Idioms are displayed separately using `/aetol idioms`
+  - Alphabet can be displayed using `/aetol alphabet`
+- Bot admin command to save and reload bot data
 
 ### Changed
 - Reworked bot channel commands to also work for other channel types (currently news)
@@ -21,7 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Subcommands renamed to `set`, `clear`, and `clearall` (from `add`, `remove`, and `removeall`)
 - All "bot admin" or otherwise restricted commands now use the `BOT_ADMIN_USERS` environment variable
 - All mentions of the version are now sourced from `src.fractalrhomb_globals`
-- Removed unnecessary message content variables when sending messages
 - Default user agent now includes the short version
 - Bot data should be slightly easier to read
 
