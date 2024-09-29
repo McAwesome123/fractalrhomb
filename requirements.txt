@@ -10,4 +10,5 @@ multidict==6.0.5
 pillow==10.4.0
 py-cord==2.6.0
 python-dotenv==1.0.1
+RapidFuzz==3.10.0
 yarl==1.9.4

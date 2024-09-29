@@ -171,3 +171,4 @@ __apicache__/
 bot_data.*
 *.log*
 .apicache/
+/aetol

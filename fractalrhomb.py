@@ -17,6 +17,7 @@ import logging
 import logging.handlers
 from math import ceil
 from os import getenv
+from pathlib import Path
 
 import aiohttp
 import discord
@@ -63,9 +64,9 @@ async def private_commands(message: discord.Message) -> None:
 		return
 
 	user_id = str(message.author.id)
+	allowed = json.loads(getenv("BOT_ADMIN_USERS", "[]"))
 
 	if message.content.startswith("-say"):
-		allowed = json.loads(getenv("BOT_ADMIN_USERS", "[]"))
 		if user_id not in allowed:
 			discord_logger.info(
 				"User %s tried to use -say, but is not part of %s", user_id, allowed
@@ -75,7 +76,6 @@ async def private_commands(message: discord.Message) -> None:
 		await say_message_command(message)
 
 	if message.content.startswith("-status"):
-		allowed = json.loads(getenv("BOT_ADMIN_USERS", "[]"))
 		if user_id not in allowed:
 			discord_logger.info(
 				"User %s tried to use -status, but is not part of %s", user_id, allowed
@@ -83,6 +83,15 @@ async def private_commands(message: discord.Message) -> None:
 			return
 
 		await change_status_command(message)
+
+	if message.content.startswith("-botdata"):
+		if user_id not in allowed:
+			discord_logger.info(
+				"User %s tried to use -botdata, but is not part of %s", user_id, allowed
+			)
+			return
+
+		await bot_data_command(message)
 
 
 async def say_message_command(message: discord.Message) -> None:
@@ -136,16 +145,43 @@ async def change_status_command(message: discord.Message) -> None:
 	await bot.change_presence(activity=discord.CustomActivity(content))
 
 
+async def bot_data_command(message: discord.Message) -> None:
+	"""Save or reload bot data."""
+	args = message.content.split(" ", 2)
+
+	discord_logger.debug(
+		"Received -botdata command: %s. Parsed as: %s.", message.content, args
+	)
+
+	if len(args) < 2:  # noqa: PLR2004
+		discord_logger.debug("Command did not receive enough arguments.")
+		return
+
+	action = args[1]
+
+	discord_logger.debug("Parsed action as %s.", action)
+
+	match action:
+		case "save":
+			await frg.bot_data.save(frg.BOT_DATA_PATH)
+		case "load":
+			await frg.bot_data.load(frg.BOT_DATA_PATH)
+		case "reload":
+			await frg.bot_data.load(frg.BOT_DATA_PATH)
+		case _:
+			discord_logger.debug("Action is not valid.")
+
+
 @bot.event
 async def on_application_command_error(
 	ctx: discord.ApplicationContext, error: Exception
 ) -> None:
 	"""Do stuff when there's a command error."""
 	response = "an unhandled exception occurred"
-	if ctx.response.is_done():
-		await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
-	else:
+	if not ctx.response.is_done():
 		await ctx.respond(response)
+	else:
+		await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
 	raise error
 
 
@@ -640,6 +676,11 @@ async def main() -> None:
 		frg.session = session
 
 		bot.load_extension("cogs.fractalthorns")
+		if (
+			Path("aetol/particle_dictionary.tsv").exists()
+			or Path("aetol/word_dictionary.tsv").exists()
+		):
+			bot.load_extension("cogs.aetol")
 
 		token = getenv("DISCORD_BOT_TOKEN")
 		async with bot:

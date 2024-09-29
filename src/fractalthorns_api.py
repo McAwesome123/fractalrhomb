@@ -2013,7 +2013,7 @@ class FractalthornsAPI(API):
 				if not Path(cache_meta).exists():
 					return
 
-				async with aiofiles.open(cache_meta, "r", encoding="utf-8") as f:
+				async with aiofiles.open(cache_meta, encoding="utf-8") as f:
 					saved_images = json.loads(await f.read())
 
 				for i in saved_images:
@@ -2067,7 +2067,7 @@ class FractalthornsAPI(API):
 				if not Path(cache_path).exists():
 					return
 
-				async with aiofiles.open(cache_path, "r", encoding="utf-8") as f:
+				async with aiofiles.open(cache_path, encoding="utf-8") as f:
 					cache_contents = json.loads(await f.read())
 
 				match cache:

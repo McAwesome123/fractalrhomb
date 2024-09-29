@@ -39,7 +39,7 @@ EMPTY_MESSAGE = "give me something to show"
 NO_ITEMS_MATCH_SEARCH = "no items match the requested parameters"
 
 # The full version number including anything extra.
-FRACTALRHOMB_VERSION_FULL = "0.7.0-pre.2"
+FRACTALRHOMB_VERSION_FULL = "0.7.0-pre.3"
 # Version number with only Major, Minor, and Patch version.
 FRACTALRHOMB_VERSION_LONG = "0.7.0"
 # Verison number with only Major and Minor version.
@@ -81,7 +81,7 @@ class BotData:
 			discord_logger.info("Did not find saved bot data.")
 			return
 
-		async with aiofiles.open(fp, "r") as f:
+		async with aiofiles.open(fp) as f:
 			data = json.loads(await f.read())
 			if data.get("bot_channels") is not None:
 				discord_logger.info("Loaded saved bot channels.")
