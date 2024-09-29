@@ -40,10 +40,11 @@ See [Windows Setup](https://github.com/McAwesome123/fractal-rhomb/wiki/Windows-S
 - [Python (3.12.4)](https://www.python.org/downloads/)
 - [Aiofiles (24.1.0)](https://pypi.org/project/aiofiles/24.1.0/)
 - [Aiohttp (3.10.3)](https://pypi.org/project/aiohttp/3.10.3/)
+- [Aiohttp-sse-client2 (0.3.0)](https://pypi.org/project/aiohttp-sse-client2/0.3.0/)
 - [Pillow (10.4.0)](https://pypi.org/project/pillow/10.4.0/)
 - [Py-cord (2.6.0)](https://pypi.org/project/py-cord/2.6.0/)
 - [Python-dotenv (1.0.1)](https://pypi.org/project/python-dotenv/1.0.1/)
-- [Rapidfuzz (3.10.0)](https://pypi.org/project/RapidFuzz/3.10.0/)
+- [RapidFuzz (3.10.0)](https://pypi.org/project/RapidFuzz/3.10.0/)
 - [Visaul C++ 2019](https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads)
 
 	_(and any dependencies for the above)_

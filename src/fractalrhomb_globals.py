@@ -39,7 +39,7 @@ EMPTY_MESSAGE = "give me something to show"
 NO_ITEMS_MATCH_SEARCH = "no items match the requested parameters"
 
 # The full version number including anything extra.
-FRACTALRHOMB_VERSION_FULL = "0.7.0-pre.3"
+FRACTALRHOMB_VERSION_FULL = "0.7.0"
 # Version number with only Major, Minor, and Patch version.
 FRACTALRHOMB_VERSION_LONG = "0.7.0"
 # Verison number with only Major and Minor version.

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing so far
+
+## [0.7.0] - 2024-09-29
+
 ### Added
 
 - aiohttp-sse-client2 (0.3.0) and RapidFuzz (3.10.0) as dependencies
