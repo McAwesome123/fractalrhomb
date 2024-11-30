@@ -284,6 +284,26 @@ class Aetol(discord.Cog):
 
 	aetol_group = discord.SlashCommandGroup("aetol", "Various Aetol commands")
 
+	@aetol_group.command(name="info")
+	async def show_info(self, ctx: discord.ApplicationContext) -> None:
+		"""Show info about Aetol."""
+		self.logger.info("Show info command used.")
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		response = (
+			"**aetol resources**\n"
+			"[main page](<https://web.archive.org/web/20231015202450/https://doughbyte.com/aut/aetol/>)\n"
+			"[learn it](<https://web.archive.org/web/20231015202503/https://doughbyte.com/aut/aetol/learn/>)\n"
+			"[dictionary](<https://web.archive.org/web/20231015202502/https://doughbyte.com/aut/aetol/dictionary/>)\n"
+			"[sample collection](<https://web.archive.org/web/20231015202507/https://doughbyte.com/aut/aetol/samples/>)\n"
+			"[handbook](<https://web.archive.org/web/20231015202505/https://doughbyte.com/aut/aetol/handbook/>)\n"
+			"_disclaimer: some information may be missing or incomplete. this is unlikely to change in the near future._"
+		)
+
+		await frg.send_message(ctx, response, "\n")
+
 	@aetol_group.command(name="alphabet")
 	async def show_alphabet(self, ctx: discord.ApplicationContext) -> None:
 		"""Show the Aetol alphabet."""
@@ -293,14 +313,11 @@ class Aetol(discord.Cog):
 			return
 
 		response = (
-			"Vowels:\na - [ɑ]; â (aj) - [aɪ]; æ (ae) - [eɪ]; e - [ɛ]; i - [ɪ]; u - [ə]; y - [i]\n\n"  # noqa: RUF001
-			"Consonants:\nl - [l]; k - [k]; g - [g]; t - [t]; d - [d]; n - [n]; s - [s]; š (sh) - [ʃ]; ž (zs) - [ʒ]; ţ (ts) - [t͡s]; j - [j]; ĺ (lj) - [ʎ]; ł (lh) - [ɮ] / [ɬ]; x - [χ]"
+			"vowels:\nAa - [ɑ]; Ââ (aj) - [aɪ]; Ææ (ae) - [eɪ]; Ee - [ɛ]; Ii - [ɪ]; Uu - [ə]; Yy - [i]\n\n"  # noqa: RUF001
+			"consonants:\nLl - [l]; Kk - [k]; Gg - [g]; Tt - [t]; Dd - [d]; Nn - [n]; Ss - [s]; Šš (sh) - [ʃ]; Žž (zs) - [ʒ]; Ţţ (ts) - [t͡s]; Jj - [j]; Ĺĺ (lj) - [ʎ]; Łł (lh) - [ɮ] / [ɬ]; Xx - [χ]"
 		)
 
-		if not ctx.response.is_done():
-			await ctx.respond(response)
-		else:
-			await ctx.send(f"<@{ctx.author.id}>\n{response}", silent=True)
+		await frg.send_message(ctx, response, "\n")
 
 	@aetol_group.command(name="idioms")
 	async def show_idioms(self, ctx: discord.ApplicationContext) -> None:
@@ -315,10 +332,7 @@ class Aetol(discord.Cog):
 		else:
 			response = "no idioms were loaded"
 
-		if not ctx.response.is_done():
-			await ctx.respond(response)
-		else:
-			await ctx.send(f"<@{ctx.author.id}>\n{response}", silent=True)
+		await frg.send_message(ctx, response, "\n")
 
 	@aetol_group.command(name="search")
 	@discord.option(
@@ -367,10 +381,7 @@ class Aetol(discord.Cog):
 			return
 
 		msg = f"searching aetol for `{term}`"
-		if not ctx.response.is_done():
-			await ctx.respond(msg)
-		else:
-			await ctx.send(f"<@{ctx.author.id}> {msg}", silent=True)
+		await frg.send_message(ctx, msg)
 
 		if start_index > 0:
 			start_index -= 1
@@ -441,7 +452,8 @@ class Aetol(discord.Cog):
 		matches.sort(key=operator.itemgetter(1), reverse=True)
 
 		if len(matches) < 1:
-			await ctx.send("nothing was found")
+			response = "nothing was found"
+			await frg.send_message(ctx, response, ping_user=False)
 			return
 
 		matching_words = []
@@ -481,11 +493,13 @@ class Aetol(discord.Cog):
 		responses = frg.split_message(response, "\n\n")
 
 		if not await frg.message_length_warning(ctx, responses, 500):
-			await ctx.send("the search was cancelled")
+			response_text = "the search was cancelled"
+			await frg.send_message(ctx, response_text, ping_user=False)
 			return
 
 		for i in responses:
-			await ctx.send(i.strip())
+			if not await frg.send_message(ctx, i.strip(), ping_user=False):
+				break
 
 
 def setup(bot: discord.Bot) -> None:
