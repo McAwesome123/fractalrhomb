@@ -123,16 +123,14 @@ class Fractalthorns(discord.Cog):
 				return
 
 			if len(responses[0].strip()) < 1:
-				await ctx.respond(frg.EMPTY_MESSAGE)
+				await frg.send_message(ctx, frg.EMPTY_MESSAGE)
 				return
 
-			user = f"<@{ctx.author.id}>\n"
+			ping_user = True
 			for i in responses:
-				if not ctx.response.is_done():
-					await ctx.respond(i)
-				else:
-					await ctx.send(f"{user}{i.strip()}", silent=True)
-					user = ""
+				if not await frg.send_message(ctx, i, "\n", ping_user=ping_user):
+					break
+				ping_user = False
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -285,17 +283,9 @@ class Fractalthorns(discord.Cog):
 			elif len(response_text) < 1:
 				response_text = frg.EMPTY_MESSAGE
 
-			if deferred:
-				if file is not None:
-					await ctx.respond(response_text, file=file)
-				else:
-					await ctx.respond(response_text)
-			elif file is not None:
-				await ctx.send(
-					f"<@{ctx.author.id}>\n{response_text}", file=file, silent=True
-				)
-			else:
-				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
+			await frg.send_message(
+				ctx, response_text, "\n", file=file, is_deferred=deferred
+			)
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -359,13 +349,11 @@ class Fractalthorns(discord.Cog):
 			if not await frg.message_length_warning(ctx, responses, 1000):
 				return
 
-			user = f"<@{ctx.author.id}>\n"
+			ping_user = True
 			for i in responses:
-				if not ctx.response.is_done():
-					await ctx.respond(i)
-				else:
-					await ctx.send(f"{user}{i}", silent=True)
-					user = ""
+				if not await frg.send_message(ctx, i, "\n", ping_user=ping_user):
+					break
+				ping_user = False
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -437,13 +425,11 @@ class Fractalthorns(discord.Cog):
 			if not await frg.message_length_warning(ctx, responses, 1800):
 				return
 
-			user = f"<@{ctx.author.id}>\n"
+			ping_user = True
 			for i in responses:
-				if not ctx.response.is_done():
-					await ctx.respond(i)
-				else:
-					await ctx.send(f"{user}{i}", silent=True)
-					user = ""
+				if not await frg.send_message(ctx, i, "\n", ping_user=ping_user):
+					break
+				ping_user = False
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -568,17 +554,9 @@ class Fractalthorns(discord.Cog):
 			elif len(response_text) < 1:
 				response_text = frg.EMPTY_MESSAGE
 
-			if deferred:
-				if file is not None:
-					await ctx.respond(response_text, file=file)
-				else:
-					await ctx.respond(response_text)
-			elif file is not None:
-				await ctx.send(
-					f"<@{ctx.author.id}>\n{response_text}", file=file, silent=True
-				)
-			else:
-				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
+			await frg.send_message(
+				ctx, response_text, "\n", file=file, is_deferred=deferred
+			)
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -598,10 +576,7 @@ class Fractalthorns(discord.Cog):
 
 		except* fte.SketchNotFoundError:
 			response = "sketch not found"
-			if deferred:
-				await ctx.respond(response)
-			else:
-				await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+			await frg.send_message(ctx, response, is_deferred=deferred)
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
@@ -655,13 +630,11 @@ class Fractalthorns(discord.Cog):
 			if not await frg.message_length_warning(ctx, responses, 1000):
 				return
 
-			user = f"<@{ctx.author.id}>\n"
+			ping_user = True
 			for i in responses:
-				if not ctx.response.is_done():
-					await ctx.respond(i)
-				else:
-					await ctx.send(f"{user}{i}", silent=True)
-					user = ""
+				if not await frg.send_message(ctx, i, "\n", ping_user=ping_user):
+					break
+				ping_user = False
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -742,13 +715,11 @@ class Fractalthorns(discord.Cog):
 			if not await frg.message_length_warning(ctx, responses, 1200):
 				return
 
-			user = f"<@{ctx.author.id}>\n"
+			ping_user = True
 			for i in responses:
-				if not ctx.response.is_done():
-					await ctx.respond(i)
-				else:
-					await ctx.send(f"{user}{i.strip()}", silent=True)
-					user = ""
+				if not await frg.send_message(ctx, i, "\n", ping_user=ping_user):
+					break
+				ping_user = False
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -848,10 +819,7 @@ class Fractalthorns(discord.Cog):
 			if len(response_text.strip()) < 1:
 				response_text = frg.EMPTY_MESSAGE
 
-			if not ctx.response.is_done():
-				await ctx.respond(response_text)
-			else:
-				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
+			await frg.send_message(ctx, response_text, "\n")
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -901,13 +869,11 @@ class Fractalthorns(discord.Cog):
 			if not await frg.message_length_warning(ctx, responses, 1000):
 				return
 
-			user = f"<@{ctx.author.id}>\n"
+			ping_user = True
 			for i in responses:
-				if not ctx.response.is_done():
-					await ctx.respond(i)
-				else:
-					await ctx.send(f"{user}{i}", silent=True)
-					user = ""
+				if not await frg.send_message(ctx, i, "\n", ping_user=ping_user):
+					break
+				ping_user = False
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -971,10 +937,7 @@ class Fractalthorns(discord.Cog):
 			return
 
 		msg = f"searching `{type_}` for `{term}`..."
-		if not ctx.response.is_done():
-			await ctx.respond(msg)
-		else:
-			await ctx.send(f"<@{ctx.author.id}> {msg}", silent=True)
+		await frg.send_message(ctx, msg)
 
 		if start_index > 0:
 			start_index -= 1
@@ -986,7 +949,8 @@ class Fractalthorns(discord.Cog):
 
 			total_items = len(results)
 			if total_items < 1:
-				await ctx.send("nothing was found")
+				response = "nothing was found"
+				await frg.send_message(ctx, response, ping_user=False)
 				return
 
 			results = results[start_index :: frg.sign(start_index)]
@@ -1022,11 +986,13 @@ class Fractalthorns(discord.Cog):
 			responses = frg.split_message(response, "\n")
 
 			if not await frg.message_length_warning(ctx, responses, 1200):
-				await ctx.send("the search was cancelled")
+				response = "the search was cancelled"
+				await frg.send_message(ctx, response, ping_user=False)
 				return
 
 			for i in responses:
-				await ctx.send(i)
+				if not await frg.send_message(ctx, i, ping_user=False):
+					break
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -1217,18 +1183,12 @@ class Fractalthorns(discord.Cog):
 				else:
 					response = frg.regex_incorrectly_formatted("name")
 
-				if deferred:
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			if len(images_list) < 1:
 				response = frg.NO_ITEMS_MATCH_SEARCH
-				if deferred:
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			random.seed()
@@ -1246,12 +1206,9 @@ class Fractalthorns(discord.Cog):
 			io.seek(0)
 			file = discord.File(io, filename=f"{random_item[0].name}.png")
 
-			if deferred:
-				await ctx.respond(response_text, file=file)
-			else:
-				await ctx.send(
-					f"<@{ctx.author.id}>\n{response_text}", file=file, silent=True
-				)
+			await frg.send_message(
+				ctx, response_text, "\n", file=file, is_deferred=deferred
+			)
 
 			await fractalthorns_api.save_all_caches()
 
@@ -1453,18 +1410,12 @@ class Fractalthorns(discord.Cog):
 
 			except re.error:
 				response = frg.regex_incorrectly_formatted("name")
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			if len(records_list) < 1:
 				response = frg.NO_ITEMS_MATCH_SEARCH
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			random.seed()
@@ -1476,10 +1427,7 @@ class Fractalthorns(discord.Cog):
 
 			response_text = random_item.format()
 
-			if deferred or not ctx.response.is_done():
-				await ctx.respond(response_text)
-			else:
-				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
+			await frg.send_message(ctx, response_text, "\n", is_deferred=deferred)
 
 			await fractalthorns_api.save_all_caches()
 
@@ -1588,18 +1536,12 @@ class Fractalthorns(discord.Cog):
 
 			except re.error:
 				response = frg.regex_incorrectly_formatted("name")
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			if len(lines_list) < 1:
 				response = frg.NO_ITEMS_MATCH_SEARCH
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			random.seed()
@@ -1607,10 +1549,7 @@ class Fractalthorns(discord.Cog):
 
 			response_text = random_item.format()
 
-			if deferred or not ctx.response.is_done():
-				await ctx.respond(response_text)
-			else:
-				await ctx.send(f"<@{ctx.author.id}>\n{response_text}", silent=True)
+			await frg.send_message(ctx, response_text, "\n", is_deferred=deferred)
 
 			await fractalthorns_api.save_all_caches()
 
@@ -1719,18 +1658,12 @@ class Fractalthorns(discord.Cog):
 				else:
 					response = frg.regex_incorrectly_formatted("name")
 
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			if len(images_list) < 1:
 				response = frg.NO_ITEMS_MATCH_SEARCH
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			total_items = len(images_list)
@@ -1752,13 +1685,13 @@ class Fractalthorns(discord.Cog):
 			if not await frg.message_length_warning(ctx, responses, 1800):
 				return
 
-			user = f"<@{ctx.author.id}>"
+			ping_user = True
 			for i in responses:
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(i)
-				else:
-					await ctx.send(f"{user}{i}", silent=True)
-					user = ""
+				if not await frg.send_message(
+					ctx, i, "\n", ping_user=ping_user, is_deferred=deferred
+				):
+					break
+				ping_user = False
 
 			await fractalthorns_api.save_all_caches()
 
@@ -1868,19 +1801,12 @@ class Fractalthorns(discord.Cog):
 
 			except re.error:
 				response = frg.regex_incorrectly_formatted("name")
-
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			if len(records_list) < 1:
 				response = frg.NO_ITEMS_MATCH_SEARCH
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			total_items = len(records_list)
@@ -1902,13 +1828,13 @@ class Fractalthorns(discord.Cog):
 			if not await frg.message_length_warning(ctx, responses, 1200):
 				return
 
-			user = f"<@{ctx.author.id}>"
+			ping_user = True
 			for i in responses:
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(i)
-				else:
-					await ctx.send(f"{user}{i}", silent=True)
-					user = ""
+				if not await frg.send_message(
+					ctx, i, "\n", ping_user=ping_user, is_deferred=deferred
+				):
+					break
+				ping_user = False
 
 			await fractalthorns_api.save_all_caches()
 
@@ -2034,18 +1960,12 @@ class Fractalthorns(discord.Cog):
 			except re.error:
 				response = frg.regex_incorrectly_formatted("name")
 
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			if len(lines_list) < 1:
 				response = frg.NO_ITEMS_MATCH_SEARCH
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response, is_deferred=deferred)
 				return
 
 			total_items = len(lines_list)
@@ -2071,13 +1991,13 @@ class Fractalthorns(discord.Cog):
 			if not await frg.message_length_warning(ctx, responses, 1800):
 				return
 
-			user = f"<@{ctx.author.id}>"
+			ping_user = True
 			for i in responses:
-				if deferred or not ctx.response.is_done():
-					await ctx.respond(i)
-				else:
-					await ctx.send(f"{user}{i}", silent=True)
-					user = ""
+				if not await frg.send_message(
+					ctx, i, "\n", ping_user=ping_user, is_deferred=deferred
+				):
+					break
+				ping_user = False
 
 			await fractalthorns_api.save_all_caches()
 
@@ -2108,10 +2028,7 @@ class Fractalthorns(discord.Cog):
 		):
 			time += frg.FULL_GATHER_COOLDOWN.total_seconds()
 			response = f"you cannot do that. try again <t:{ceil(time)}:R>"
-			if not ctx.response.is_done():
-				await ctx.respond(response)
-			else:
-				await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+			await frg.send_message(ctx, response)
 			return
 
 		try:
@@ -2119,10 +2036,7 @@ class Fractalthorns(discord.Cog):
 			async def delayed_send(delay: float = 0.25) -> None:
 				await asyncio.sleep(delay)
 				response = "gathering items. this may take a bit"
-				if not ctx.response.is_done():
-					await ctx.respond(response)
-				else:
-					await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+				await frg.send_message(ctx, response)
 
 			tasks = set()
 			async with asyncio.TaskGroup() as tg:
@@ -2151,13 +2065,11 @@ class Fractalthorns(discord.Cog):
 			else:
 				response = "this command was used too recently"
 
-			if not ctx.response.is_done():
-				await ctx.respond(response)
-			else:
-				await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+			await frg.send_message(ctx, response)
 
 		else:
-			await ctx.send("successfully gathered all records and descriptions")
+			response = "successfully gathered all records and descriptions"
+			await frg.send_message(ctx, response)
 
 			frg.bot_data.gather_cooldowns.update(
 				{user: dt.datetime.now(dt.UTC).timestamp()}

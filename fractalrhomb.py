@@ -138,11 +138,16 @@ async def change_status_command(message: discord.Message) -> None:
 	content = args[1]
 	if content.lower() == "clear":
 		await bot.change_presence()
+		frg.bot_data.status = ""
+		await frg.bot_data.save(frg.BOT_DATA_PATH)
 		return
 	if content.strip("\\").lower() == "clear":
 		content = content[1:]
 
 	await bot.change_presence(activity=discord.CustomActivity(content))
+
+	frg.bot_data.status = content
+	await frg.bot_data.save(frg.BOT_DATA_PATH)
 
 
 async def bot_data_command(message: discord.Message) -> None:
@@ -178,10 +183,7 @@ async def on_application_command_error(
 ) -> None:
 	"""Do stuff when there's a command error."""
 	response = "an unhandled exception occurred"
-	if not ctx.response.is_done():
-		await ctx.respond(response)
-	else:
-		await ctx.send(f"<@{ctx.author.id}> {response}", silent=True)
+	await frg.send_message(ctx, response)
 	raise error
 
 
@@ -192,7 +194,8 @@ async def ping(ctx: discord.ApplicationContext) -> None:
 		"Ping command used. Latency: %s ms", round(bot.latency * 1000)
 	)
 
-	await ctx.respond(f"pong! latency: {f"{round(bot.latency * 1000)!s}ms"}.")
+	response = f"pong! latency: {f"{round(bot.latency * 1000)!s}ms"}."
+	await frg.send_message(ctx, response)
 
 
 @bot.slash_command(name="license")
@@ -208,7 +211,7 @@ async def show_license(ctx: discord.ApplicationContext) -> None:
 		"\n"
 		"[fractalthorns](<https://fractalthorns.com>) is created by [Pierce Smith](<https://github.com/pierce-smith1>)."
 	)
-	await ctx.respond(license_text)
+	await frg.send_message(ctx, license_text)
 
 
 @bot.slash_command(name="purge")
@@ -249,7 +252,8 @@ async def purge(
 		if user not in force_purge_allowed:
 			discord_logger.warning("Unauthorized force purge attempt by %s.", user)
 
-			await ctx.respond("you cannot do that.")
+			response = "you cannot do that."
+			await frg.send_message(ctx, response)
 			return
 
 	if cache == "all":
@@ -263,7 +267,8 @@ async def purge(
 
 		discord_logger.info('"%s" force purged by %s.', cache.value, ctx.author.id)
 
-		await ctx.respond(f"successfully force purged {cache.value}")
+		response = f"successfully force purged {cache.value}"
+		await frg.send_message(ctx, response)
 		return
 
 	user = frg.bot_data.purge_cooldowns.get(user)
@@ -275,7 +280,8 @@ async def purge(
 			< dt.datetime.fromtimestamp(time, dt.UTC) + frg.USER_PURGE_COOLDOWN
 		):
 			time += frg.USER_PURGE_COOLDOWN.total_seconds()
-			await ctx.respond(f"you cannot do that. try again <t:{ceil(time)}:R>")
+			response = f"you cannot do that. try again <t:{ceil(time)}:R>"
+			await frg.send_message(ctx, response)
 			return
 	try:
 		fractalthorns_api.purge_cache(cache)
@@ -287,10 +293,11 @@ async def purge(
 			response = f"could not purge the cache - {exc.reason.lower()}"
 		else:
 			response = "could not purge the cache"
-		await ctx.respond(response)
+		await frg.send_message(ctx, response)
 
 	else:
-		await ctx.respond(f"successfully purged {cache.value}")
+		response = f"successfully purged {cache.value}"
+		await frg.send_message(ctx, response)
 
 		if str(ctx.author.id) not in frg.bot_data.purge_cooldowns:
 			frg.bot_data.purge_cooldowns.update({str(ctx.author.id): {}})
@@ -320,7 +327,8 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 
 		discord_logger.info("All caches force purged by %s.", user)
 
-		await ctx.respond("successfully force purged all caches")
+		response = "successfully force purged all caches"
+		await frg.send_message(ctx, response)
 		return
 
 	user = frg.bot_data.purge_cooldowns.get(user)
@@ -360,7 +368,8 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 			)
 
 	if len(purged) > 0:
-		await ctx.respond(f"successfully purged {", ".join(purged)}")
+		response = f"successfully purged {", ".join(purged)}"
+		await frg.send_message(ctx, response)
 
 		discord_logger.info("%s purged by %s.", ('", "'.join(purged)), ctx.author.id)
 
@@ -371,15 +380,15 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 	else:
 		earliest = min(cooldown, key=cooldown.get)
 
-		await ctx.respond(
-			f"could not purge any caches.\nearliest available: '{earliest.value}' <t:{ceil(cooldown[earliest])}:R>"
-		)
+		response = f"could not purge any caches.\nearliest available: '{earliest.value}' <t:{ceil(cooldown[earliest])}:R>"
+		await frg.send_message(ctx, response)
 
 
 bot_channel_group = bot.create_group(
 	"channel",
 	"Manage special channels.",
 	contexts={discord.InteractionContextType.guild},
+	integration_types=[discord.IntegrationType.guild_install],
 	default_member_permissions=discord.Permissions(manage_guild=True),
 )
 
@@ -578,11 +587,13 @@ async def restart_notification_listener(ctx: discord.ApplicationContext) -> None
 		discord_logger.warning(
 			"Unauthorized notif listener restart attempt by %s.", user_id
 		)
-		await ctx.respond("you cannot do that.")
+		response = "you cannot do that."
+		await frg.send_message(ctx, response)
 		return
 
 	ft_notifs.resume_event.set()
-	await ctx.respond("listener has been restarted.")
+	response = "listener has been restarted."
+	await frg.send_message(ctx, response)
 
 
 def parse_arguments() -> None:
@@ -669,6 +680,13 @@ async def main() -> None:
 		await frg.bot_data.load(frg.BOT_DATA_PATH)
 	except Exception:
 		discord_logger.exception("Could not load bot data.")
+
+	activity_text = frg.bot_data.status
+	if activity_text is not None:
+		bot.activity = discord.CustomActivity(
+			activity_text,
+			emoji=frg.activity_emoji,
+		)
 
 	conn = aiohttp.TCPConnector(limit_per_host=6)
 

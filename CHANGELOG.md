@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing so far
 
+## [0.8.0] - 2024-12-01
+
+### Added
+
+- An info command for Aetol
+- Changing the status now saves it
+- The abiliy for the bot to work when user installed
+
+### Changed
+
+- All the `if not ctx.response.is_done(): ... else: ...` message sends are now handled by a dedicated function instead of copy pasting the same code everywhere
+  - This function also handles user installs because they cannot use `ctx.send()`
+
+### Security
+
+- Updated dependencies in requirements file (most notably aiohttp)
+
 ## [0.7.0] - 2024-09-29
 
 ### Added

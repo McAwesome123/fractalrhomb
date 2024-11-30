@@ -25,25 +25,39 @@ import discord
 import discord.utils
 
 intents = discord.Intents.default()
-__activity_emoji = os.getenv("NXEYE_EMOJI")
-if __activity_emoji is not None:
-	__activity_emoji = discord.PartialEmoji.from_str(__activity_emoji).to_dict()
+
+activity_emoji = os.getenv("NXEYE_EMOJI")
+if activity_emoji is not None:
+	activity_emoji = discord.PartialEmoji.from_str(activity_emoji).to_dict()
+
 activity = discord.CustomActivity(
 	"observing you",
-	emoji=__activity_emoji,
+	emoji=activity_emoji,
 )
-bot = discord.Bot(intents=intents, activity=activity)
+
+command_integration = [
+	discord.IntegrationType.guild_install,
+	discord.IntegrationType.user_install,
+]
+
+bot = discord.Bot(
+	intents=intents,
+	activity=activity,
+	default_command_integration_types=command_integration,
+)
 
 MAX_MESSAGE_LENGTH = 1950
+USER_BOT_WARN_MESSAGE_LENGTH = MAX_MESSAGE_LENGTH * 4
 EMPTY_MESSAGE = "give me something to show"
 NO_ITEMS_MATCH_SEARCH = "no items match the requested parameters"
+INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE = 40094
 
 # The full version number including anything extra.
-FRACTALRHOMB_VERSION_FULL = "0.7.0"
+FRACTALRHOMB_VERSION_FULL = "0.8.0-pre"
 # Version number with only Major, Minor, and Patch version.
-FRACTALRHOMB_VERSION_LONG = "0.7.0"
+FRACTALRHOMB_VERSION_LONG = "0.8.0"
 # Verison number with only Major and Minor version.
-FRACTALRHOMB_VERSION_SHORT = "0.7"
+FRACTALRHOMB_VERSION_SHORT = "0.8"
 
 FRACTALTHORNS_USER_AGENT = os.getenv(
 	"FRACTALTHORNS_USER_AGENT", "Fractal-RHOMB/{VERSION_SHORT}"
@@ -72,6 +86,7 @@ class BotData:
 	news_post_channels: list[str]
 	purge_cooldowns: dict[str, dict[str, float]]
 	gather_cooldowns: dict[str, float]
+	status: str | None
 
 	async def load(self, fp: str) -> None:
 		"""Load data from file."""
@@ -93,8 +108,11 @@ class BotData:
 				discord_logger.info("Loaded saved purge cooldowns.")
 				self.purge_cooldowns = data["purge_cooldowns"]
 			if data.get("gather_cooldowns") is not None:
-				discord_logger.info("Loaded saved purge cooldowns.")
+				discord_logger.info("Loaded saved gather cooldowns.")
 				self.gather_cooldowns = data["gather_cooldowns"]
+			if data.get("status") is not None:
+				discord_logger.info("Loaded saved status.")
+				self.status = data["status"]
 
 	async def save(self, fp: str) -> None:
 		"""Save data to file."""
@@ -109,7 +127,7 @@ class BotData:
 			discord_logger.info("Saved bot data.")
 
 
-bot_data = BotData({}, [], {}, {})
+bot_data = BotData({}, [], {}, {}, None)
 
 USER_PURGE_COOLDOWN = dt.timedelta(hours=12)
 FULL_GATHER_COOLDOWN = dt.timedelta(hours=72)
@@ -256,7 +274,7 @@ async def standard_exception_handler(
 
 	logger.log(level, msg, exc_info=True)
 
-	await ctx.respond(response)
+	await send_message(ctx, response)
 
 
 class BotWarningView(discord.ui.View):
@@ -336,6 +354,7 @@ async def message_length_warning(
 	If respones or warn_length are None, or the length of the responses is longer than the warn length, gives a warning.
 	If a warning was not given, or was accepted, returns True. If declined, returns False. If timed out, returns None.
 	"""
+	warn_user_bot_message_limit = True
 	if response is not None and warn_length is not None:
 		total_length = 0
 		for i in response:
@@ -343,6 +362,9 @@ async def message_length_warning(
 
 		if total_length < warn_length:
 			return True
+
+		if total_length < USER_BOT_WARN_MESSAGE_LENGTH:
+			warn_user_bot_message_limit = False
 
 		long = "long"
 		if total_length >= 6 * warn_length:
@@ -353,6 +375,12 @@ async def message_length_warning(
 	else:
 		msg = "❗ this command might produce a long response. are you sure?"
 
+	if (
+		warn_user_bot_message_limit
+		and ctx.interaction.authorizing_integration_owners.guild_id is None
+	):
+		msg += "\nthe response will be truncated if it is longer than 5 messages."
+
 	confirmation = BotWarningView()
 	await ctx.respond(
 		msg,
@@ -361,3 +389,50 @@ async def message_length_warning(
 	)
 	await confirmation.wait()
 	return confirmation.value
+
+
+async def send_message(
+	ctx: discord.ApplicationContext,
+	message: str,
+	separator: str = " ",
+	*,
+	ping_user: bool = True,
+	is_deferred: bool = False,
+	file: discord.File | None = None,
+) -> bool:
+	"""Send a message using either respond or, if possible, send.
+
+	Returns False if too many follow up messages have been sent
+	and True if the message was sent successfully.
+	"""
+	user = ""
+	if ping_user:
+		user = f"<@{ctx.author.id}>{separator}"
+
+	message = message.strip()
+
+	try:
+		if not ctx.response.is_done() or is_deferred:
+			if file is not None:
+				await ctx.respond(message, file=file)
+			else:
+				await ctx.respond(message)
+		elif file is not None:
+			await ctx.send(f"{user}{message}", silent=ping_user, file=file)
+		else:
+			await ctx.send(f"{user}{message}", silent=ping_user)
+	except discord.errors.Forbidden:
+		try:
+			if file is not None:
+				await ctx.respond(f"{user}{message}", file=file)
+			else:
+				await ctx.respond(f"{user}{message}")
+		except discord.errors.HTTPException as exc:
+			if exc.code == INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE:
+				discord_logger.debug(
+					"Too many follow up messages have been sent. Truncating."
+				)
+				return False
+			raise
+
+	return True
