@@ -15,7 +15,7 @@ Nothing so far
 
 - An info command for Aetol
 - Changing the status now saves it
-- The abiliy for the bot to work when user installed
+- The ability for the bot to work when user installed
 
 ### Changed
 
