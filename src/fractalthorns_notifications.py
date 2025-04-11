@@ -87,7 +87,11 @@ async def listen_for_notifications() -> None:
 				retry_interval.total_seconds(),
 			)
 
-			await asyncio.sleep(retry_interval.total_seconds())
+			sleep_until_retry_timeout = asyncio.create_task(asyncio.sleep(retry_interval.total_seconds()))
+			wait_for_manual_restart = asyncio.create_task(resume_event.wait())
+			await asyncio.wait([sleep_until_retry_timeout, wait_for_manual_restart], return_when=asyncio.FIRST_COMPLETED)
+
+			resume_event.clear()
 
 			retry_interval *= 2
 			retry_interval = min(retry_interval, MAX_RETRY_INTERVAL)
