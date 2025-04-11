@@ -70,9 +70,9 @@ async def listen_for_notifications() -> None:
 				#
 				# How does something like this even happen??? HOW IS IT STILL NOT FIXED???
 				# Oh no, it's cool, my other car is a graphics library that can only draw one triangle at a time.
+				retry_interval = BASE_RETRY_INTERVAL
 				async for event in event_source:
 					await handle_notification(event)
-					retry_interval = BASE_RETRY_INTERVAL
 
 		except (aiohttp.ClientPayloadError, ConnectionError) as ex:
 			# This SSE client does have its own retry logic, but it will only retry on certain very specific failures.
