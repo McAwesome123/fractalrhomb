@@ -4,10 +4,15 @@ A discord bot that uses the API of https://fractalthorns.com/
 
 ## Usage
 
-To use, it is recommended to activate the venv (from `.venv\scripts` or `.venv\bin`) and run the following command in the repository's root directory.
+To use, it is recommended to activate the venv (from `.venv\Scripts` on Windows or `.venv\bin` on Unix) and run the python script. For example:
 
 ```bat
+.venv\Scripts\activate.bat
 python fractalrhomb.py
+```
+```bash
+source .venv/bin/activate
+python3 fractalrhomb.py
 ```
 
 Make sure the `.env` file contains a valid bot token.
