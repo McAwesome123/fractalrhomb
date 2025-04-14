@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing so far
+### Added
+- Some scripts for starting the bot (don't worry, you can still make your own)
+  - Any command line arguments given to the script will be passed to the bot
+- Customization for the file logger via .env
+  - `LOG_FILE_NAME` for the file name to be used (default: "discord.log")
+  - `LOG_FILE_WHEN` for the type of interval to be used (must be one of the following: "S", "M", "H", "D", "W0" - "W6", "midnight", refer to [this page](https://docs.python.org/3/library/logging.handlers.html#logging.handlers.TimedRotatingFileHandler) for more info) (default: "midnight")
+  - `LOG_FILE_INTERVAL` for the interval between roll over (default: 1)
+  - `LOG_FILE_BACKUP_COUNT` for how many old logs to keep (default: 7)
+  - `LOG_FILE_AT_TIME` for when to roll over if the interval type is a weekday or midnight, in ISO 8601 format (with Z for UTC time or no Z for local time) (default: 00:00:00Z)
+- Can enable outputting logs to console (stderr) with `--log-console`
+  - Log level outputted to console can be changed with `--console-log-level`
+- Can disable outputting logs to file with `--no-log-file`
+  - Log level outputted to file can be changed with `--file-log-level`
+
+### Changed
+- Logs for bot functions now use a "fractalrhomb" logger instead of the "discord" logger
+  - Log level for the "discord" logger is now controlled with `--discord-verbose`/`-dv`, `--discord-more-verbose`/`-dvv`, and `--discord-log-level`
+  - Log level for the "fractalrhomb" logger is controlled with `--bot-verbose`/`-bv`, `--bot-more-verbose`/`-bvv`, and `--bot-log-level`
+  - Log level for the root logger is now controlled with `--verbose`/`-v`, `--more-verbose`/`-vv`, and `--log-level`
 
 ## [0.8.0] - 2024-12-01
 

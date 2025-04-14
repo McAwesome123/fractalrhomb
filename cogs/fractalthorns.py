@@ -33,7 +33,7 @@ class Fractalthorns(discord.Cog):
 	def __init__(self, bot: discord.Bot) -> "Fractalthorns":
 		"""Initialize the cog."""
 		self.bot: discord.Bot = bot
-		self.logger = logging.getLogger("discord.cogs.fractalthorns")
+		self.logger = logging.getLogger("fractalrhomb.cogs.fractalthorns")
 
 	MAX_EPISODIC_LINE_ITEMS = 100
 

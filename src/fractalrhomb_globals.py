@@ -74,7 +74,7 @@ def regex_incorrectly_formatted(regex: str = "regex", is_or_are: str = "is") -> 
 	return f"the {regex} {is_or_are} not formatted correctly. please try again"
 
 
-discord_logger = logging.getLogger("discord")
+fractalrhomb_logger = logging.getLogger("fractalrhomb")
 session: aiohttp.ClientSession = None
 
 
@@ -90,41 +90,41 @@ class BotData:
 
 	async def load(self, fp: str) -> None:
 		"""Load data from file."""
-		discord_logger.info("Loading bot data.")
+		fractalrhomb_logger.info("Loading bot data.")
 
 		if not Path(fp).exists():
-			discord_logger.info("Did not find saved bot data.")
+			fractalrhomb_logger.info("Did not find saved bot data.")
 			return
 
 		async with aiofiles.open(fp) as f:
 			data = json.loads(await f.read())
 			if data.get("bot_channels") is not None:
-				discord_logger.info("Loaded saved bot channels.")
+				fractalrhomb_logger.info("Loaded saved bot channels.")
 				self.bot_channels = data["bot_channels"]
 			if data.get("news_post_channels") is not None:
-				discord_logger.info("Loaded saved news post channels.")
+				fractalrhomb_logger.info("Loaded saved news post channels.")
 				self.news_post_channels = data["news_post_channels"]
 			if data.get("purge_cooldowns") is not None:
-				discord_logger.info("Loaded saved purge cooldowns.")
+				fractalrhomb_logger.info("Loaded saved purge cooldowns.")
 				self.purge_cooldowns = data["purge_cooldowns"]
 			if data.get("gather_cooldowns") is not None:
-				discord_logger.info("Loaded saved gather cooldowns.")
+				fractalrhomb_logger.info("Loaded saved gather cooldowns.")
 				self.gather_cooldowns = data["gather_cooldowns"]
 			if data.get("status") is not None:
-				discord_logger.info("Loaded saved status.")
+				fractalrhomb_logger.info("Loaded saved status.")
 				self.status = data["status"]
 
 	async def save(self, fp: str) -> None:
 		"""Save data to file."""
-		discord_logger.info("Saving bot data.")
+		fractalrhomb_logger.info("Saving bot data.")
 
 		if Path(fp).exists():
 			backup = f"{fp}.bak"
 			await aiofiles.os.replace(fp, backup)
-			discord_logger.info("Backed up old bot data file.")
+			fractalrhomb_logger.info("Backed up old bot data file.")
 		async with aiofiles.open(fp, "w") as f:
 			await f.write(json.dumps(asdict(self), indent=4))
-			discord_logger.info("Saved bot data.")
+			fractalrhomb_logger.info("Saved bot data.")
 
 
 bot_data = BotData({}, [], {}, {}, None)
@@ -429,7 +429,7 @@ async def send_message(
 				await ctx.respond(f"{user}{message}")
 		except discord.errors.HTTPException as exc:
 			if exc.code == INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE:
-				discord_logger.debug(
+				fractalrhomb_logger.debug(
 					"Too many follow up messages have been sent. Truncating."
 				)
 				return False
