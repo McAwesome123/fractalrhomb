@@ -592,9 +592,19 @@ async def restart_notification_listener(ctx: discord.ApplicationContext) -> None
 		return
 
 	ft_notifs.resume_event.set()
-	response = "listener has been restarted."
-	await frg.send_message(ctx, response)
+	ft_notifs.resume_done_event.clear()
 
+	try:
+		await ctx.defer()
+		await asyncio.wait_for(ft_notifs.resume_done_event.wait(), timeout=5.0)
+	except TimeoutError:
+		response = "listener didn't restart - it either didn't need restarting or is slow/dead."
+		await frg.send_message(ctx, response, is_deferred=True)
+	else:
+		response = "listener has been restarted."
+		await frg.send_message(ctx, response, is_deferred=True)
+
+	ft_notifs.resume_event.clear()
 
 def parse_arguments() -> None:
 	"""Parse command line arguments."""

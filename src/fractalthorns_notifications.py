@@ -25,7 +25,11 @@ BASE_RETRY_INTERVAL = timedelta(seconds=30)
 MAX_RETRY_INTERVAL = timedelta(hours=1)
 
 resume_event = asyncio.Event()
-
+resume_done_event = asyncio.Event()
+ 
+def notify_resume_done() -> None:
+	resume_event.clear()
+	resume_done_event.set()
 
 async def start_and_watch_notification_listener() -> None:
 	"""Start the notification listener and watch for exceptions."""
@@ -46,7 +50,7 @@ async def start_and_watch_notification_listener() -> None:
 		await resume_event.wait()
 
 		notifs_logger.info("SSE listener is resuming.")
-		resume_event.clear()
+		notify_resume_done()
 
 
 async def listen_for_notifications() -> None:
@@ -91,7 +95,7 @@ async def listen_for_notifications() -> None:
 			wait_for_manual_restart = asyncio.create_task(resume_event.wait())
 			await asyncio.wait([sleep_until_retry_timeout, wait_for_manual_restart], return_when=asyncio.FIRST_COMPLETED)
 
-			resume_event.clear()
+			notify_resume_done()
 
 			retry_interval *= 2
 			retry_interval = min(retry_interval, MAX_RETRY_INTERVAL)
