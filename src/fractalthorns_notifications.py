@@ -25,7 +25,11 @@ BASE_RETRY_INTERVAL = timedelta(seconds=30)
 MAX_RETRY_INTERVAL = timedelta(hours=1)
 
 resume_event = asyncio.Event()
-
+resume_done_event = asyncio.Event()
+ 
+def notify_resume_done() -> None:
+	resume_event.clear()
+	resume_done_event.set()
 
 async def start_and_watch_notification_listener() -> None:
 	"""Start the notification listener and watch for exceptions."""
@@ -46,7 +50,7 @@ async def start_and_watch_notification_listener() -> None:
 		await resume_event.wait()
 
 		notifs_logger.info("SSE listener is resuming.")
-		resume_event.clear()
+		notify_resume_done()
 
 
 async def listen_for_notifications() -> None:
@@ -70,9 +74,9 @@ async def listen_for_notifications() -> None:
 				#
 				# How does something like this even happen??? HOW IS IT STILL NOT FIXED???
 				# Oh no, it's cool, my other car is a graphics library that can only draw one triangle at a time.
+				retry_interval = BASE_RETRY_INTERVAL
 				async for event in event_source:
 					await handle_notification(event)
-					retry_interval = BASE_RETRY_INTERVAL
 
 		except (aiohttp.ClientPayloadError, ConnectionError) as ex:
 			# This SSE client does have its own retry logic, but it will only retry on certain very specific failures.
@@ -87,7 +91,11 @@ async def listen_for_notifications() -> None:
 				retry_interval.total_seconds(),
 			)
 
-			await asyncio.sleep(retry_interval.total_seconds())
+			sleep_until_retry_timeout = asyncio.create_task(asyncio.sleep(retry_interval.total_seconds()))
+			wait_for_manual_restart = asyncio.create_task(resume_event.wait())
+			await asyncio.wait([sleep_until_retry_timeout, wait_for_manual_restart], return_when=asyncio.FIRST_COMPLETED)
+
+			notify_resume_done()
 
 			retry_interval *= 2
 			retry_interval = min(retry_interval, MAX_RETRY_INTERVAL)
