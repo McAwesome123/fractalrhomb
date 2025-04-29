@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Some scripts for starting the bot (don't worry, you can still make your own)
-  - Any command line arguments given to the script will be passed to the bot
+  - Any command line arguments given to the provided script will be passed to the bot
 - Customization for the file logger via .env
   - `LOG_FILE_NAME` for the file name to be used (default: "discord.log")
   - `LOG_FILE_WHEN` for the type of interval to be used (must be one of the following: "S", "M", "H", "D", "W0" - "W6", "midnight", refer to [this page](https://docs.python.org/3/library/logging.handlers.html#logging.handlers.TimedRotatingFileHandler) for more info) (default: "midnight")
@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Log level for the "discord" logger is now controlled with `--discord-verbose`/`-dv`, `--discord-more-verbose`/`-dvv`, and `--discord-log-level`
   - Log level for the "fractalrhomb" logger is controlled with `--bot-verbose`/`-bv`, `--bot-more-verbose`/`-bvv`, and `--bot-log-level`
   - Log level for the root logger is now controlled with `--verbose`/`-v`, `--more-verbose`/`-vv`, and `--log-level`
+
+### Fixed
+- Notifications listener should no longer get stuck waiting to reconnect for absurd amounts of time
+- Several fixes regarding the restarting the notifications listener:
+  - Will now force it out of waiting when trying to reconnect
+  - No longer reports that the listener was restarted when nothing happened
+  - No longer leaves errant resume events when a restart isn't needed
 
 ## [0.8.0] - 2024-12-01
 
