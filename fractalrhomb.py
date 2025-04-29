@@ -20,6 +20,7 @@ from os import getenv
 from pathlib import Path
 
 import aiohttp
+import aiohttp.client_exceptions as client_exc
 import discord
 import discord.utils
 from dotenv import load_dotenv
@@ -577,7 +578,7 @@ async def test_command(ctx: discord.ApplicationContext) -> None:
 	await ctx.respond(getenv("LOOK2_EMOJI", ":look2:"))
 
 
-@bot.slash_command(name="restart-notification-listener")
+@bot.slash_command(name="restart-notification-listener", contexts={discord.InteractionContextType.bot_dm})
 async def restart_notification_listener(ctx: discord.ApplicationContext) -> None:
 	"""Restart the notification listener (command restricted to certain users)."""
 	privileged_users = json.loads(getenv("BOT_ADMIN_USERS", "[]"))
@@ -605,6 +606,70 @@ async def restart_notification_listener(ctx: discord.ApplicationContext) -> None
 		await frg.send_message(ctx, response, is_deferred=True)
 
 	ft_notifs.resume_event.clear()
+
+
+@bot.slash_command(name="manual-news-post", contexts={discord.InteractionContextType.bot_dm})
+@discord.option("test", bool, description="Sends the post to just you instead of news channels.")
+async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> None:
+	"""Fetch the latest news entry and send it to all news channels (command restricted to certain users)."""
+	privileged_users = json.loads(getenv("BOT_ADMIN_USERS", "[]"))
+
+	user_id = str(ctx.author.id)
+	if user_id not in privileged_users:
+		discord_logger.warning(
+			"Unauthorized notif listener restart attempt by %s.", user_id
+		)
+		response = "you cannot do that."
+		await frg.send_message(ctx, response)
+		return
+
+	if not test:
+		confirmation = frg.BotWarningView()
+		await ctx.respond(
+			"❗ this will post the latest news entry in all news tagged channels. are you sure?",
+			view=confirmation,
+			ephemeral=True,
+		)
+		await confirmation.wait()
+
+		if not confirmation.value:
+			return
+
+	try:
+		fractalthorns_api.purge_cache(fractalthorns_api.CacheTypes.NEWS_ITEMS, force_purge=True)
+		news = await fractalthorns_api.get_all_news(frg.session)
+		news = news[0]
+
+		if test:
+			discord_logger.debug("Trying to make a test news post in channel %s.", ctx.channel_id)
+			await ctx.respond(news.format(), ephemeral=True)
+		else:
+			discord_logger.info("Sending news item to be posted by the notification handler.")
+			await ft_notifs.post_news_update(news)
+
+		tasks = set()
+		async with asyncio.TaskGroup() as tg:
+			task = tg.create_task(
+				fractalthorns_api.save_cache(
+					fractalthorns_api.CacheTypes.NEWS_ITEMS
+				)
+			)
+			tasks.add(task)
+			task.add_done_callback(tasks.discard)
+
+			task = tg.create_task(
+				fractalthorns_api.save_cache(
+					fractalthorns_api.CacheTypes.CACHE_METADATA
+				)
+			)
+			tasks.add(task)
+			task.add_done_callback(tasks.discard)
+
+	except* (TimeoutError, client_exc.ClientError) as exc:
+		await frg.standard_exception_handler(
+			ctx, discord_logger, exc, "Fractalrhomb.manual_news_post"
+		)
+
 
 def parse_arguments() -> None:
 	"""Parse command line arguments."""
@@ -700,9 +765,7 @@ async def main() -> None:
 
 	conn = aiohttp.TCPConnector(limit_per_host=6)
 
-	async with aiohttp.ClientSession(connector=conn) as session:
-		frg.session = session
-
+	async with aiohttp.ClientSession(connector=conn) as frg.session:
 		bot.load_extension("cogs.fractalthorns")
 		if (
 			Path("aetol/particle_dictionary.tsv").exists()

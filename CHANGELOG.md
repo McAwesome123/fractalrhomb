@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing so far
+### Added
+- An admin command to manually make a news post to news channels
+
+### Changed
+- Limited `/restart-notification-listener` to bot dms
+
+### Fixed
+- A copy of the client session being made that would never get closed
 
 ## [0.8.0] - 2024-12-01
 
