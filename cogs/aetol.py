@@ -163,7 +163,7 @@ class Aetol(discord.Cog):
 	def __init__(self, bot: discord.Bot) -> "Aetol":
 		"""Initialize the cog."""
 		self.bot: discord.Bot = bot
-		self.logger = logging.getLogger("discord.cogs.aetol")
+		self.logger = logging.getLogger("fractalrhomb.cogs.aetol")
 
 		self.particles: list[AetolParticle] = []
 		self.words: list[AetolWord] = []

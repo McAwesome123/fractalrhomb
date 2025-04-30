@@ -34,19 +34,8 @@ from src.fractalthorns_exceptions import CachePurgeError
 load_dotenv()
 
 discord_logger = logging.getLogger("discord")
+fractalrhomb_logger = logging.getLogger("fractalrhomb")
 root_logger = logging.getLogger()
-
-log_handler = logging.handlers.TimedRotatingFileHandler(
-	filename="discord.log", when="midnight", backupCount=7, encoding="utf-8", utc=True
-)
-dt_fmt = "%Y-%m-%d %H:%M:%S"
-log_formatter = logging.Formatter(
-	"[{asctime}] [{levelname:<8}] {name}: {message}", dt_fmt, style="{"
-)
-log_handler.setFormatter(log_formatter)
-root_logger.addHandler(log_handler)
-
-PING_LATENCY_HIGH = 10.0
 
 
 @bot.event
@@ -69,7 +58,7 @@ async def private_commands(message: discord.Message) -> None:
 
 	if message.content.startswith("-say"):
 		if user_id not in allowed:
-			discord_logger.info(
+			fractalrhomb_logger.info(
 				"User %s tried to use -say, but is not part of %s", user_id, allowed
 			)
 			return
@@ -78,7 +67,7 @@ async def private_commands(message: discord.Message) -> None:
 
 	if message.content.startswith("-status"):
 		if user_id not in allowed:
-			discord_logger.info(
+			fractalrhomb_logger.info(
 				"User %s tried to use -status, but is not part of %s", user_id, allowed
 			)
 			return
@@ -87,7 +76,7 @@ async def private_commands(message: discord.Message) -> None:
 
 	if message.content.startswith("-botdata"):
 		if user_id not in allowed:
-			discord_logger.info(
+			fractalrhomb_logger.info(
 				"User %s tried to use -botdata, but is not part of %s", user_id, allowed
 			)
 			return
@@ -99,26 +88,26 @@ async def say_message_command(message: discord.Message) -> None:
 	"""Send a message in a specified channel."""
 	args = message.content.split(" ", 2)
 
-	discord_logger.debug(
+	fractalrhomb_logger.debug(
 		"Received -say command: %s. Parsed as: %s.", message.content, args
 	)
 
 	if len(args) < 3:  # noqa: PLR2004
-		discord_logger.debug("Command did not receive enough arguments.")
+		fractalrhomb_logger.debug("Command did not receive enough arguments.")
 		return
 
 	channel = args[1]
 	content = args[2]
 
-	discord_logger.debug("Parsed channel as %s and content as %s.", channel, content)
+	fractalrhomb_logger.debug("Parsed channel as %s and content as %s.", channel, content)
 
 	try:
 		discord_channel = bot.get_channel(int(channel))
 		if discord_channel is None:
-			discord_logger.debug("%s is not a valid channel.", channel)
+			fractalrhomb_logger.debug("%s is not a valid channel.", channel)
 			return
 	except ValueError:
-		discord_logger.debug("%s is not a channel id.", channel)
+		fractalrhomb_logger.debug("%s is not a channel id.", channel)
 		return
 
 	await discord_channel.send(content)
@@ -128,12 +117,12 @@ async def change_status_command(message: discord.Message) -> None:
 	"""Change the bot's status."""
 	args = message.content.split(" ", 1)
 
-	discord_logger.debug(
+	fractalrhomb_logger.debug(
 		"Received -status command: %s. Parsed as: %s.", message.content, args
 	)
 
 	if len(args) < 2:  # noqa: PLR2004
-		discord_logger.debug("Did not receive enough arguments.")
+		fractalrhomb_logger.debug("Did not receive enough arguments.")
 		return
 
 	content = args[1]
@@ -155,17 +144,17 @@ async def bot_data_command(message: discord.Message) -> None:
 	"""Save or reload bot data."""
 	args = message.content.split(" ", 2)
 
-	discord_logger.debug(
+	fractalrhomb_logger.debug(
 		"Received -botdata command: %s. Parsed as: %s.", message.content, args
 	)
 
 	if len(args) < 2:  # noqa: PLR2004
-		discord_logger.debug("Command did not receive enough arguments.")
+		fractalrhomb_logger.debug("Command did not receive enough arguments.")
 		return
 
 	action = args[1]
 
-	discord_logger.debug("Parsed action as %s.", action)
+	fractalrhomb_logger.debug("Parsed action as %s.", action)
 
 	match action:
 		case "save":
@@ -175,7 +164,7 @@ async def bot_data_command(message: discord.Message) -> None:
 		case "reload":
 			await frg.bot_data.load(frg.BOT_DATA_PATH)
 		case _:
-			discord_logger.debug("Action is not valid.")
+			fractalrhomb_logger.debug("Action is not valid.")
 
 
 @bot.event
@@ -191,7 +180,7 @@ async def on_application_command_error(
 @bot.slash_command(description="Pong!")
 async def ping(ctx: discord.ApplicationContext) -> None:
 	"""Pong."""
-	frg.discord_logger.info(
+	fractalrhomb_logger.info(
 		"Ping command used. Latency: %s ms", round(bot.latency * 1000)
 	)
 
@@ -202,7 +191,7 @@ async def ping(ctx: discord.ApplicationContext) -> None:
 @bot.slash_command(name="license")
 async def show_license(ctx: discord.ApplicationContext) -> None:
 	"""Display the bot's license message."""
-	frg.discord_logger.info("License command used")
+	fractalrhomb_logger.info("License command used")
 
 	license_text = (
 		">>> fractalrhomb\n"
@@ -243,7 +232,7 @@ async def purge(
 	ctx: discord.ApplicationContext, cache: str, *, force: bool = False
 ) -> None:
 	"""Purge the bot's cache."""
-	frg.discord_logger.info("Purge command used (cache=%s, force=%s)", cache, force)
+	fractalrhomb_logger.info("Purge command used (cache=%s, force=%s)", cache, force)
 
 	user = str(ctx.author.id)
 
@@ -251,7 +240,7 @@ async def purge(
 		force_purge_allowed = json.loads(getenv("BOT_ADMIN_USERS"))
 
 		if user not in force_purge_allowed:
-			discord_logger.warning("Unauthorized force purge attempt by %s.", user)
+			fractalrhomb_logger.warning("Unauthorized force purge attempt by %s.", user)
 
 			response = "you cannot do that."
 			await frg.send_message(ctx, response)
@@ -266,7 +255,7 @@ async def purge(
 	if force:
 		fractalthorns_api.purge_cache(cache, force_purge=True)
 
-		discord_logger.info('"%s" force purged by %s.', cache.value, ctx.author.id)
+		fractalrhomb_logger.info('"%s" force purged by %s.', cache.value, ctx.author.id)
 
 		response = f"successfully force purged {cache.value}"
 		await frg.send_message(ctx, response)
@@ -308,7 +297,7 @@ async def purge(
 		try:
 			await frg.bot_data.save(frg.BOT_DATA_PATH)
 		except Exception:
-			discord_logger.exception("Could not save bot data.")
+			fractalrhomb_logger.exception("Could not save bot data.")
 
 
 async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
@@ -326,7 +315,7 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 
 			fractalthorns_api.purge_cache(cache, force_purge=True)
 
-		discord_logger.info("All caches force purged by %s.", user)
+		fractalrhomb_logger.info("All caches force purged by %s.", user)
 
 		response = "successfully force purged all caches"
 		await frg.send_message(ctx, response)
@@ -372,12 +361,12 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 		response = f"successfully purged {", ".join(purged)}"
 		await frg.send_message(ctx, response)
 
-		discord_logger.info("%s purged by %s.", ('", "'.join(purged)), ctx.author.id)
+		fractalrhomb_logger.info("%s purged by %s.", ('", "'.join(purged)), ctx.author.id)
 
 		try:
 			await frg.bot_data.save(frg.BOT_DATA_PATH)
 		except Exception:
-			discord_logger.exception("Could not save bot data.")
+			fractalrhomb_logger.exception("Could not save bot data.")
 	else:
 		earliest = min(cooldown, key=cooldown.get)
 
@@ -416,7 +405,7 @@ async def add_bot_channel(
 	hidden: bool = False,
 ) -> None:
 	"""Mark a channel as a special type (requires Manage Server permission)."""
-	frg.discord_logger.info(
+	fractalrhomb_logger.info(
 		"Add special channel command used (type_=%s, channel=%s, hidden=%s)",
 		type_,
 		channel,
@@ -482,7 +471,7 @@ async def remove_bot_channel(
 	hidden: bool = False,
 ) -> None:
 	"""Unmark a channel as a special type (requires Manage Server permission)."""
-	frg.discord_logger.info(
+	fractalrhomb_logger.info(
 		"Remove special channel command used (type_=%s, channel=%s, hidden=%s)",
 		type_,
 		channel,
@@ -539,7 +528,7 @@ async def remove_all_bot_channels(
 	ctx: discord.ApplicationContext, type_: str, *, hidden: bool = False
 ) -> None:
 	"""Unmark all channels as a special type (requires Manage Server permission)."""
-	frg.discord_logger.info(
+	fractalrhomb_logger.info(
 		"Remove all bot channels command used (type_=%s, hidden=%s)", type_, hidden
 	)
 
@@ -574,7 +563,7 @@ async def remove_all_bot_channels(
 @bot.slash_command(name="test")
 async def test_command(ctx: discord.ApplicationContext) -> None:
 	"""Test command."""
-	frg.discord_logger.info("Test command used")
+	fractalrhomb_logger.info("Test command used")
 	await ctx.respond(getenv("LOOK2_EMOJI", ":look2:"))
 
 
@@ -585,7 +574,7 @@ async def restart_notification_listener(ctx: discord.ApplicationContext) -> None
 
 	user_id = str(ctx.author.id)
 	if user_id not in privileged_users:
-		discord_logger.warning(
+		fractalrhomb_logger.warning(
 			"Unauthorized notif listener restart attempt by %s.", user_id
 		)
 		response = "you cannot do that."
@@ -686,65 +675,151 @@ def parse_arguments() -> None:
 		"-v",
 		"--verbose",
 		action="store_true",
-		help="verbose logging for the bot (info)",
+		help="verbose logging for everything (info)",
 	)
 	parser.add_argument(
 		"-vv",
 		"--more-verbose",
 		action="store_true",
-		help="even more verbose logging for the bot (debug). overrides --verbose",
-	)
-	parser.add_argument(
-		"-rv",
-		"--root-verbose",
-		action="store_true",
-		help="verbose logging for everything (info)",
-	)
-	parser.add_argument(
-		"-rvv",
-		"--root-more-verbose",
-		action="store_true",
 		help="even more verbose logging for everything (debug). overrides --root-verbose",
+	)
+	parser.add_argument(
+		"-dv",
+		"--discord-verbose",
+		action="store_true",
+		help="verbose logging for discord operations (info)",
+	)
+	parser.add_argument(
+		"-dvv",
+		"--discord-more-verbose",
+		action="store_true",
+		help="even more verbose logging for discord operations (debug). overrides --discord-verbose",
+	)
+	parser.add_argument(
+		"-bv",
+		"--bot-verbose",
+		action="store_true",
+		help="verbose logging for the bot (info)",
+	)
+	parser.add_argument(
+		"-bvv",
+		"--bot-more-verbose",
+		action="store_true",
+		help="even more verbose logging for the bot (debug). overrides --bot-verbose",
 	)
 	parser.add_argument(
 		"--log-level",
 		choices=["none", "critical", "error", "warning", "info", "debug", "notset"],
-		help="set a log level for the bot. overrides --verbose and --more-verbose. if not set, uses root log level",
+		help="set a log level for everything (root). overrides --verbose and --more-verbose. default: warning",
 		default=None,
 	)
 	parser.add_argument(
-		"--root-log-level",
+		"--discord-log-level",
 		choices=["none", "critical", "error", "warning", "info", "debug", "notset"],
-		help="set a log level for everything. overrides --root-verbose and --root-more-verbose. default: warning",
+		help="set a log level for discord operations. overrides --discord-verbose and --discord-more-verbose. if not set, uses root log level.",
 		default=None,
+	)
+	parser.add_argument(
+		"--bot-log-level",
+		choices=["none", "critical", "error", "warning", "info", "debug", "notset"],
+		help="set a log level for the bot. overrides --bot-verbose and --bot-more-verbose. if not set, uses root log level.",
+		default=None,
+	)
+	parser.add_argument(
+		"--log-console",
+		dest="log_to_console",
+		action="store_true",
+		help="output logs to console (stderr)",
+	)
+	parser.add_argument(
+		"--console-log-level",
+		choices=["critical", "error", "warning", "info", "debug", "notset"],
+		help="set a log level for logging messages to console. does nothing if used without --log-console. if not set, logs everything.",
+		default="notset",
+	)
+	parser.add_argument(
+		"--no-log-file",
+		dest="log_to_file",
+		action="store_false",
+		help="don't output logs to a file",
+	)
+	parser.add_argument(
+		"--file-log-level",
+		choices=["critical", "error", "warning", "info", "debug", "notset"],
+		help="set a log level for logging messages to file. does nothing if used with --no-log-file. if not set, logs everything.",
+		default="notset",
 	)
 	args = parser.parse_args()
 
 	if args.verbose:
-		discord_logger.setLevel(logging.INFO)
-	if args.root_verbose:
 		root_logger.setLevel(logging.INFO)
+	if args.discord_verbose:
+		discord_logger.setLevel(logging.INFO)
+	if args.bot_verbose:
+		fractalrhomb_logger.setLevel(logging.INFO)
 
 	if args.more_verbose:
-		discord_logger.setLevel(logging.DEBUG)
-	if args.root_more_verbose:
 		root_logger.setLevel(logging.DEBUG)
+	if args.discord_more_verbose:
+		discord_logger.setLevel(logging.DEBUG)
+	if args.bot_more_verbose:
+		fractalrhomb_logger.setLevel(logging.DEBUG)
 
 	if args.log_level is not None:
 		args.log_level = args.log_level.upper()
 
 		if args.log_level == "NONE":
-			discord_logger.setLevel(logging.CRITICAL + 10)
-		else:
-			discord_logger.setLevel(args.log_level)
-
-	if args.root_log_level is not None:
-		args.root_log_level = args.root_log_level.upper()
-
-		if args.root_log_level == "NONE":
 			root_logger.setLevel(logging.CRITICAL + 10)
 		else:
-			root_logger.setLevel(args.root_log_level)
+			root_logger.setLevel(args.log_level)
+
+	if args.discord_log_level is not None:
+		args.discord_log_level = args.discord_log_level.upper()
+
+		if args.discord_log_level == "NONE":
+			discord_logger.setLevel(logging.CRITICAL + 10)
+		else:
+			discord_logger.setLevel(args.discord_log_level)
+
+	if args.bot_log_level is not None:
+		args.bot_log_level = args.bot_log_level.upper()
+
+		if args.bot_log_level == "NONE":
+			fractalrhomb_logger.setLevel(logging.CRITICAL + 10)
+		else:
+			fractalrhomb_logger.setLevel(args.bot_log_level)
+
+	dt_fmt = "%Y-%m-%d %H:%M:%S"
+	log_formatter = logging.Formatter(
+		"[{asctime}] [{levelname:<8}] {name}: {message}", dt_fmt, style="{"
+	)
+
+	if args.log_to_file:
+		log_file_name = getenv("LOG_FILE_NAME", "discord.log")
+		log_file_when = getenv("LOG_FILE_WHEN", "midnight")
+		log_file_interval = getenv("LOG_FILE_INTERVAL", "1")
+		log_file_backup_count = getenv("LOG_FILE_BACKUP_COUNT", "7")
+		log_file_at_time = getenv("LOG_FILE_AT_TIME", "00:00:00Z")
+
+		log_file_interval = int(log_file_interval)
+		log_file_backup_count = int(log_file_backup_count)
+		log_file_utc = "Z" in log_file_at_time
+		log_file_at_time = dt.time.fromisoformat(log_file_at_time)
+
+		log_file_handler = logging.handlers.TimedRotatingFileHandler(
+			filename=log_file_name, when=log_file_when, interval=log_file_interval, backupCount=log_file_backup_count, encoding="utf-8", utc=log_file_utc, atTime=log_file_at_time
+		)
+		log_file_handler.setFormatter(log_formatter)
+
+		log_file_handler.setLevel(args.file_log_level.upper())
+
+		root_logger.addHandler(log_file_handler)
+
+	if args.log_to_console:
+		log_stream_handler = logging.StreamHandler()
+		log_stream_handler.setFormatter(log_formatter)
+		log_stream_handler.setLevel(args.console_log_level.upper())
+		root_logger.addHandler(log_stream_handler)
 
 
 async def main() -> None:
@@ -754,7 +829,7 @@ async def main() -> None:
 	try:
 		await frg.bot_data.load(frg.BOT_DATA_PATH)
 	except Exception:
-		discord_logger.exception("Could not load bot data.")
+		fractalrhomb_logger.exception("Could not load bot data.")
 
 	activity_text = frg.bot_data.status
 	if activity_text is not None:
