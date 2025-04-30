@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Some scripts for starting the bot (don't worry, you can still make your own)
   - Any command line arguments given to the provided script will be passed to the bot
+  - Note for making your own script: the logging library will create log files in the **current working directory** (which may not be the same as where the script is located)
+- PowerShell scripts since not everyone uses command prompt anymore
 - Customization for the file logger via .env
   - `LOG_FILE_NAME` for the file name to be used (default: "discord.log")
   - `LOG_FILE_WHEN` for the type of interval to be used (must be one of the following: "S", "M", "H", "D", "W0" - "W6", "midnight", refer to [this page](https://docs.python.org/3/library/logging.handlers.html#logging.handlers.TimedRotatingFileHandler) for more info) (default: "midnight")
@@ -26,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Log level for the "discord" logger is now controlled with `--discord-verbose`/`-dv`, `--discord-more-verbose`/`-dvv`, and `--discord-log-level`
   - Log level for the "fractalrhomb" logger is controlled with `--bot-verbose`/`-bv`, `--bot-more-verbose`/`-bvv`, and `--bot-log-level`
   - Log level for the root logger is now controlled with `--verbose`/`-v`, `--more-verbose`/`-vv`, and `--log-level`
+- Scripts should no longer modify the shell environment after being run (e.g. pwd should not change after running a script)
+- Bash scripts now use `python` instead of `python3`
+  - I'm not a Linux user, so this may or may not break things. But if you are a Linux user, you should be able to fix them
 
 ### Fixed
 - Notifications listener should no longer get stuck waiting to reconnect for absurd amounts of time
@@ -33,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Will now force it out of waiting when trying to reconnect
   - No longer reports that the listener was restarted when nothing happened
   - No longer leaves errant resume events when a restart isn't needed
+- Bash setup script checking for if `.env` _doesn't_ exist when trying to make a backup
 
 ## [0.8.0] - 2024-12-01
 

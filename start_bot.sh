@@ -1,8 +1,13 @@
 #!/bin/bash
 
 cd ${0%/*}
-source .venv/bin/activate
+
+if [ -f .venv/Scripts/activate ]; then
+	source .venv/Scripts/activate
+else
+	source .venv/bin/activate
+fi
 
 echo "Starting bot"
 
-python3 fractalrhomb.py $*
+python fractalrhomb.py $*
