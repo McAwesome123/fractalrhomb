@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bash scripts now use `python` instead of `python3`
   - I'm not a Linux user, so this may or may not break things. But if you are a Linux user, you should be able to fix them
 - Limited `/restart-notification-listener` to bot dms
+- Images and sketches now require entering a name
+  - This is so the argument is auto selected when using the command, meaning you can just enter the name
+  - The latest image or sketch can still be obtained by putting in "(latest)" or "." as the name
 
 ### Fixed
 - Notifications listener should no longer get stuck waiting to reconnect for absurd amounts of time

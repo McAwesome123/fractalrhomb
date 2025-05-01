@@ -206,7 +206,7 @@ class Fractalthorns(discord.Cog):
 	@discord.option(
 		"name",
 		str,
-		description="The (URL) name of the image (default: (latest))",
+		description='The (URL) name of the image (enter "(latest)" to get the latest image)',
 		autocomplete=discord.utils.basic_autocomplete(single_image_name),
 	)
 	@discord.option(
@@ -224,7 +224,7 @@ class Fractalthorns(discord.Cog):
 	async def single_image(
 		self,
 		ctx: discord.ApplicationContext,
-		name: str | None = None,
+		name: str,
 		image: str = "image",
 		show: str | None = None,
 	) -> None:
@@ -241,8 +241,10 @@ class Fractalthorns(discord.Cog):
 			await ctx.defer()
 			deferred = True
 
-		if name is not None:
-			name = name.lower()
+		name = name.lower()
+
+		if name in {"(latest)", "."}:
+			name = None
 
 		if show is not None:
 			show = show.split()
@@ -496,7 +498,7 @@ class Fractalthorns(discord.Cog):
 	@discord.option(
 		"name",
 		str,
-		description="The (URL) name of the sketch (default: (latest))",
+		description='The (URL) name of the sketch (enter "(latest)" to get the latest sketch)',
 		autocomplete=discord.utils.basic_autocomplete(single_sketch_name),
 	)
 	@discord.option(
@@ -514,7 +516,7 @@ class Fractalthorns(discord.Cog):
 	async def single_sketch(
 		self,
 		ctx: discord.ApplicationContext,
-		name: str | None = None,
+		name: str,
 		image: str = "image",
 		show: str | None = None,
 	) -> None:
@@ -531,8 +533,10 @@ class Fractalthorns(discord.Cog):
 			await ctx.defer()
 			deferred = True
 
-		if name is not None:
-			name = name.lower()
+		name = name.lower()
+
+		if name in {"(latest)", "."}:
+			name = None
 
 		formatting = frg.get_formatting(show)
 
