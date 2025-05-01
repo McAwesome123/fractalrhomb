@@ -605,7 +605,7 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 
 	user_id = str(ctx.author.id)
 	if user_id not in privileged_users:
-		discord_logger.warning(
+		fractalrhomb_logger.warning(
 			"Unauthorized notif listener restart attempt by %s.", user_id
 		)
 		response = "you cannot do that."
@@ -630,10 +630,10 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 		news = news[0]
 
 		if test:
-			discord_logger.debug("Trying to make a test news post in channel %s.", ctx.channel_id)
+			fractalrhomb_logger.debug("Trying to make a test news post in channel %s.", ctx.channel_id)
 			await ctx.respond(news.format(), ephemeral=True)
 		else:
-			discord_logger.info("Sending news item to be posted by the notification handler.")
+			fractalrhomb_logger.info("Sending news item to be posted by the notification handler.")
 			await ft_notifs.post_news_update(news)
 
 		tasks = set()
@@ -656,7 +656,7 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 
 	except* (TimeoutError, client_exc.ClientError) as exc:
 		await frg.standard_exception_handler(
-			ctx, discord_logger, exc, "Fractalrhomb.manual_news_post"
+			ctx, fractalrhomb_logger, exc, "Fractalrhomb.manual_news_post"
 		)
 
 
