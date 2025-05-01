@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Log level outputted to console can be changed with `--console-log-level`
 - Can disable outputting logs to file with `--no-log-file`
   - Log level outputted to file can be changed with `--file-log-level`
+- An admin command to manually make a news post to news channels
 
 ### Changed
 - Logs for bot functions now use a "fractalrhomb" logger instead of the "discord" logger
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Scripts should no longer modify the shell environment after being run (e.g. pwd should not change after running a script)
 - Bash scripts now use `python` instead of `python3`
   - I'm not a Linux user, so this may or may not break things. But if you are a Linux user, you should be able to fix them
+- Limited `/restart-notification-listener` to bot dms
 
 ### Fixed
 - Notifications listener should no longer get stuck waiting to reconnect for absurd amounts of time
@@ -39,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - No longer reports that the listener was restarted when nothing happened
   - No longer leaves errant resume events when a restart isn't needed
 - Bash setup script checking for if `.env` _doesn't_ exist when trying to make a backup
+- A copy of the client session being made that would never get closed
 
 ## [0.8.0] - 2024-12-01
 
