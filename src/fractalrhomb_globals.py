@@ -85,7 +85,7 @@ class BotData:
 	bot_channels: dict[str, list[str]]
 	news_post_channels: list[str]
 	purge_cooldowns: dict[str, dict[str, float]]
-	gather_cooldowns: dict[str, float]
+	build_cache_cooldowns: dict[str, float]
 	status: str | None
 
 	async def load(self, fp: str) -> None:
@@ -107,9 +107,9 @@ class BotData:
 			if data.get("purge_cooldowns") is not None:
 				fractalrhomb_logger.info("Loaded saved purge cooldowns.")
 				self.purge_cooldowns = data["purge_cooldowns"]
-			if data.get("gather_cooldowns") is not None:
-				fractalrhomb_logger.info("Loaded saved gather cooldowns.")
-				self.gather_cooldowns = data["gather_cooldowns"]
+			if data.get("build_cache_cooldowns") is not None:
+				fractalrhomb_logger.info("Loaded saved build cache cooldowns.")
+				self.build_cache_cooldowns = data["build_cache_cooldowns"]
 			if data.get("status") is not None:
 				fractalrhomb_logger.info("Loaded saved status.")
 				self.status = data["status"]
@@ -130,7 +130,7 @@ class BotData:
 bot_data = BotData({}, [], {}, {}, None)
 
 USER_PURGE_COOLDOWN = dt.timedelta(hours=12)
-FULL_GATHER_COOLDOWN = dt.timedelta(hours=72)
+BUILD_CACHE_COOLDOWN = dt.timedelta(hours=72)
 BOT_DATA_PATH = "bot_data.json"
 
 
@@ -239,6 +239,8 @@ async def standard_exception_handler(
 	logger: logging.Logger,
 	exc: Exception | ExceptionGroup,
 	cmd: str,
+	*,
+	is_deferred: bool = False,
 ) -> None:
 	"""Handle standard requests exceptions."""
 	cmd_name = cmd
@@ -274,7 +276,7 @@ async def standard_exception_handler(
 
 	logger.log(level, msg, exc_info=True)
 
-	await send_message(ctx, response)
+	await send_message(ctx, response, is_deferred=is_deferred)
 
 
 class BotWarningView(discord.ui.View):

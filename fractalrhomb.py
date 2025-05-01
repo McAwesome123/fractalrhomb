@@ -175,7 +175,7 @@ async def on_application_command_error(
 ) -> None:
 	"""Do stuff when there's a command error."""
 	response = "an unhandled exception occurred"
-	await frg.send_message(ctx, response)
+	await frg.send_message(ctx, response, is_deferred=True)
 	raise error
 
 
@@ -678,7 +678,7 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 def parse_arguments() -> None:
 	"""Parse command line arguments."""
 	parser = argparse.ArgumentParser(
-		prog="Fractal-RHOMB", description="Discord bot for fractalthorns.com"
+		prog="fractalrhomb", description="Discord bot for fractalthorns.com"
 	)
 	parser.add_argument(
 		"-V",
@@ -741,16 +741,16 @@ def parse_arguments() -> None:
 		default=None,
 	)
 	parser.add_argument(
-		"--log-console",
+		"--no-log-console",
 		dest="log_to_console",
-		action="store_true",
-		help="output logs to console (stderr)",
+		action="store_false",
+		help="don't output logs to console (stderr)",
 	)
 	parser.add_argument(
 		"--console-log-level",
 		choices=["critical", "error", "warning", "info", "debug", "notset"],
-		help="set a log level for logging messages to console. does nothing if used without --log-console. if not set, logs everything.",
-		default="notset",
+		help="set a log level for logging messages to console. does nothing if used with --log-console. default: error.",
+		default="error",
 	)
 	parser.add_argument(
 		"--no-log-file",
@@ -876,7 +876,21 @@ async def main() -> None:
 				ft_notifs.start_and_watch_notification_listener()
 			)
 
-			await asyncio.wait([main_bot_task, notifs_listen_task])
+			await asyncio.wait(
+				[main_bot_task, notifs_listen_task], return_when=asyncio.FIRST_EXCEPTION
+			)
+
+			if main_bot_task.done() and main_bot_task.exception() is not None:
+				fractalrhomb_logger.fatal(
+					"An exception occurred in the bot",
+					exc_info=main_bot_task.exception(),
+				)
+
+			if notifs_listen_task.done() and notifs_listen_task.exception() is not None:
+				fractalrhomb_logger.fatal(
+					"An exception occurred in the notification listener",
+					exc_info=notifs_listen_task.exception(),
+				)
 
 
 if __name__ == "__main__":

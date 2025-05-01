@@ -18,11 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `LOG_FILE_INTERVAL` for the interval between roll over (default: 1)
   - `LOG_FILE_BACKUP_COUNT` for how many old logs to keep (default: 7)
   - `LOG_FILE_AT_TIME` for when to roll over if the interval type is a weekday or midnight, in ISO 8601 format (with Z for UTC time or no Z for local time) (default: 00:00:00Z)
-- Can enable outputting logs to console (stderr) with `--log-console`
+- Error logs are now also outputted to console (stderr)
+  - This can be disabled with `--no-log-console`
   - Log level outputted to console can be changed with `--console-log-level`
 - Can disable outputting logs to file with `--no-log-file`
   - Log level outputted to file can be changed with `--file-log-level`
 - An admin command to manually make a news post to news channels
+- Logging for if an exception kills the bot
 
 ### Changed
 - Logs for bot functions now use a "fractalrhomb" logger instead of the "discord" logger
@@ -36,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Images and sketches now require entering a name
   - This is so the argument is auto selected when using the command, meaning you can just enter the name
   - The latest image or sketch can still be obtained by putting in "(latest)" or "." as the name
+- Default user agent is now `fractalrhomb/{VERSION_SHORT}`
+- Slightly increased name consistency
 
 ### Fixed
 - Notifications listener should no longer get stuck waiting to reconnect for absurd amounts of time
@@ -44,7 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - No longer reports that the listener was restarted when nothing happened
   - No longer leaves errant resume events when a restart isn't needed
 - Bash setup script checking for if `.env` _doesn't_ exist when trying to make a backup
-- A copy of the client session being made that would never get closed
+- Bot script hanging when an invalid token is given
+- Hopefully reduced cases of messages getting deferred forever due to an exception occurring
 
 ## [0.8.0] - 2024-12-01
 

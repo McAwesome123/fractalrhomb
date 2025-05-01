@@ -21,7 +21,7 @@ echo Creating .env
 if [ -f ./.env ]; then
 	mv -ib .env .env.bak
 fi
-echo 'FRACTALTHORNS_USER_AGENT="Fractal-RHOMB/{VERSION_SHORT}"' > .env
+echo 'FRACTALTHORNS_USER_AGENT="fractalrhomb/{VERSION_SHORT}"' > .env
 echo 'DISCORD_BOT_TOKEN="Replace me!"' >> .env
 echo 'BOT_ADMIN_USERS=[]' >> .env
 
