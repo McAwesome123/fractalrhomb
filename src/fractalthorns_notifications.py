@@ -26,10 +26,13 @@ MAX_RETRY_INTERVAL = timedelta(hours=1)
 
 resume_event = asyncio.Event()
 resume_done_event = asyncio.Event()
- 
+
+
 def notify_resume_done() -> None:
+	"""Notify that the notification listener was actually restarted."""
 	resume_event.clear()
 	resume_done_event.set()
+
 
 async def start_and_watch_notification_listener() -> None:
 	"""Start the notification listener and watch for exceptions."""
@@ -91,9 +94,14 @@ async def listen_for_notifications() -> None:
 				retry_interval.total_seconds(),
 			)
 
-			sleep_until_retry_timeout = asyncio.create_task(asyncio.sleep(retry_interval.total_seconds()))
+			sleep_until_retry_timeout = asyncio.create_task(
+				asyncio.sleep(retry_interval.total_seconds())
+			)
 			wait_for_manual_restart = asyncio.create_task(resume_event.wait())
-			await asyncio.wait([sleep_until_retry_timeout, wait_for_manual_restart], return_when=asyncio.FIRST_COMPLETED)
+			await asyncio.wait(
+				[sleep_until_retry_timeout, wait_for_manual_restart],
+				return_when=asyncio.FIRST_COMPLETED,
+			)
 
 			notify_resume_done()
 

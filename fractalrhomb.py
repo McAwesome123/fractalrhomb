@@ -99,7 +99,9 @@ async def say_message_command(message: discord.Message) -> None:
 	channel = args[1]
 	content = args[2]
 
-	fractalrhomb_logger.debug("Parsed channel as %s and content as %s.", channel, content)
+	fractalrhomb_logger.debug(
+		"Parsed channel as %s and content as %s.", channel, content
+	)
 
 	try:
 		discord_channel = bot.get_channel(int(channel))
@@ -173,7 +175,7 @@ async def on_application_command_error(
 ) -> None:
 	"""Do stuff when there's a command error."""
 	response = "an unhandled exception occurred"
-	await frg.send_message(ctx, response)
+	await frg.send_message(ctx, response, is_deferred=True)
 	raise error
 
 
@@ -361,7 +363,9 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 		response = f"successfully purged {", ".join(purged)}"
 		await frg.send_message(ctx, response)
 
-		fractalrhomb_logger.info("%s purged by %s.", ('", "'.join(purged)), ctx.author.id)
+		fractalrhomb_logger.info(
+			"%s purged by %s.", ('", "'.join(purged)), ctx.author.id
+		)
 
 		try:
 			await frg.bot_data.save(frg.BOT_DATA_PATH)
@@ -567,7 +571,10 @@ async def test_command(ctx: discord.ApplicationContext) -> None:
 	await ctx.respond(getenv("LOOK2_EMOJI", ":look2:"))
 
 
-@bot.slash_command(name="restart-notification-listener", contexts={discord.InteractionContextType.bot_dm})
+@bot.slash_command(
+	name="restart-notification-listener",
+	contexts={discord.InteractionContextType.bot_dm},
+)
 async def restart_notification_listener(ctx: discord.ApplicationContext) -> None:
 	"""Restart the notification listener (command restricted to certain users)."""
 	privileged_users = json.loads(getenv("BOT_ADMIN_USERS", "[]"))
@@ -597,8 +604,12 @@ async def restart_notification_listener(ctx: discord.ApplicationContext) -> None
 	ft_notifs.resume_event.clear()
 
 
-@bot.slash_command(name="manual-news-post", contexts={discord.InteractionContextType.bot_dm})
-@discord.option("test", bool, description="Sends the post to just you instead of news channels.")
+@bot.slash_command(
+	name="manual-news-post", contexts={discord.InteractionContextType.bot_dm}
+)
+@discord.option(
+	"test", bool, description="Sends the post to just you instead of news channels."
+)
 async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> None:
 	"""Fetch the latest news entry and send it to all news channels (command restricted to certain users)."""
 	privileged_users = json.loads(getenv("BOT_ADMIN_USERS", "[]"))
@@ -625,23 +636,27 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 			return
 
 	try:
-		fractalthorns_api.purge_cache(fractalthorns_api.CacheTypes.NEWS_ITEMS, force_purge=True)
+		fractalthorns_api.purge_cache(
+			fractalthorns_api.CacheTypes.NEWS_ITEMS, force_purge=True
+		)
 		news = await fractalthorns_api.get_all_news(frg.session)
 		news = news[0]
 
 		if test:
-			fractalrhomb_logger.debug("Trying to make a test news post in channel %s.", ctx.channel_id)
+			fractalrhomb_logger.debug(
+				"Trying to make a test news post in channel %s.", ctx.channel_id
+			)
 			await ctx.respond(news.format(), ephemeral=True)
 		else:
-			fractalrhomb_logger.info("Sending news item to be posted by the notification handler.")
+			fractalrhomb_logger.info(
+				"Sending news item to be posted by the notification handler."
+			)
 			await ft_notifs.post_news_update(news)
 
 		tasks = set()
 		async with asyncio.TaskGroup() as tg:
 			task = tg.create_task(
-				fractalthorns_api.save_cache(
-					fractalthorns_api.CacheTypes.NEWS_ITEMS
-				)
+				fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.NEWS_ITEMS)
 			)
 			tasks.add(task)
 			task.add_done_callback(tasks.discard)
@@ -663,7 +678,7 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 def parse_arguments() -> None:
 	"""Parse command line arguments."""
 	parser = argparse.ArgumentParser(
-		prog="Fractal-RHOMB", description="Discord bot for fractalthorns.com"
+		prog="fractalrhomb", description="Discord bot for fractalthorns.com"
 	)
 	parser.add_argument(
 		"-V",
@@ -726,16 +741,16 @@ def parse_arguments() -> None:
 		default=None,
 	)
 	parser.add_argument(
-		"--log-console",
+		"--no-log-console",
 		dest="log_to_console",
-		action="store_true",
-		help="output logs to console (stderr)",
+		action="store_false",
+		help="don't output logs to console (stderr)",
 	)
 	parser.add_argument(
 		"--console-log-level",
 		choices=["critical", "error", "warning", "info", "debug", "notset"],
-		help="set a log level for logging messages to console. does nothing if used without --log-console. if not set, logs everything.",
-		default="notset",
+		help="set a log level for logging messages to console. does nothing if used with --log-console. default: error.",
+		default="error",
 	)
 	parser.add_argument(
 		"--no-log-file",
@@ -807,7 +822,13 @@ def parse_arguments() -> None:
 		log_file_at_time = dt.time.fromisoformat(log_file_at_time)
 
 		log_file_handler = logging.handlers.TimedRotatingFileHandler(
-			filename=log_file_name, when=log_file_when, interval=log_file_interval, backupCount=log_file_backup_count, encoding="utf-8", utc=log_file_utc, atTime=log_file_at_time
+			filename=log_file_name,
+			when=log_file_when,
+			interval=log_file_interval,
+			backupCount=log_file_backup_count,
+			encoding="utf-8",
+			utc=log_file_utc,
+			atTime=log_file_at_time,
 		)
 		log_file_handler.setFormatter(log_formatter)
 
@@ -855,7 +876,21 @@ async def main() -> None:
 				ft_notifs.start_and_watch_notification_listener()
 			)
 
-			await asyncio.wait([main_bot_task, notifs_listen_task])
+			await asyncio.wait(
+				[main_bot_task, notifs_listen_task], return_when=asyncio.FIRST_EXCEPTION
+			)
+
+			if main_bot_task.done() and main_bot_task.exception() is not None:
+				fractalrhomb_logger.fatal(
+					"An exception occurred in the bot",
+					exc_info=main_bot_task.exception(),
+				)
+
+			if notifs_listen_task.done() and notifs_listen_task.exception() is not None:
+				fractalrhomb_logger.fatal(
+					"An exception occurred in the notification listener",
+					exc_info=notifs_listen_task.exception(),
+				)
 
 
 if __name__ == "__main__":

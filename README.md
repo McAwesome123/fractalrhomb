@@ -1,10 +1,17 @@
-# Fractal RHOMB
+# Fractalrhomb
 
 A discord bot that uses the API of https://fractalthorns.com/
 
+## Setup
+
+See [Windows Setup](https://github.com/McAwesome123/fractal-rhomb/wiki/Windows-Setup) or [Linux Setup](https://github.com/McAwesome123/fractal-rhomb/wiki/Linux-Setup).
+
 ## Usage
 
-To use, it is recommended to activate the venv (from `.venv\Scripts` on Windows or `.venv\bin` on Unix) and run the python script. For example:
+> [!IMPORTANT]\
+> Make sure the `.env` file contains a valid bot token before running or the bot will fail to start.
+
+To use, you may run one of the provided `start_bot` scripts. To start it manually, it is recommended to activate the venv (from `.venv\Scripts` on Windows or `.venv\bin` on Unix) and run the python script. For example:
 
 ```bat
 .venv\Scripts\activate.bat
@@ -15,7 +22,8 @@ source .venv/bin/activate
 python3 fractalrhomb.py
 ```
 
-Make sure the `.env` file contains a valid bot token.
+> [!NOTE]\
+> By default, the logging library will try to create a log file in the *current working directory*. Make sure it is correct when running the python script directly or making your own launch script to avoid polluting random folders with log files.
 
 If successful, it should say "Logged in as [user]"
 
@@ -35,10 +43,6 @@ To view command line parameters, add `-h` to the end.
 ### To do:
 
 - (?)
-
-## Setup
-
-See [Windows Setup](https://github.com/McAwesome123/fractal-rhomb/wiki/Windows-Setup) or [Linux Setup](https://github.com/McAwesome123/fractal-rhomb/wiki/Linux-Setup).
 
 ## Requirements
 

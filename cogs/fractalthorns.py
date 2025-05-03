@@ -206,7 +206,7 @@ class Fractalthorns(discord.Cog):
 	@discord.option(
 		"name",
 		str,
-		description="The (URL) name of the image (default: (latest))",
+		description='The (URL) name of the image (enter "(latest)" to get the latest image)',
 		autocomplete=discord.utils.basic_autocomplete(single_image_name),
 	)
 	@discord.option(
@@ -224,7 +224,7 @@ class Fractalthorns(discord.Cog):
 	async def single_image(
 		self,
 		ctx: discord.ApplicationContext,
-		name: str | None = None,
+		name: str,
 		image: str = "image",
 		show: str | None = None,
 	) -> None:
@@ -241,8 +241,10 @@ class Fractalthorns(discord.Cog):
 			await ctx.defer()
 			deferred = True
 
-		if name is not None:
-			name = name.lower()
+		name = name.lower()
+
+		if name in {"(latest)", "."}:
+			name = None
 
 		if show is not None:
 			show = show.split()
@@ -313,7 +315,11 @@ class Fractalthorns(discord.Cog):
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
-				ctx, self.logger, exc, "Fractalthorns.single_image"
+				ctx,
+				self.logger,
+				exc,
+				"Fractalthorns.single_image",
+				is_deferred=deferred,
 			)
 
 	@discord.slash_command(name="description")
@@ -496,7 +502,7 @@ class Fractalthorns(discord.Cog):
 	@discord.option(
 		"name",
 		str,
-		description="The (URL) name of the sketch (default: (latest))",
+		description='The (URL) name of the sketch (enter "(latest)" to get the latest sketch)',
 		autocomplete=discord.utils.basic_autocomplete(single_sketch_name),
 	)
 	@discord.option(
@@ -514,7 +520,7 @@ class Fractalthorns(discord.Cog):
 	async def single_sketch(
 		self,
 		ctx: discord.ApplicationContext,
-		name: str | None = None,
+		name: str,
 		image: str = "image",
 		show: str | None = None,
 	) -> None:
@@ -531,8 +537,10 @@ class Fractalthorns(discord.Cog):
 			await ctx.defer()
 			deferred = True
 
-		if name is not None:
-			name = name.lower()
+		name = name.lower()
+
+		if name in {"(latest)", "."}:
+			name = None
 
 		formatting = frg.get_formatting(show)
 
@@ -580,7 +588,11 @@ class Fractalthorns(discord.Cog):
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
-				ctx, self.logger, exc, "Fractalthorns.single_sketch"
+				ctx,
+				self.logger,
+				exc,
+				"Fractalthorns.single_sketch",
+				is_deferred=deferred,
 			)
 
 	@discord.slash_command(name="allsketches")
@@ -1214,7 +1226,11 @@ class Fractalthorns(discord.Cog):
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
-				ctx, self.logger, exc, "Fractalthorns.get_random_image"
+				ctx,
+				self.logger,
+				exc,
+				"Fractalthorns.get_random_image",
+				is_deferred=deferred,
 			)
 
 	@staticmethod
@@ -1433,7 +1449,11 @@ class Fractalthorns(discord.Cog):
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
-				ctx, self.logger, exc, "Fractalthorns.get_random_record"
+				ctx,
+				self.logger,
+				exc,
+				"Fractalthorns.get_random_record",
+				is_deferred=deferred,
 			)
 
 	@get_random_group.command(name="line")
@@ -1555,7 +1575,11 @@ class Fractalthorns(discord.Cog):
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
-				ctx, self.logger, exc, "Fractalthorns.get_random_record_line"
+				ctx,
+				self.logger,
+				exc,
+				"Fractalthorns.get_random_record_line",
+				is_deferred=deferred,
 			)
 
 	search_group = discord.SlashCommandGroup(
@@ -1697,7 +1721,11 @@ class Fractalthorns(discord.Cog):
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
-				ctx, self.logger, exc, "Fractalthorns.search_images"
+				ctx,
+				self.logger,
+				exc,
+				"Fractalthorns.search_images",
+				is_deferred=deferred,
 			)
 
 	@search_group.command(name="records")
@@ -1840,7 +1868,11 @@ class Fractalthorns(discord.Cog):
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
-				ctx, self.logger, exc, "Fractalthorns.search_records"
+				ctx,
+				self.logger,
+				exc,
+				"Fractalthorns.search_records",
+				is_deferred=deferred,
 			)
 
 	@search_group.command(name="text")
@@ -2003,30 +2035,34 @@ class Fractalthorns(discord.Cog):
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
 			await frg.standard_exception_handler(
-				ctx, self.logger, exc, "Fractalthorns.search_record_lines"
+				ctx,
+				self.logger,
+				exc,
+				"Fractalthorns.search_record_lines",
+				is_deferred=deferred,
 			)
 
 	gather_group = discord.SlashCommandGroup(
-		"fractalthorns", "Gather stuff from fractalthorns"
+		"fractalthorns", "Build cache for stuff from fractalthorns"
 	)
 
-	@gather_group.command(name="gather")
-	async def gather_all(self, ctx: discord.ApplicationContext) -> None:
-		"""Gather record texts and image descriptions in bulk."""
-		self.logger.info("Gather all command used")
+	@gather_group.command(name="buildcache")
+	async def build_cache(self, ctx: discord.ApplicationContext) -> None:
+		"""Cache all record texts and image descriptions."""
+		self.logger.info("Build cache command used")
 
 		if not await frg.bot_channel_warning(ctx):
 			return
 
 		user = str(ctx.author.id)
 
-		time = frg.bot_data.gather_cooldowns.get(user)
+		time = frg.bot_data.build_cache_cooldowns.get(user)
 		if (
 			time is not None
 			and dt.datetime.now(dt.UTC)
-			< dt.datetime.fromtimestamp(time, dt.UTC) + frg.FULL_GATHER_COOLDOWN
+			< dt.datetime.fromtimestamp(time, dt.UTC) + frg.BUILD_CACHE_COOLDOWN
 		):
-			time += frg.FULL_GATHER_COOLDOWN.total_seconds()
+			time += frg.BUILD_CACHE_COOLDOWN.total_seconds()
 			response = f"you cannot do that. try again <t:{ceil(time)}:R>"
 			await frg.send_message(ctx, response)
 			return
@@ -2035,7 +2071,7 @@ class Fractalthorns(discord.Cog):
 
 			async def delayed_send(delay: float = 0.25) -> None:
 				await asyncio.sleep(delay)
-				response = "gathering items. this may take a bit"
+				response = "building cache. this may take a bit"
 				await frg.send_message(ctx, response)
 
 			tasks = set()
@@ -2068,10 +2104,10 @@ class Fractalthorns(discord.Cog):
 			await frg.send_message(ctx, response)
 
 		else:
-			response = "successfully gathered all records and descriptions"
+			response = "successfully cached all records and descriptions"
 			await frg.send_message(ctx, response)
 
-			frg.bot_data.gather_cooldowns.update(
+			frg.bot_data.build_cache_cooldowns.update(
 				{user: dt.datetime.now(dt.UTC).timestamp()}
 			)
 			try:

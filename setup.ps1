@@ -20,7 +20,7 @@ if (Test-Path ".env") {
 	}
 }
 
-Write-Output 'FRACTALTHORNS_USER_AGENT="Fractal-RHOMB/{VERSION_SHORT}"' > ".env"
+Write-Output 'FRACTALTHORNS_USER_AGENT="fractalrhomb/{VERSION_SHORT}"' > ".env"
 Write-Output 'DISCORD_BOT_TOKEN="Replace me!"' >> ".env"
 Write-Output 'BOT_ADMIN_USERS=[]' >> ".env"
 
