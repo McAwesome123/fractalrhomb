@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Nothing so far
+
+## [0.9.0] - 2024-05-03
+
 ### Added
 - Some scripts for starting the bot (don't worry, you can still make your own)
   - Any command line arguments given to the provided script will be passed to the bot
