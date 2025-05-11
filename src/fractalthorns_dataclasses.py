@@ -558,7 +558,7 @@ class Record:
 	"""Data class containing record metadata."""
 
 	chapter: str
-	name: str | None
+	name: str
 	title: str | None
 	solved: bool
 	iteration: str | None
@@ -579,7 +579,7 @@ class Record:
 		"""
 		return Record(
 			obj["chapter"],
-			obj.get("name"),
+			obj["name"],
 			obj.get("title"),
 			obj["solved"],
 			obj.get("iteration"),
@@ -651,20 +651,20 @@ class Record:
 				chapter = f"> _chapter {self.chapter}_"
 				record_join_list.append(chapter)
 
-			if format_ == "name" and not iteration_done and self.solved:
+			if format_ == "name" and not iteration_done:
 				name = f"> (_{self.name}"
-				if "iteration" in formatting:
+				if "iteration" in formatting and self.iteration is not None:
 					name = f"{name}, in {self.iteration}"
 				name = f"{name}_)"
 				record_join_list.append(name)
 				name_done = True
 
-			if format_ == "title" and self.solved:
+			if format_ == "title" and self.title is not None:
 				title = self.title
-				if "record_link" in formatting:
+				if "record_link" in formatting and self.record_link is not None:
 					title = f"[{title}]({self.record_link})"
 				record_join_list.append(f"> ## {title}")
-			elif format_ == "title" and not self.solved:
+			elif format_ == "title" and self.title is None:
 				title = "> ## ??????"
 				record_join_list.append(title)
 
@@ -672,7 +672,7 @@ class Record:
 				solved = "".join(("> _solved: ", "yes" if self.solved else "no", "_"))
 				record_join_list.append(solved)
 
-			if format_ == "iteration" and not name_done and self.solved:
+			if format_ == "iteration" and self.iteration is not None and not name_done:
 				iteration = f"> (_in {self.iteration}"
 				if "name" in formatting:
 					iteration = f"{iteration}, {self.name}"
@@ -680,7 +680,11 @@ class Record:
 				record_join_list.append(iteration)
 				iteration_done = True
 
-			if format_ == "record_link" and "title" not in formatting and self.solved:
+			if (
+				format_ == "record_link"
+				and self.record_link is not None
+				and "title" not in formatting
+			):
 				record_link = f"> <{self.record_link}>"
 				record_join_list.append(record_link)
 
@@ -698,21 +702,20 @@ class Record:
 		show_iteration -- Include the iteration in the string (default: True)
 		show_chapter -- Include the chapter in the string (default: True)
 		"""
-		if self.solved:
-			name = self.name
-			title = f"[{self.title}](<{self.record_link}>)"
-			iteration = f"in {self.iteration}"
-			chapter = f"chapter {self.chapter}"
+		name = self.name
+		title = "??????" if self.title is None else self.title
+		if self.record_link is not None:
+			title = f"[{title}](<{self.record_link}>)"
+		iteration = None if self.iteration is None else f"in {self.iteration}"
+		chapter = f"chapter {self.chapter}"
 
-			parentheses = [name]
-			if show_iteration:
-				parentheses.append(iteration)
-			if show_chapter:
-				parentheses.append(chapter)
+		parentheses = [name]
+		if show_iteration and iteration is not None:
+			parentheses.append(iteration)
+		if show_chapter:
+			parentheses.append(chapter)
 
-			return f"> **{title}** (_{', '.join(parentheses)}_)"
-
-		return "> **??????**"
+		return f"> **{title}** (_{', '.join(parentheses)}_)"
 
 
 @dataclass
