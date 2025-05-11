@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.9.1] - 2024-05-11
+
+### Changed
+- Record name can no longer be None (API change)
+- Record formatting now checks for None rather than the record being solved
+
 ## [0.9.0] - 2024-05-03
 
 ### Added
