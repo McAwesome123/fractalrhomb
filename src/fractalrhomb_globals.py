@@ -53,9 +53,9 @@ NO_ITEMS_MATCH_SEARCH = "no items match the requested parameters"
 INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE = 40094
 
 # The full version number including anything extra.
-FRACTALRHOMB_VERSION_FULL = "0.9.1"
+FRACTALRHOMB_VERSION_FULL = "0.9.2"
 # Version number with only Major, Minor, and Patch version.
-FRACTALRHOMB_VERSION_LONG = "0.9.1"
+FRACTALRHOMB_VERSION_LONG = "0.9.2"
 # Verison number with only Major and Minor version.
 FRACTALRHOMB_VERSION_SHORT = "0.9"
 
@@ -129,8 +129,8 @@ class BotData:
 
 bot_data = BotData({}, [], {}, {}, None)
 
-USER_PURGE_COOLDOWN = dt.timedelta(hours=12)
-BUILD_CACHE_COOLDOWN = dt.timedelta(hours=72)
+USER_PURGE_COOLDOWN = dt.timedelta(hours=1)
+BUILD_CACHE_COOLDOWN = dt.timedelta(hours=6)
 BOT_DATA_PATH = "bot_data.json"
 
 
@@ -412,6 +412,10 @@ async def send_message(
 		user = f"<@{ctx.author.id}>{separator}"
 
 	message = message.strip()
+
+	if len(message) < 1:
+		message = "an error occurred: command attempted to send an empty message"
+		fractalrhomb_logger.error("Command attempted to send an empty message", stack_info=True)
 
 	try:
 		if not ctx.response.is_done() or is_deferred:

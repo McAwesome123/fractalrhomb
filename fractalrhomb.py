@@ -175,8 +175,16 @@ async def on_application_command_error(
 ) -> None:
 	"""Do stuff when there's a command error."""
 	response = "an unhandled exception occurred"
-	await frg.send_message(ctx, response, is_deferred=True)
-	raise error
+	try:
+		await frg.send_message(ctx, response, is_deferred=True)
+	except discord.errors.NotFound:
+		response = f"<@{ctx.author.id}> {response}"
+		try:
+			await ctx.send(response, silent=True)
+		except Exception:
+			fractalrhomb_logger.debug("An error occurred when sending an exception message", exc_info=True)
+	finally:
+		fractalrhomb_logger.exception("An unhandled command exception occurred", exc_info=error)
 
 
 @bot.slash_command(description="Pong!")

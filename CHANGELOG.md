@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.9.2] - 2024-05-12
+
+### Changed
+- Reduced most cache times and cooldowns
+
+### Fixed
+- Requesting a chapter that doesn't exist now gives an explanation rather than having the interaction fail
+- Unhandled command exceptions should now be logged properly
+- Added error handling for a command attempting to send an empty message
+
 ## [0.9.1] - 2024-05-11
 
 ### Changed
