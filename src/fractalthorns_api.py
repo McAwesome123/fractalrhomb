@@ -172,32 +172,32 @@ class FractalthornsAPI(API):
 		)
 
 	__CACHE_DURATION: ClassVar[dict[CacheTypes, dt.timedelta]] = {
-		CacheTypes.NEWS_ITEMS: dt.timedelta(hours=12),
-		CacheTypes.IMAGES: dt.timedelta(hours=12),
-		CacheTypes.IMAGE_CONTENTS: dt.timedelta(hours=72),
-		CacheTypes.IMAGE_DESCRIPTIONS: dt.timedelta(hours=72),
-		CacheTypes.SKETCHES: dt.timedelta(hours=12),
-		CacheTypes.SKETCH_CONTENTS: dt.timedelta(hours=72),
-		CacheTypes.CHAPTERS: dt.timedelta(hours=12),
-		CacheTypes.RECORDS: dt.timedelta(hours=12),
-		CacheTypes.RECORD_CONTENTS: dt.timedelta(hours=72),
-		CacheTypes.SEARCH_RESULTS: dt.timedelta(hours=12),
-		CacheTypes.FULL_RECORD_CONTENTS: dt.timedelta(hours=168),
-		CacheTypes.FULL_IMAGE_DESCRIPTIONS: dt.timedelta(hours=168),
+		CacheTypes.NEWS_ITEMS: dt.timedelta(hours=4),
+		CacheTypes.IMAGES: dt.timedelta(hours=4),
+		CacheTypes.IMAGE_CONTENTS: dt.timedelta(hours=24),
+		CacheTypes.IMAGE_DESCRIPTIONS: dt.timedelta(hours=12),
+		CacheTypes.SKETCHES: dt.timedelta(hours=4),
+		CacheTypes.SKETCH_CONTENTS: dt.timedelta(hours=24),
+		CacheTypes.CHAPTERS: dt.timedelta(hours=4),
+		CacheTypes.RECORDS: dt.timedelta(hours=4),
+		CacheTypes.RECORD_CONTENTS: dt.timedelta(hours=12),
+		CacheTypes.SEARCH_RESULTS: dt.timedelta(hours=4),
+		CacheTypes.FULL_RECORD_CONTENTS: dt.timedelta(hours=24),
+		CacheTypes.FULL_IMAGE_DESCRIPTIONS: dt.timedelta(hours=24),
 	}
 	__CACHE_PURGE_COOLDOWN: ClassVar[dict[CacheTypes, dt.timedelta]] = {
-		CacheTypes.NEWS_ITEMS: dt.timedelta(hours=1),
-		CacheTypes.IMAGES: dt.timedelta(hours=1),
-		CacheTypes.IMAGE_CONTENTS: dt.timedelta(hours=3),
-		CacheTypes.IMAGE_DESCRIPTIONS: dt.timedelta(hours=3),
-		CacheTypes.SKETCHES: dt.timedelta(hours=1),
-		CacheTypes.SKETCH_CONTENTS: dt.timedelta(hours=3),
-		CacheTypes.CHAPTERS: dt.timedelta(hours=1),
-		CacheTypes.RECORDS: dt.timedelta(hours=1),
-		CacheTypes.RECORD_CONTENTS: dt.timedelta(hours=3),
-		CacheTypes.SEARCH_RESULTS: dt.timedelta(hours=1),
-		CacheTypes.FULL_RECORD_CONTENTS: dt.timedelta(hours=12),
-		CacheTypes.FULL_IMAGE_DESCRIPTIONS: dt.timedelta(hours=12),
+		CacheTypes.NEWS_ITEMS: dt.timedelta(minutes=20),
+		CacheTypes.IMAGES: dt.timedelta(minutes=20),
+		CacheTypes.IMAGE_CONTENTS: dt.timedelta(minutes=120),
+		CacheTypes.IMAGE_DESCRIPTIONS: dt.timedelta(minutes=60),
+		CacheTypes.SKETCHES: dt.timedelta(minutes=20),
+		CacheTypes.SKETCH_CONTENTS: dt.timedelta(minutes=120),
+		CacheTypes.CHAPTERS: dt.timedelta(minutes=20),
+		CacheTypes.RECORDS: dt.timedelta(minutes=20),
+		CacheTypes.RECORD_CONTENTS: dt.timedelta(minutes=60),
+		CacheTypes.SEARCH_RESULTS: dt.timedelta(minutes=20),
+		CacheTypes.FULL_RECORD_CONTENTS: dt.timedelta(minutes=120),
+		CacheTypes.FULL_IMAGE_DESCRIPTIONS: dt.timedelta(minutes=120),
 	}
 
 	__REQUEST_TIMEOUT: float = 10.0
@@ -2196,8 +2196,7 @@ class FractalthornsAPI(API):
 						}
 
 		except Exception:
-			msg = f"Failed to load cache! ({cache.value})"
-			self.logger.exception(msg)
+			self.logger.exception("Failed to load cache! (%s)", cache.value)
 
 	async def load_all_caches(self) -> None:
 		"""Load all caches."""
@@ -2374,8 +2373,7 @@ class FractalthornsAPI(API):
 			self.__cache_saved[cache] = True
 
 		except Exception:
-			msg = f"Failed to save cache! ({cache.value})"
-			self.logger.exception(msg)
+			self.logger.exception("Failed to save cache! (%s)", cache.value)
 
 	async def save_all_caches(self) -> None:
 		"""Save all caches."""
