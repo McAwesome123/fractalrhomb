@@ -723,7 +723,9 @@ class Fractalthorns(discord.Cog):
 				response += [j.format() for j in chapters if i.lower() == j.name]
 
 			if len(response) < 1:
-				response += ["unknown chapter(s) requested\n-# if you're requesting a newly released chapter, purge the chapters cache and try again"]
+				response += [
+					"unknown chapter(s) requested\n-# if you're requesting a newly released chapter, purge the chapters cache and try again"
+				]
 
 			responses = frg.split_message(response, "\n\n")
 

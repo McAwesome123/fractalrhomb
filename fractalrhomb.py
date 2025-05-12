@@ -182,9 +182,13 @@ async def on_application_command_error(
 		try:
 			await ctx.send(response, silent=True)
 		except Exception:
-			fractalrhomb_logger.debug("An error occurred when sending an exception message", exc_info=True)
+			fractalrhomb_logger.exception(
+				"An error occurred when sending an exception message"
+			)
 	finally:
-		fractalrhomb_logger.exception("An unhandled command exception occurred", exc_info=error)
+		fractalrhomb_logger.exception(
+			"An unhandled command exception occurred", exc_info=error
+		)
 
 
 @bot.slash_command(description="Pong!")

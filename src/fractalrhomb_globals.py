@@ -415,7 +415,9 @@ async def send_message(
 
 	if len(message) < 1:
 		message = "an error occurred: command attempted to send an empty message"
-		fractalrhomb_logger.error("Command attempted to send an empty message", stack_info=True)
+		fractalrhomb_logger.error(
+			"Command attempted to send an empty message", stack_info=True
+		)
 
 	try:
 		if not ctx.response.is_done() or is_deferred:
