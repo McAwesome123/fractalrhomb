@@ -26,7 +26,6 @@ import discord.utils
 from dotenv import load_dotenv
 
 import src.fractalrhomb_globals as frg
-import src.fractalthorns_notifications as ft_notifs
 from src.fractalrhomb_globals import FRACTALRHOMB_VERSION_FULL, bot
 from src.fractalthorns_api import FractalthornsAPI, fractalthorns_api
 from src.fractalthorns_exceptions import CachePurgeError
@@ -582,40 +581,6 @@ async def test_command(ctx: discord.ApplicationContext) -> None:
 	fractalrhomb_logger.info("Test command used")
 	await ctx.respond(getenv("LOOK2_EMOJI", ":look2:"))
 
-
-@bot.slash_command(
-	name="restart-notification-listener",
-	contexts={discord.InteractionContextType.bot_dm},
-)
-async def restart_notification_listener(ctx: discord.ApplicationContext) -> None:
-	"""Restart the notification listener (command restricted to certain users)."""
-	privileged_users = json.loads(getenv("BOT_ADMIN_USERS", "[]"))
-
-	user_id = str(ctx.author.id)
-	if user_id not in privileged_users:
-		fractalrhomb_logger.warning(
-			"Unauthorized notif listener restart attempt by %s.", user_id
-		)
-		response = "you cannot do that."
-		await frg.send_message(ctx, response)
-		return
-
-	ft_notifs.resume_event.set()
-	ft_notifs.resume_done_event.clear()
-
-	try:
-		await ctx.defer()
-		await asyncio.wait_for(ft_notifs.resume_done_event.wait(), timeout=5.0)
-	except TimeoutError:
-		response = "listener didn't restart - it either didn't need restarting or is slow/dead."
-		await frg.send_message(ctx, response, is_deferred=True)
-	else:
-		response = "listener has been restarted."
-		await frg.send_message(ctx, response, is_deferred=True)
-
-	ft_notifs.resume_event.clear()
-
-
 @bot.slash_command(
 	name="manual-news-post", contexts={discord.InteractionContextType.bot_dm}
 )
@@ -883,27 +848,13 @@ async def main() -> None:
 
 		token = getenv("DISCORD_BOT_TOKEN")
 		async with bot:
-			main_bot_task = asyncio.create_task(bot.start(token))
-			notifs_listen_task = asyncio.create_task(
-				ft_notifs.start_and_watch_notification_listener()
-			)
-
-			await asyncio.wait(
-				[main_bot_task, notifs_listen_task], return_when=asyncio.FIRST_EXCEPTION
-			)
+			await bot.start(token)
 
 			if main_bot_task.done() and main_bot_task.exception() is not None:
 				fractalrhomb_logger.fatal(
 					"An exception occurred in the bot",
 					exc_info=main_bot_task.exception(),
 				)
-
-			if notifs_listen_task.done() and notifs_listen_task.exception() is not None:
-				fractalrhomb_logger.fatal(
-					"An exception occurred in the notification listener",
-					exc_info=notifs_listen_task.exception(),
-				)
-
 
 if __name__ == "__main__":
 	with contextlib.suppress(KeyboardInterrupt):
