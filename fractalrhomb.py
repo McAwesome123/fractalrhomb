@@ -628,7 +628,7 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 			fractalrhomb_logger.info(
 				"Sending news item to be posted by the notification handler."
 			)
-			await ft_notifs.post_news_update(news)
+			await post_news_update(news)
 
 		tasks = set()
 		async with asyncio.TaskGroup() as tg:
@@ -651,6 +651,17 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 			ctx, fractalrhomb_logger, exc, "Fractalrhomb.manual_news_post"
 		)
 
+async def post_news_update(news_item):
+	news_channels = frg.bot_data.news_post_channels
+
+	if len(news_channels) == 0:
+		fractalrhomb_logger.warning(f'wanted to post a notification, but no update channels are configured!')
+
+	for channel in news_channels:
+		fractalrhomb_logger.info(f'posting a news update')
+
+		discord_channel = bot.get_channel(int(channel))
+		await discord_channel.send(news_item.format())
 
 def parse_arguments() -> None:
 	"""Parse command line arguments."""
@@ -848,7 +859,8 @@ async def main() -> None:
 
 		token = getenv("DISCORD_BOT_TOKEN")
 		async with bot:
-			await bot.start(token)
+			main_bot_task = asyncio.create_task(bot.start(token))
+			await main_bot_task
 
 			if main_bot_task.done() and main_bot_task.exception() is not None:
 				fractalrhomb_logger.fatal(
