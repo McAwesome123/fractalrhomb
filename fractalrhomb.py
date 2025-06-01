@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 import src.fractalrhomb_globals as frg
 from src.fractalrhomb_globals import FRACTALRHOMB_VERSION_FULL, bot
 from src.fractalthorns_api import FractalthornsAPI, fractalthorns_api
+from src.fractalthorns_dataclasses import NewsEntry
 from src.fractalthorns_exceptions import CachePurgeError
 
 load_dotenv()
@@ -185,7 +186,7 @@ async def on_application_command_error(
 				"An error occurred when sending an exception message"
 			)
 	finally:
-		fractalrhomb_logger.exception(
+		fractalrhomb_logger.error(
 			"An unhandled command exception occurred", exc_info=error
 		)
 
@@ -197,7 +198,7 @@ async def ping(ctx: discord.ApplicationContext) -> None:
 		"Ping command used. Latency: %s ms", round(bot.latency * 1000)
 	)
 
-	response = f"pong! latency: {f"{round(bot.latency * 1000)!s}ms"}."
+	response = f"pong! latency: {f'{round(bot.latency * 1000)!s}ms'}."
 	await frg.send_message(ctx, response)
 
 
@@ -210,7 +211,7 @@ async def show_license(ctx: discord.ApplicationContext) -> None:
 		">>> fractalrhomb\n"
 		"Copyright (C) 2024 [McAwesome](<https://github.com/McAwesome123>)\n"
 		"\n"
-		"The [source code](<https://github.com/McAwesome123/fractal-rhomb>) is licensed under the [GNU AGPL version 3](<https://www.gnu.org/licenses/agpl-3.0.en.html>) or later.\n"
+		"The [source code](<https://github.com/McAwesome123/fractalrhomb>) is licensed under the [GNU AGPL version 3](<https://www.gnu.org/licenses/agpl-3.0.en.html>) or later.\n"
 		"\n"
 		"[fractalthorns](<https://fractalthorns.com>) is created by [Pierce Smith](<https://github.com/pierce-smith1>)."
 	)
@@ -371,7 +372,7 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 			)
 
 	if len(purged) > 0:
-		response = f"successfully purged {", ".join(purged)}"
+		response = f"successfully purged {', '.join(purged)}"
 		await frg.send_message(ctx, response)
 
 		fractalrhomb_logger.info(
@@ -581,6 +582,7 @@ async def test_command(ctx: discord.ApplicationContext) -> None:
 	fractalrhomb_logger.info("Test command used")
 	await ctx.respond(getenv("LOOK2_EMOJI", ":look2:"))
 
+
 @bot.slash_command(
 	name="manual-news-post", contexts={discord.InteractionContextType.bot_dm}
 )
@@ -651,17 +653,22 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 			ctx, fractalrhomb_logger, exc, "Fractalrhomb.manual_news_post"
 		)
 
-async def post_news_update(news_item):
+
+async def post_news_update(news_item: NewsEntry) -> None:
+	"""Post a fractalthorns news update to all tagged news channels."""
 	news_channels = frg.bot_data.news_post_channels
 
 	if len(news_channels) == 0:
-		fractalrhomb_logger.warning(f'wanted to post a notification, but no update channels are configured!')
+		fractalrhomb_logger.warning(
+			"wanted to post a notification, but no update channels are configured!"
+		)
 
 	for channel in news_channels:
-		fractalrhomb_logger.info(f'posting a news update')
+		fractalrhomb_logger.info("posting a news update")
 
 		discord_channel = bot.get_channel(int(channel))
 		await discord_channel.send(news_item.format())
+
 
 def parse_arguments() -> None:
 	"""Parse command line arguments."""
@@ -867,6 +874,7 @@ async def main() -> None:
 					"An exception occurred in the bot",
 					exc_info=main_bot_task.exception(),
 				)
+
 
 if __name__ == "__main__":
 	with contextlib.suppress(KeyboardInterrupt):

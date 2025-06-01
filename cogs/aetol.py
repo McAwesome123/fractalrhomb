@@ -57,7 +57,7 @@ class AetolParticle:
 
 	def format(self) -> str:
 		"""Return a discord formatted string."""
-		return f"**{self.name}**: [{self.meaning}]\nnoun: {self.as_noun}\nverb: {self.as_verb}\n{f"_{self.notes}_\n" if self.notes else ""}[{", ".join(self.category)}]"
+		return f"**{self.name}**: [{self.meaning}]\nnoun: {self.as_noun}\nverb: {self.as_verb}\n{f'_{self.notes}_\n' if self.notes else ''}[{', '.join(self.category)}]"
 
 	def __eq__(self, other: "AetolParticle") -> bool:
 		"""Return True if the particles match (ignoring category)."""
@@ -112,7 +112,7 @@ class AetolWord:
 
 	def format(self) -> str:
 		"""Return a discord formatted string."""
-		return f"**{self.name}**: [{self.meaning}]\nnoun: {self.as_noun}\nverb: {self.as_verb}\n_{self.formation}_\n[{", ".join(self.category)}]"
+		return f"**{self.name}**: [{self.meaning}]\nnoun: {self.as_noun}\nverb: {self.as_verb}\n_{self.formation}_\n[{', '.join(self.category)}]"
 
 	def __eq__(self, other: "AetolWord") -> bool:
 		"""Return True if the words match (ignoring category)."""
@@ -294,12 +294,12 @@ class Aetol(discord.Cog):
 
 		response = (
 			"**aetol resources**\n"
-			"[main page](<https://web.archive.org/web/20231015202450/https://doughbyte.com/aut/aetol/>)\n"
+			"[index](<https://web.archive.org/web/20231015202450/https://doughbyte.com/aut/aetol/>)\n"
 			"[learn it](<https://web.archive.org/web/20231015202503/https://doughbyte.com/aut/aetol/learn/>)\n"
 			"[dictionary](<https://web.archive.org/web/20231015202502/https://doughbyte.com/aut/aetol/dictionary/>)\n"
 			"[sample collection](<https://web.archive.org/web/20231015202507/https://doughbyte.com/aut/aetol/samples/>)\n"
 			"[handbook](<https://web.archive.org/web/20231015202505/https://doughbyte.com/aut/aetol/handbook/>)\n"
-			"_disclaimer: some information may be missing or incomplete. this is unlikely to change in the near future._"
+			"_disclaimer: some information may be missing, inaccurate, or incomplete. this is unlikely to change in the near future. do not bother pierce/beryl about this._\n"
 		)
 
 		await frg.send_message(ctx, response, "\n")

@@ -318,7 +318,7 @@ class Image:
 				image_join_list.append(speedpaint)
 
 			if format_ == "primary_color" and not secondary_color_done:
-				colors = f"> primary color: {self.primary_color if self.primary_color is not None else "none"}"
+				colors = f"> primary color: {self.primary_color if self.primary_color is not None else 'none'}"
 
 				if "secondary_color" in formatting:
 					colors = "".join(
@@ -335,7 +335,7 @@ class Image:
 				primary_color_done = True
 
 			if format_ == "secondary_color" and not primary_color_done:
-				colors = f"> secondary color: {self.secondary_color if self.secondary_color is not None else "none"}"
+				colors = f"> secondary color: {self.secondary_color if self.secondary_color is not None else 'none'}"
 
 				if "primary_color" in formatting:
 					colors = "".join(
@@ -364,7 +364,7 @@ class Image:
 		else:
 			speedpaint_video_url = f"[speedpaint video](<{self.speedpaint_video_url}>)"
 
-		return f"> **[{self.title}](<{self.image_link}>)** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, {speedpaint_video_url}_)"
+		return f"> **[{self.title}](<{self.image_link}>)** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else 'none'}, {speedpaint_video_url}_)"
 
 
 @dataclass
@@ -559,15 +559,19 @@ class Record:
 
 	chapter: str
 	name: str
-	title: str | None
+	title: str
 	solved: bool
 	iteration: str | None
+	linked_puzzles: list[str] | None
 	record_link: str | None
+	puzzle_links: list[str] | None
 
 	type RecordType = dict[str, str | bool | None]
 
 	@staticmethod
-	def from_obj(record_link: str | None, obj: RecordType) -> "Record":
+	def from_obj(
+		record_link: str | None, puzzle_links: list[str] | None, obj: RecordType
+	) -> "Record":
 		"""Create a Record from an object.
 
 		Arguments:
@@ -580,10 +584,12 @@ class Record:
 		return Record(
 			obj["chapter"],
 			obj["name"],
-			obj.get("title"),
+			obj["title"],
 			obj["solved"],
 			obj.get("iteration"),
+			obj.get("linked_puzzles"),
 			record_link,
+			puzzle_links,
 		)
 
 	def __str__(self) -> str:
@@ -597,7 +603,9 @@ class Record:
 				f"title: {self.title}",
 				f"solved: {self.solved}",
 				f"iteration: {self.iteration}",
+				f"linked puzzles: {self.linked_puzzles}",
 				f"record link: {self.record_link}",
+				f"puzzle links: {self.puzzle_links}",
 			)
 		)
 
@@ -618,7 +626,9 @@ class Record:
 		"iteration" -- The record's iteration (default: True)
 		"chapter" -- Chapter the record belongs to (default: True)
 		"solved" -- Whether the record is solved (default: False)
+		"puzzles" -- Any puzzles linked to this record (default: False unless unsolved)
 		"record_link" -- URL to the record itself (default: True)
+		"puzzle_links" -- URLs to linked puzzles (default: False unless unsolved)
 		"""
 		if formatting is None:
 			formatting = {
@@ -627,7 +637,9 @@ class Record:
 				"iteration": True,
 				"chapter": True,
 				"solved": False,
+				"puzzles": not self.solved,
 				"record_link": True,
+				"puzzle_links": not self.solved,
 			}
 
 		valid_formatting = [
@@ -636,7 +648,9 @@ class Record:
 			"iteration",
 			"chapter",
 			"solved",
+			"puzzles",
 			"record_link",
+			"puzzle_links",
 		]
 		formatting = [
 			i for i, j in formatting.items() if i in valid_formatting and j is True
@@ -659,14 +673,13 @@ class Record:
 				record_join_list.append(name)
 				name_done = True
 
-			if format_ == "title" and self.title is not None:
+			if format_ == "title":
 				title = self.title
+				if not self.solved:
+					title = f"_{title} →_"
 				if "record_link" in formatting and self.record_link is not None:
 					title = f"[{title}]({self.record_link})"
 				record_join_list.append(f"> ## {title}")
-			elif format_ == "title" and self.title is None:
-				title = "> ## ??????"
-				record_join_list.append(title)
 
 			if format_ == "solved":
 				solved = "".join(("> _solved: ", "yes" if self.solved else "no", "_"))
@@ -680,6 +693,33 @@ class Record:
 				record_join_list.append(iteration)
 				iteration_done = True
 
+			if format_ == "puzzles":
+				puzzles_list = self.linked_puzzles
+				if (
+					puzzles_list is not None
+					and "puzzle_links" in formatting
+					and self.puzzle_links is not None
+				):
+					for i in range(len(puzzles_list)):
+						puzzles_list[i] = (
+							f"[{puzzles_list[i]}](<{self.puzzle_links[i]}>)"
+						)
+				puzzles = "".join(
+					(
+						(
+							"> _linked puzzles: "
+							if (
+								self.linked_puzzles is not None
+								and len(self.linked_puzzles) > 1
+							)
+							else "> _linked puzzle: "
+						),
+						("none" if puzzles_list is None else ", ".join(puzzles_list)),
+						"_",
+					)
+				)
+				record_join_list.append(puzzles)
+
 			if (
 				format_ == "record_link"
 				and self.record_link is not None
@@ -688,10 +728,26 @@ class Record:
 				record_link = f"> <{self.record_link}>"
 				record_join_list.append(record_link)
 
+			if (
+				format_ == "puzzle_links"
+				and self.puzzle_links is not None
+				and ("puzzles" not in formatting or self.linked_puzzles is None)
+			):
+				puzzle_links = (
+					f"> _[solve more puzzles to reveal this record](<{self.puzzle_links[0]}>)_"
+					if self.linked_puzzles is None
+					else f"> <{'>\n> <'.join(self.puzzle_links)}>"
+				)
+				record_join_list.append(puzzle_links)
+
 		return "\n".join(record_join_list)
 
 	def format_inline(
-		self, *, show_iteration: bool = True, show_chapter: bool = True
+		self,
+		*,
+		show_iteration: bool = True,
+		show_chapter: bool = True,
+		show_puzzles: bool = True,
 	) -> str:
 		"""Return a string with discord formatting (without linebreaks).
 
@@ -703,7 +759,9 @@ class Record:
 		show_chapter -- Include the chapter in the string (default: True)
 		"""
 		name = self.name
-		title = "??????" if self.title is None else self.title
+		title = self.title
+		if not self.solved:
+			title = f"_{title} →_"
 		if self.record_link is not None:
 			title = f"[{title}](<{self.record_link}>)"
 		iteration = None if self.iteration is None else f"in {self.iteration}"
@@ -715,7 +773,20 @@ class Record:
 		if show_chapter:
 			parentheses.append(chapter)
 
-		return f"> **{title}** (_{', '.join(parentheses)}_)"
+		puzzles = ""
+		if show_puzzles and self.linked_puzzles is not None:
+			puzzles = (
+				" - linked puzzles: "
+				if len(self.linked_puzzles) > 1
+				else " - linked puzzle: "
+			)
+			puzzles_list = self.linked_puzzles
+			if self.puzzle_links is not None:
+				for i in range(len(puzzles_list)):
+					puzzles_list[i] = f"[{puzzles_list[i]}](<{self.puzzle_links[i]}>)"
+			puzzles += ", ".join(puzzles_list)
+
+		return f"> **{title}** (_{', '.join(parentheses)}_){puzzles}"
 
 
 @dataclass
@@ -728,21 +799,27 @@ class Chapter:
 	type ChapterType = dict[str, str | list[Record.RecordType]]
 
 	@staticmethod
-	def from_obj(record_base: str, obj: ChapterType) -> "Chapter":
+	def from_obj(record_base: str, puzzle_base: str, obj: ChapterType) -> "Chapter":
 		"""Create a Chapter from an object.
 
 		Arguments:
 		---------
 		record_base -- The base URL for records.
+		puzzle_base -- The base URL for puzzles.
 		obj -- The object to create a Chapter from.
 		(Expected: an item from full_episodic["chapters"].
-		full_episodic needs to be converted from json first.
-		["record_base"] needs to be added, containing the base url to records.)
+		full_episodic needs to be converted from json first.)
 		"""
 		records = []
 		for i in obj["records"]:
-			record_link = f"{record_base}{i["name"]}"
-			records.append(Record.from_obj(record_link, i))
+			record_link = f"{record_base}{i['name']}"
+			puzzle_links = None
+			if not i["solved"]:
+				if i.get("linked_puzzles") is not None:
+					puzzle_links = [f"{puzzle_base}{j}" for j in i["linked_puzzles"]]
+				else:
+					puzzle_links = [puzzle_base]
+			records.append(Record.from_obj(record_link, puzzle_links, i))
 
 		return Chapter(
 			obj["name"],
@@ -769,8 +846,26 @@ class Chapter:
 		episodic_join_list.append(f"> ## {self.name}")
 
 		episodic_join_list.extend(
-			record.format_inline(show_chapter=False) for record in self.records
+			record.format_inline(show_chapter=False, show_puzzles=not record.solved)
+			for record in self.records
 		)
+
+		unsolved_records = None
+		num_unsolved_records = 0
+		for record in self.records:
+			if record.solved is not None:
+				num_unsolved_records += 1
+				if (
+					record.linked_puzzles is None
+					and record.puzzle_links is not None
+					and unsolved_records is None
+				):
+					unsolved_records = record.puzzle_links[0]
+
+		if unsolved_records is not None:
+			episodic_join_list.append(
+				f"> _[solve more puzzles to reveal the remaining {'records' if num_unsolved_records > 1 else 'record'}](<{unsolved_records}>)_"
+			)
 
 		return "\n".join(episodic_join_list)
 
@@ -1005,7 +1100,7 @@ class SearchResult:
 
 	@staticmethod
 	def from_obj(
-		record_base: str, image_base: str, obj: SearchResultType
+		image_base: str, record_base: str, puzzle_base: str, obj: SearchResultType
 	) -> "SearchResult":
 		"""Create a SearchResult from an object.
 
@@ -1023,10 +1118,16 @@ class SearchResult:
 
 		image_link = None
 		record_link = None
+		puzzle_links = None
 		if obj.get("image") is not None:
-			image_link = f"{image_base}{obj["image"]["name"]}"
-		if obj.get("record") is not None and obj["record"]["solved"]:
-			record_link = f"{record_base}{obj["record"]["name"]}"
+			image_link = f"{image_base}{obj['image']['name']}"
+		if obj.get("record") is not None:
+			if obj["record"]["solved"]:
+				record_link = f"{record_base}{obj['record']['name']}"
+			if obj["record"].get("linked_puzzles") is not None:
+				puzzle_links = [
+					f"{puzzle_base}{i}" for i in obj["record"]["linked_puzzles"]
+				]
 
 		return SearchResult(
 			obj["type"],
@@ -1035,7 +1136,7 @@ class SearchResult:
 			else Image.from_obj(image_link, obj["image"]),
 			None
 			if obj.get("record") is None
-			else Record.from_obj(record_link, obj["record"]),
+			else Record.from_obj(record_link, puzzle_links, obj["record"]),
 			obj.get("record_line"),
 			obj.get("record_matched_text"),
 			obj.get("record_line_index"),
@@ -1067,7 +1168,7 @@ class SearchResult:
 				return self.image.format_inline()
 
 			case "episodic-item":
-				return self.record.format_inline()
+				return self.record.format_inline(show_puzzles=not self.record.solved)
 
 			case "episodic-line":
 				if last_record != self.record:
@@ -1075,7 +1176,7 @@ class SearchResult:
 						results_join_list.append("")
 
 					record_str = self.record.format_inline(
-						show_iteration=False, show_chapter=False
+						show_iteration=False, show_chapter=False, show_puzzles=False
 					)
 					results_join_list.append(record_str)
 
@@ -1161,7 +1262,7 @@ class MatchResult:
 				results_join_list.append("")
 
 			record_str = self.record.format_inline(
-				show_iteration=False, show_chapter=False
+				show_iteration=False, show_chapter=False, show_puzzles=False
 			)
 			results_join_list.append(record_str)
 

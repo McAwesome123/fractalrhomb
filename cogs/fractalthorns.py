@@ -696,13 +696,13 @@ class Fractalthorns(discord.Cog):
 	@discord.option(
 		"chapter",
 		str,
-		description="The name of the chapter(s) (default: (latest))",
+		description='The name of the chapter(s) (enter "(latest)" to get the latest image)',
 		autocomplete=discord.utils.basic_autocomplete(full_episodic_name),
 	)
 	async def full_episodic(
 		self,
 		ctx: discord.ApplicationContext,
-		chapter: str | None = None,
+		chapter: str,
 	) -> None:
 		"""Show a list of records in a chapter."""
 		self.logger.info("Full episodic command used (chapter=%s)", chapter)
@@ -711,12 +711,15 @@ class Fractalthorns(discord.Cog):
 			return
 
 		try:
+			chapter = chapter.lower()
 			chapters = await fractalthorns_api.get_full_episodic(frg.session)
 
-			if chapter is None:
-				chapter = (chapters[-1].name,)
-			else:
-				chapter = chapter.lower().split()
+			if chapter == ".":
+				chapter = chapters[-1].name
+			elif "(latest)" in chapter:
+				chapter = chapter.replace("(latest)", chapters[-1].name)
+
+			chapter = chapter.split()
 
 			response = []
 			for i in chapter:
@@ -777,7 +780,16 @@ class Fractalthorns(discord.Cog):
 	@staticmethod
 	async def single_record_show(ctx: discord.AutocompleteContext) -> list[str]:
 		"""Give available items for record show."""
-		options = ["title", "name", "iteration", "chapter", "solved", "record_link"]
+		options = [
+			"title",
+			"name",
+			"iteration",
+			"chapter",
+			"solved",
+			"puzzles",
+			"record_link",
+			"puzzle_links",
+		]
 
 		used_options = ctx.value.split()
 		if (
@@ -1848,7 +1860,9 @@ class Fractalthorns(discord.Cog):
 			if limit >= 0:
 				records_list = records_list[:limit]
 
-			response = [i.format_inline() for i in records_list]
+			response = [
+				i.format_inline(show_puzzles=not i.solved) for i in records_list
+			]
 
 			too_many = frg.truncated_message(
 				total_items, len(response), limit, start_index, "records"
