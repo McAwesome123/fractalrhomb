@@ -780,7 +780,16 @@ class Fractalthorns(discord.Cog):
 	@staticmethod
 	async def single_record_show(ctx: discord.AutocompleteContext) -> list[str]:
 		"""Give available items for record show."""
-		options = ["title", "name", "iteration", "chapter", "solved", "puzzles", "record_link", "puzzle_links"]
+		options = [
+			"title",
+			"name",
+			"iteration",
+			"chapter",
+			"solved",
+			"puzzles",
+			"record_link",
+			"puzzle_links",
+		]
 
 		used_options = ctx.value.split()
 		if (
@@ -1851,7 +1860,9 @@ class Fractalthorns(discord.Cog):
 			if limit >= 0:
 				records_list = records_list[:limit]
 
-			response = [i.format_inline(show_puzzles=not i.solved) for i in records_list]
+			response = [
+				i.format_inline(show_puzzles=not i.solved) for i in records_list
+			]
 
 			too_many = frg.truncated_message(
 				total_items, len(response), limit, start_index, "records"

@@ -57,7 +57,7 @@ class AetolParticle:
 
 	def format(self) -> str:
 		"""Return a discord formatted string."""
-		return f"**{self.name}**: [{self.meaning}]\nnoun: {self.as_noun}\nverb: {self.as_verb}\n{f"_{self.notes}_\n" if self.notes else ""}[{", ".join(self.category)}]"
+		return f"**{self.name}**: [{self.meaning}]\nnoun: {self.as_noun}\nverb: {self.as_verb}\n{f'_{self.notes}_\n' if self.notes else ''}[{', '.join(self.category)}]"
 
 	def __eq__(self, other: "AetolParticle") -> bool:
 		"""Return True if the particles match (ignoring category)."""
@@ -112,7 +112,7 @@ class AetolWord:
 
 	def format(self) -> str:
 		"""Return a discord formatted string."""
-		return f"**{self.name}**: [{self.meaning}]\nnoun: {self.as_noun}\nverb: {self.as_verb}\n_{self.formation}_\n[{", ".join(self.category)}]"
+		return f"**{self.name}**: [{self.meaning}]\nnoun: {self.as_noun}\nverb: {self.as_verb}\n_{self.formation}_\n[{', '.join(self.category)}]"
 
 	def __eq__(self, other: "AetolWord") -> bool:
 		"""Return True if the words match (ignoring category)."""

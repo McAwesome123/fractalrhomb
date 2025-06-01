@@ -77,35 +77,35 @@ class FractalthornsAPI(API):
 		"""Initialize the API handler."""
 		self.logger = logging.getLogger("fractalthorns_api")
 
-		__all_news = Request(self.ValidRequests.ALL_NEWS.value, None)
+		all_news = Request(self.ValidRequests.ALL_NEWS.value, None)
 
-		__single_image = Request(
+		single_image = Request(
 			self.ValidRequests.SINGLE_IMAGE.value,
 			[RequestArgument("name", optional=True)],
 		)
 
-		__image_description = Request(
+		image_description = Request(
 			self.ValidRequests.IMAGE_DESCRIPTION.value,
 			[RequestArgument("name", optional=False)],
 		)
 
-		__all_images = Request(self.ValidRequests.ALL_IMAGES.value, None)
+		all_images = Request(self.ValidRequests.ALL_IMAGES.value, None)
 
-		__all_sketches = Request(self.ValidRequests.ALL_SKETCHES.value, None)
+		all_sketches = Request(self.ValidRequests.ALL_SKETCHES.value, None)
 
-		__full_episodic = Request(self.ValidRequests.FULL_EPISODIC.value, None)
+		full_episodic = Request(self.ValidRequests.FULL_EPISODIC.value, None)
 
-		__single_record = Request(
+		single_record = Request(
 			self.ValidRequests.SINGLE_RECORD.value,
 			[RequestArgument("name", optional=False)],
 		)
 
-		__record_text = Request(
+		record_text = Request(
 			self.ValidRequests.RECORD_TEXT.value,
 			[RequestArgument("name", optional=False)],
 		)
 
-		__domain_search = Request(
+		domain_search = Request(
 			self.ValidRequests.DOMAIN_SEARCH.value,
 			[
 				RequestArgument("term", optional=False),
@@ -113,19 +113,19 @@ class FractalthornsAPI(API):
 			],
 		)
 
-		__requests_list = {
-			self.ValidRequests.ALL_NEWS.value: __all_news,
-			self.ValidRequests.SINGLE_IMAGE.value: __single_image,
-			self.ValidRequests.IMAGE_DESCRIPTION.value: __image_description,
-			self.ValidRequests.ALL_IMAGES.value: __all_images,
-			self.ValidRequests.ALL_SKETCHES.value: __all_sketches,
-			self.ValidRequests.FULL_EPISODIC.value: __full_episodic,
-			self.ValidRequests.SINGLE_RECORD.value: __single_record,
-			self.ValidRequests.RECORD_TEXT.value: __record_text,
-			self.ValidRequests.DOMAIN_SEARCH.value: __domain_search,
+		requests_list = {
+			self.ValidRequests.ALL_NEWS.value: all_news,
+			self.ValidRequests.SINGLE_IMAGE.value: single_image,
+			self.ValidRequests.IMAGE_DESCRIPTION.value: image_description,
+			self.ValidRequests.ALL_IMAGES.value: all_images,
+			self.ValidRequests.ALL_SKETCHES.value: all_sketches,
+			self.ValidRequests.FULL_EPISODIC.value: full_episodic,
+			self.ValidRequests.SINGLE_RECORD.value: single_record,
+			self.ValidRequests.RECORD_TEXT.value: record_text,
+			self.ValidRequests.DOMAIN_SEARCH.value: domain_search,
 		}
 
-		super().__init__("https://fractalthorns.com", "/api/v1/", __requests_list)
+		super().__init__("https://fractalthorns.com", "/api/v1/", requests_list)
 		self.__BASE_IMAGE_URL = f"{self._base_url}/image/"
 		self.__BASE_SKETCH_URL = f"{self._base_url}/sketch/"
 		self.__BASE_RECORD_URL = f"{self._base_url}/episodic/"
@@ -1127,12 +1127,12 @@ class FractalthornsAPI(API):
 				image_metadata = json.loads(await resp.text())
 
 			image_metadata["image_url"] = (
-				f"{self._base_url}{image_metadata["image_url"]}"
+				f"{self._base_url}{image_metadata['image_url']}"
 			)
 			image_metadata["thumb_url"] = (
-				f"{self._base_url}{image_metadata["thumb_url"]}"
+				f"{self._base_url}{image_metadata['thumb_url']}"
 			)
-			image_link = f"{self.__BASE_IMAGE_URL}{image_metadata["name"]}"
+			image_link = f"{self.__BASE_IMAGE_URL}{image_metadata['name']}"
 
 			self.__cached_images.update(
 				{
@@ -1351,9 +1351,9 @@ class FractalthornsAPI(API):
 			self.purge_cache(self.CacheTypes.IMAGES, force_purge=True)
 
 			for image in images:
-				image["image_url"] = f"{self._base_url}{image["image_url"]}"
-				image["thumb_url"] = f"{self._base_url}{image["thumb_url"]}"
-				image_link = f"{self.__BASE_IMAGE_URL}{image["name"]}"
+				image["image_url"] = f"{self._base_url}{image['image_url']}"
+				image["thumb_url"] = f"{self._base_url}{image['thumb_url']}"
+				image_link = f"{self.__BASE_IMAGE_URL}{image['name']}"
 				self.__cached_images.update(
 					{image["name"]: (ftd.Image.from_obj(image_link, image), cache_time)}
 				)
@@ -1414,9 +1414,9 @@ class FractalthornsAPI(API):
 			sketches_dict = {}
 
 			for sketch in sketches:
-				sketch["image_url"] = f"{self._base_url}{sketch["image_url"]}"
-				sketch["thumb_url"] = f"{self._base_url}{sketch["thumb_url"]}"
-				sketch_link = f"{self.__BASE_SKETCH_URL}{sketch["name"]}"
+				sketch["image_url"] = f"{self._base_url}{sketch['image_url']}"
+				sketch["thumb_url"] = f"{self._base_url}{sketch['thumb_url']}"
+				sketch_link = f"{self.__BASE_SKETCH_URL}{sketch['name']}"
 				sketches_dict.update(
 					{sketch["name"]: ftd.Sketch.from_obj(sketch_link, sketch)}
 				)
@@ -1565,7 +1565,9 @@ class FractalthornsAPI(API):
 			self.purge_cache(self.CacheTypes.RECORDS, force_purge=True)
 
 			chapters = {
-				chapter["name"]: ftd.Chapter.from_obj(self.__BASE_RECORD_URL, self.__BASE_DISCOVERY_URL, chapter)
+				chapter["name"]: ftd.Chapter.from_obj(
+					self.__BASE_RECORD_URL, self.__BASE_DISCOVERY_URL, chapter
+				)
 				for chapter in chapters_list
 			}
 
@@ -1629,11 +1631,14 @@ class FractalthornsAPI(API):
 				resp.raise_for_status()
 				record = json.loads(await resp.text())
 
-			record_link = f"{self.__BASE_RECORD_URL}{record["name"]}"
+			record_link = f"{self.__BASE_RECORD_URL}{record['name']}"
 			puzzle_links = None
 			if not record["solved"]:
 				if record.get("linked_puzzles") is not None:
-					puzzle_links = [f"{self.__BASE_DISCOVERY_URL}{i}" for i in record["linked_puzzles"]]
+					puzzle_links = [
+						f"{self.__BASE_DISCOVERY_URL}{i}"
+						for i in record["linked_puzzles"]
+					]
 				else:
 					puzzle_links = [self.__BASE_DISCOVERY_URL]
 
@@ -1771,10 +1776,10 @@ class FractalthornsAPI(API):
 				for i in search_results:
 					if i.get("image") is not None:
 						i["image"]["image_url"] = (
-							f"{self._base_url}{i["image"]["image_url"]}"
+							f"{self._base_url}{i['image']['image_url']}"
 						)
 						i["image"]["thumb_url"] = (
-							f"{self._base_url}{i["image"]["thumb_url"]}"
+							f"{self._base_url}{i['image']['thumb_url']}"
 						)
 			elif type_ == "episodic-line":
 				record_text_tasks = []
@@ -1798,7 +1803,10 @@ class FractalthornsAPI(API):
 					(term, type_): (
 						[
 							ftd.SearchResult.from_obj(
-								self.__BASE_IMAGE_URL, self.__BASE_RECORD_URL, self.__BASE_DISCOVERY_URL, i
+								self.__BASE_IMAGE_URL,
+								self.__BASE_RECORD_URL,
+								self.__BASE_DISCOVERY_URL,
+								i,
 							)
 							for i in search_results
 						],
@@ -2114,7 +2122,9 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.CHAPTERS:
 						cache_contents = (
 							{
-								i: ftd.Chapter.from_obj(self.__BASE_RECORD_URL, self.__BASE_DISCOVERY_URL, j)
+								i: ftd.Chapter.from_obj(
+									self.__BASE_RECORD_URL, self.__BASE_DISCOVERY_URL, j
+								)
 								for i, j in cache_contents[0].items()
 							},
 							dt.datetime.fromtimestamp(cache_contents[1], tz=dt.UTC),
@@ -2123,7 +2133,9 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.RECORDS:
 						cache_contents = {
 							i: (
-								ftd.Record.from_obj(j[0]["record_link"], j[0]["puzzle_links"], j[0]),
+								ftd.Record.from_obj(
+									j[0]["record_link"], j[0]["puzzle_links"], j[0]
+								),
 								dt.datetime.fromtimestamp(j[1], tz=dt.UTC),
 							)
 							for i, j in cache_contents.items()
@@ -2145,7 +2157,10 @@ class FractalthornsAPI(API):
 							(i[: i.rindex("|")], i[i.rindex("|") + 1 :]): (
 								[
 									ftd.SearchResult.from_obj(
-										self.__BASE_IMAGE_URL, self.__BASE_RECORD_URL, self.__BASE_DISCOVERY_URL, k
+										self.__BASE_IMAGE_URL,
+										self.__BASE_RECORD_URL,
+										self.__BASE_DISCOVERY_URL,
+										k,
 									)
 									for k in j[0]
 								],

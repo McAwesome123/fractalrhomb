@@ -318,7 +318,7 @@ class Image:
 				image_join_list.append(speedpaint)
 
 			if format_ == "primary_color" and not secondary_color_done:
-				colors = f"> primary color: {self.primary_color if self.primary_color is not None else "none"}"
+				colors = f"> primary color: {self.primary_color if self.primary_color is not None else 'none'}"
 
 				if "secondary_color" in formatting:
 					colors = "".join(
@@ -335,7 +335,7 @@ class Image:
 				primary_color_done = True
 
 			if format_ == "secondary_color" and not primary_color_done:
-				colors = f"> secondary color: {self.secondary_color if self.secondary_color is not None else "none"}"
+				colors = f"> secondary color: {self.secondary_color if self.secondary_color is not None else 'none'}"
 
 				if "primary_color" in formatting:
 					colors = "".join(
@@ -364,7 +364,7 @@ class Image:
 		else:
 			speedpaint_video_url = f"[speedpaint video](<{self.speedpaint_video_url}>)"
 
-		return f"> **[{self.title}](<{self.image_link}>)** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else "none"}, {speedpaint_video_url}_)"
+		return f"> **[{self.title}](<{self.image_link}>)** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else 'none'}, {speedpaint_video_url}_)"
 
 
 @dataclass
@@ -569,7 +569,9 @@ class Record:
 	type RecordType = dict[str, str | bool | None]
 
 	@staticmethod
-	def from_obj(record_link: str | None, puzzle_links: list[str] | None, obj: RecordType) -> "Record":
+	def from_obj(
+		record_link: str | None, puzzle_links: list[str] | None, obj: RecordType
+	) -> "Record":
 		"""Create a Record from an object.
 
 		Arguments:
@@ -693,10 +695,29 @@ class Record:
 
 			if format_ == "puzzles":
 				puzzles_list = self.linked_puzzles
-				if puzzles_list is not None and "puzzle_links" in formatting and self.puzzle_links is not None:
+				if (
+					puzzles_list is not None
+					and "puzzle_links" in formatting
+					and self.puzzle_links is not None
+				):
 					for i in range(len(puzzles_list)):
-						puzzles_list[i] = f"[{puzzles_list[i]}](<{self.puzzle_links[i]}>)"
-				puzzles = "".join((("> _linked puzzles: " if (self.linked_puzzles is not None and len(self.linked_puzzles) > 1) else "> _linked puzzle: "), ("none" if puzzles_list is None else ", ".join(puzzles_list)), "_"))
+						puzzles_list[i] = (
+							f"[{puzzles_list[i]}](<{self.puzzle_links[i]}>)"
+						)
+				puzzles = "".join(
+					(
+						(
+							"> _linked puzzles: "
+							if (
+								self.linked_puzzles is not None
+								and len(self.linked_puzzles) > 1
+							)
+							else "> _linked puzzle: "
+						),
+						("none" if puzzles_list is None else ", ".join(puzzles_list)),
+						"_",
+					)
+				)
 				record_join_list.append(puzzles)
 
 			if (
@@ -712,13 +733,21 @@ class Record:
 				and self.puzzle_links is not None
 				and ("puzzles" not in formatting or self.linked_puzzles is None)
 			):
-				puzzle_links = f"> _[solve more puzzles to reveal this record](<{self.puzzle_links[0]}>)_" if self.linked_puzzles is None else f"> <{">\n> <".join(self.puzzle_links)}>"
+				puzzle_links = (
+					f"> _[solve more puzzles to reveal this record](<{self.puzzle_links[0]}>)_"
+					if self.linked_puzzles is None
+					else f"> <{'>\n> <'.join(self.puzzle_links)}>"
+				)
 				record_join_list.append(puzzle_links)
 
 		return "\n".join(record_join_list)
 
 	def format_inline(
-		self, *, show_iteration: bool = True, show_chapter: bool = True, show_puzzles: bool = True
+		self,
+		*,
+		show_iteration: bool = True,
+		show_chapter: bool = True,
+		show_puzzles: bool = True,
 	) -> str:
 		"""Return a string with discord formatting (without linebreaks).
 
@@ -746,7 +775,11 @@ class Record:
 
 		puzzles = ""
 		if show_puzzles and self.linked_puzzles is not None:
-			puzzles = " - linked puzzles: " if len(self.linked_puzzles) > 1 else " - linked puzzle: "
+			puzzles = (
+				" - linked puzzles: "
+				if len(self.linked_puzzles) > 1
+				else " - linked puzzle: "
+			)
 			puzzles_list = self.linked_puzzles
 			if self.puzzle_links is not None:
 				for i in range(len(puzzles_list)):
@@ -779,7 +812,7 @@ class Chapter:
 		"""
 		records = []
 		for i in obj["records"]:
-			record_link = f"{record_base}{i["name"]}"
+			record_link = f"{record_base}{i['name']}"
 			puzzle_links = None
 			if not i["solved"]:
 				if i.get("linked_puzzles") is not None:
@@ -813,19 +846,26 @@ class Chapter:
 		episodic_join_list.append(f"> ## {self.name}")
 
 		episodic_join_list.extend(
-			record.format_inline(show_chapter=False, show_puzzles=not record.solved) for record in self.records
+			record.format_inline(show_chapter=False, show_puzzles=not record.solved)
+			for record in self.records
 		)
 
 		unsolved_records = None
 		num_unsolved_records = 0
 		for record in self.records:
-			if not record.solved is None:
+			if record.solved is not None:
 				num_unsolved_records += 1
-				if record.linked_puzzles is None and record.puzzle_links is not None and unsolved_records is None:
+				if (
+					record.linked_puzzles is None
+					and record.puzzle_links is not None
+					and unsolved_records is None
+				):
 					unsolved_records = record.puzzle_links[0]
 
 		if unsolved_records is not None:
-			episodic_join_list.append(f"> _[solve more puzzles to reveal the remaining {"records" if num_unsolved_records > 1 else "record"}](<{unsolved_records}>)_")
+			episodic_join_list.append(
+				f"> _[solve more puzzles to reveal the remaining {'records' if num_unsolved_records > 1 else 'record'}](<{unsolved_records}>)_"
+			)
 
 		return "\n".join(episodic_join_list)
 
@@ -1080,12 +1120,14 @@ class SearchResult:
 		record_link = None
 		puzzle_links = None
 		if obj.get("image") is not None:
-			image_link = f"{image_base}{obj["image"]["name"]}"
+			image_link = f"{image_base}{obj['image']['name']}"
 		if obj.get("record") is not None:
 			if obj["record"]["solved"]:
-				record_link = f"{record_base}{obj["record"]["name"]}"
+				record_link = f"{record_base}{obj['record']['name']}"
 			if obj["record"].get("linked_puzzles") is not None:
-				puzzle_links = [f"{puzzle_base}{i}" for i in obj["record"]["linked_puzzles"]]
+				puzzle_links = [
+					f"{puzzle_base}{i}" for i in obj["record"]["linked_puzzles"]
+				]
 
 		return SearchResult(
 			obj["type"],
