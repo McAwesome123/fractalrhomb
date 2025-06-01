@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.10.0] - 2025-06-01
+
+### Added
+- Records can now show linked puzzles
+  - Old caches may fail to load as a result; this is not an issue.
+- Unsolved records link to linked puzzles or the discovery page by default
+
+### Changed
+- `/chapter` now requires specifying a chapter
+  - You can still put in "(latest)" to get the latest chapter
+- Unsolved records now show their title (website API change)
+- Text changed in a few commands
+
+### Removed
+- SSE support (this is a fractalthorns change)
+
 ## [0.9.2] - 2024-05-12
 
 ### Changed

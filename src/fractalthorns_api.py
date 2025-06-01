@@ -129,6 +129,7 @@ class FractalthornsAPI(API):
 		self.__BASE_IMAGE_URL = f"{self._base_url}/image/"
 		self.__BASE_SKETCH_URL = f"{self._base_url}/sketch/"
 		self.__BASE_RECORD_URL = f"{self._base_url}/episodic/"
+		self.__BASE_DISCOVERY_URL = f"{self._base_url}/discover/"
 
 		self.__cached_news_items: tuple[list[ftd.NewsEntry], dt.datetime] | None = None
 		self.__cached_images: dict[str, tuple[ftd.Image, dt.datetime]] = {}
@@ -1564,7 +1565,7 @@ class FractalthornsAPI(API):
 			self.purge_cache(self.CacheTypes.RECORDS, force_purge=True)
 
 			chapters = {
-				chapter["name"]: ftd.Chapter.from_obj(self.__BASE_RECORD_URL, chapter)
+				chapter["name"]: ftd.Chapter.from_obj(self.__BASE_RECORD_URL, self.__BASE_DISCOVERY_URL, chapter)
 				for chapter in chapters_list
 			}
 
@@ -1628,14 +1629,18 @@ class FractalthornsAPI(API):
 				resp.raise_for_status()
 				record = json.loads(await resp.text())
 
-			record_link = None
-			if record["solved"]:
-				record_link = f"{self.__BASE_RECORD_URL}{record["name"]}"
+			record_link = f"{self.__BASE_RECORD_URL}{record["name"]}"
+			puzzle_links = None
+			if not record["solved"]:
+				if record.get("linked_puzzles") is not None:
+					puzzle_links = [f"{self.__BASE_DISCOVERY_URL}{i}" for i in record["linked_puzzles"]]
+				else:
+					puzzle_links = [self.__BASE_DISCOVERY_URL]
 
 			self.__cached_records.update(
 				{
 					name: (
-						ftd.Record.from_obj(record_link, record),
+						ftd.Record.from_obj(record_link, puzzle_links, record),
 						dt.datetime.now(dt.UTC),
 					)
 				}
@@ -1793,7 +1798,7 @@ class FractalthornsAPI(API):
 					(term, type_): (
 						[
 							ftd.SearchResult.from_obj(
-								self.__BASE_RECORD_URL, self.__BASE_IMAGE_URL, i
+								self.__BASE_IMAGE_URL, self.__BASE_RECORD_URL, self.__BASE_DISCOVERY_URL, i
 							)
 							for i in search_results
 						],
@@ -2109,7 +2114,7 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.CHAPTERS:
 						cache_contents = (
 							{
-								i: ftd.Chapter.from_obj(self.__BASE_RECORD_URL, j)
+								i: ftd.Chapter.from_obj(self.__BASE_RECORD_URL, self.__BASE_DISCOVERY_URL, j)
 								for i, j in cache_contents[0].items()
 							},
 							dt.datetime.fromtimestamp(cache_contents[1], tz=dt.UTC),
@@ -2118,7 +2123,7 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.RECORDS:
 						cache_contents = {
 							i: (
-								ftd.Record.from_obj(j[0]["record_link"], j[0]),
+								ftd.Record.from_obj(j[0]["record_link"], j[0]["puzzle_links"], j[0]),
 								dt.datetime.fromtimestamp(j[1], tz=dt.UTC),
 							)
 							for i, j in cache_contents.items()
@@ -2140,7 +2145,7 @@ class FractalthornsAPI(API):
 							(i[: i.rindex("|")], i[i.rindex("|") + 1 :]): (
 								[
 									ftd.SearchResult.from_obj(
-										self.__BASE_RECORD_URL, self.__BASE_IMAGE_URL, k
+										self.__BASE_IMAGE_URL, self.__BASE_RECORD_URL, self.__BASE_DISCOVERY_URL, k
 									)
 									for k in j[0]
 								],

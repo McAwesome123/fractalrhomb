@@ -210,7 +210,7 @@ async def show_license(ctx: discord.ApplicationContext) -> None:
 		">>> fractalrhomb\n"
 		"Copyright (C) 2024 [McAwesome](<https://github.com/McAwesome123>)\n"
 		"\n"
-		"The [source code](<https://github.com/McAwesome123/fractal-rhomb>) is licensed under the [GNU AGPL version 3](<https://www.gnu.org/licenses/agpl-3.0.en.html>) or later.\n"
+		"The [source code](<https://github.com/McAwesome123/fractalrhomb>) is licensed under the [GNU AGPL version 3](<https://www.gnu.org/licenses/agpl-3.0.en.html>) or later.\n"
 		"\n"
 		"[fractalthorns](<https://fractalthorns.com>) is created by [Pierce Smith](<https://github.com/pierce-smith1>)."
 	)

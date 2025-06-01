@@ -294,12 +294,12 @@ class Aetol(discord.Cog):
 
 		response = (
 			"**aetol resources**\n"
-			"[main page](<https://web.archive.org/web/20231015202450/https://doughbyte.com/aut/aetol/>)\n"
+			"[index](<https://web.archive.org/web/20231015202450/https://doughbyte.com/aut/aetol/>)\n"
 			"[learn it](<https://web.archive.org/web/20231015202503/https://doughbyte.com/aut/aetol/learn/>)\n"
 			"[dictionary](<https://web.archive.org/web/20231015202502/https://doughbyte.com/aut/aetol/dictionary/>)\n"
 			"[sample collection](<https://web.archive.org/web/20231015202507/https://doughbyte.com/aut/aetol/samples/>)\n"
 			"[handbook](<https://web.archive.org/web/20231015202505/https://doughbyte.com/aut/aetol/handbook/>)\n"
-			"_disclaimer: some information may be missing or incomplete. this is unlikely to change in the near future._"
+			"_disclaimer: some information may be missing, inaccurate, or incomplete. this is unlikely to change in the near future. do not bother pierce/beryl about this._\n"
 		)
 
 		await frg.send_message(ctx, response, "\n")
