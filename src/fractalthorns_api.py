@@ -223,6 +223,7 @@ class FractalthornsAPI(API):
 		*,
 		strictly_match_request_arguments: bool = True,
 		headers: dict[str, str] | None = None,
+		use_default_headers: bool = True
 	) -> aiohttp.client._RequestContextManager:
 		"""Make a request at one of the predefined endpoints.
 
@@ -243,15 +244,19 @@ class FractalthornsAPI(API):
 		fractalthorns_exceptions.ParameterError (from Request.__check_arguments) -- Unexpected request argument
 		aiohttp.client_exceptions.ClientError (from Request._make_request) -- A client error occurred
 		"""
-		if headers is None:
-			headers = self.__DEFAULT_HEADERS
+		request_headers = {}
+		if use_default_headers:
+			request_headers = self.__DEFAULT_HEADERS
+
+		if headers is not None:
+			request_headers.update(headers)
 
 		return await super()._make_request(
 			session,
 			endpoint,
 			request_payload,
 			strictly_match_request_arguments=strictly_match_request_arguments,
-			headers=headers,
+			headers=request_headers,
 		)
 
 	def purge_cache(self, cache: CacheTypes, *, force_purge: bool = False) -> None:
