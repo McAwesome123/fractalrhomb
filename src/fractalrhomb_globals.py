@@ -413,7 +413,7 @@ async def send_message(
 
 	message = message.strip()
 
-	if len(message) < 1:
+	if len(message) < 1 and file is None:
 		message = "an error occurred: command attempted to send an empty message"
 		fractalrhomb_logger.error(
 			"Command attempted to send an empty message", stack_info=True
