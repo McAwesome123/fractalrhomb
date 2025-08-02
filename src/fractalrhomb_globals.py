@@ -53,11 +53,11 @@ NO_ITEMS_MATCH_SEARCH = "no items match the requested parameters"
 INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE = 40094
 
 # The full version number including anything extra.
-FRACTALRHOMB_VERSION_FULL = "0.10.1"
+FRACTALRHOMB_VERSION_FULL = "0.11.0-alpha"
 # Version number with only Major, Minor, and Patch version.
-FRACTALRHOMB_VERSION_LONG = "0.10.1"
+FRACTALRHOMB_VERSION_LONG = "0.11.0"
 # Verison number with only Major and Minor version.
-FRACTALRHOMB_VERSION_SHORT = "0.10"
+FRACTALRHOMB_VERSION_SHORT = "0.11"
 
 FRACTALTHORNS_USER_AGENT = os.getenv(
 	"FRACTALTHORNS_USER_AGENT", "Fractal-RHOMB/{VERSION_SHORT}"

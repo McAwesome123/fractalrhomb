@@ -805,7 +805,7 @@ def parse_arguments() -> None:
 	)
 
 	if args.log_to_file:
-		log_file_name = getenv("LOG_FILE_NAME", "discord.log")
+		log_file_name = getenv("LOG_FILE_NAME", "bot_logs/discord.log")
 		log_file_when = getenv("LOG_FILE_WHEN", "midnight")
 		log_file_interval = getenv("LOG_FILE_INTERVAL", "1")
 		log_file_backup_count = getenv("LOG_FILE_BACKUP_COUNT", "7")
@@ -816,8 +816,12 @@ def parse_arguments() -> None:
 		log_file_utc = "Z" in log_file_at_time
 		log_file_at_time = dt.time.fromisoformat(log_file_at_time)
 
+		log_file_path = Path(log_file_name)
+		log_file_path = log_file_path.resolve()
+		log_file_path.parent.mkdir(parents=True, exist_ok=True)
+
 		log_file_handler = logging.handlers.TimedRotatingFileHandler(
-			filename=log_file_name,
+			filename=log_file_path,
 			when=log_file_when,
 			interval=log_file_interval,
 			backupCount=log_file_backup_count,
