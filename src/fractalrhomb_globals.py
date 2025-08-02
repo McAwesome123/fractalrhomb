@@ -53,9 +53,9 @@ NO_ITEMS_MATCH_SEARCH = "no items match the requested parameters"
 INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE = 40094
 
 # The full version number including anything extra.
-FRACTALRHOMB_VERSION_FULL = "0.10.0"
+FRACTALRHOMB_VERSION_FULL = "0.10.1"
 # Version number with only Major, Minor, and Patch version.
-FRACTALRHOMB_VERSION_LONG = "0.10.0"
+FRACTALRHOMB_VERSION_LONG = "0.10.1"
 # Verison number with only Major and Minor version.
 FRACTALRHOMB_VERSION_SHORT = "0.10"
 
@@ -413,7 +413,7 @@ async def send_message(
 
 	message = message.strip()
 
-	if len(message) < 1:
+	if len(message) < 1 and file is None:
 		message = "an error occurred: command attempted to send an empty message"
 		fractalrhomb_logger.error(
 			"Command attempted to send an empty message", stack_info=True
