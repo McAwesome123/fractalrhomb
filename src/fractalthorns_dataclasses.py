@@ -578,7 +578,7 @@ class Record:
 		---------
 		record_link -- The link to the record.
 		obj -- The object to create a Record from.
-		(Expected: single_record or an item from ["records"] from full_episodic.
+		(Expected: single_record or an item from full_episodic["chapters"]["records].
 		single_record and full_episodic need to be converted from json first.)
 		"""
 		return Record(
@@ -1311,3 +1311,109 @@ class MatchResult:
 			results_join_list.append(f"{record_text}")
 
 		return "\n".join(results_join_list)
+
+
+@dataclass
+class Splash:
+	"""Data class containing a splash."""
+
+	text: str | None
+	ordinal: int | None
+
+	type SplashType = dict[str, str | int]
+
+	@staticmethod
+	def from_obj(obj: SplashType) -> "Splash":
+		"""Create a Splash from an object.
+
+		Argument: obj -- The object to create a Splash from.
+		(Expected: current_splash["splash"] or an item from paged_splashes["splashes"].
+		current_splash and all_news need to be converted from json first.)
+		"""
+		if obj is None:
+			return Splash(None, None)
+
+		if obj.get("splash") is not None:
+			obj = obj["splash"]
+
+		return Splash(
+			obj.get("text"),
+			obj.get("ordinal"),
+		)
+
+	def __str__(self) -> str:
+		"""Return the class' contents, separated by newlines."""
+		str_list = []
+
+		str_list.extend(
+			(
+				f"text: {self.text}",
+				f"ordinal: {self.ordinal}",
+			)
+		)
+
+		return "\n".join(str_list)
+
+	def format(self, *, include_ordinal: bool = True) -> str:
+		"""Return a string with discord formatting.
+
+		Keyword Argument: include_ordinal -- Include the ordinal in the string (default: True)
+		"""
+		if self.text is None:
+			return "...then there was silence"
+
+		text = self.text
+		text = re.sub(r"([`~#*()\-_=\[\]<>\\])", r"\\\1", text)
+		text = text.replace("\n", "\n> ")
+
+		if include_ordinal and self.ordinal is not None:
+			return f"> {self.ordinal}\\. {text}"
+
+		return f"> {text}"
+
+
+@dataclass
+class SplashPage:
+	"""Data class containing a splash page."""
+
+	splashes: list[Splash]
+	page: int
+
+	type SplashPageType = dict[str, list[Splash.SplashType] | int]
+
+	@staticmethod
+	def from_obj(obj: SplashPageType) -> "SplashPage":
+		"""Create a SplashPage from an object.
+
+		Argument: obj -- The object to create a SplashPage from.
+		(Expected: paged_splashes, converted from json.)
+		"""
+		splashes = [Splash.from_obj(i) for i in obj["splashes"]]
+
+		return SplashPage(
+			splashes,
+			obj["page"],
+		)
+
+	def __str__(self) -> str:
+		"""Return the class' contents, separated by newlines."""
+		str_list = []
+
+		str_list.extend(
+			(
+				f"splashes: {self.splashes}",
+				f"page: {self.page}",
+			)
+		)
+
+		return "\n".join(str_list)
+
+	def format(self, *, ignore_empty: bool = False) -> str:
+		"""Return a string with discord formatting."""
+		if len(self.splashes) < 1 and not ignore_empty:
+			return "the page is empty"
+
+		splash_page_join_list = [f"> ## page {self.page}"]
+		splash_page_join_list.extend(i.format() for i in self.splashes)
+
+		return "\n".join(splash_page_join_list)

@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Functionality
+
+#### Added
+
+- Support for splashes!
+  - This includes viewing the current splash, viewing a list of previously shown splashes, and submitting a new splash
+  - Submitting a splash requires that the bot has an API key. If it doesn't attempting to submit one will give an error message.
+  - When submitting a splash, you will be prompted to enter it in a separate modal window.
+  - The splash text is not shown to anyone but yourself. If the bot can send messages in the channel, it will simply say "splash submitted".
+
 ### Technical
+
+#### Added
+
+- Support for request types besides GET
+  - Trying to use an unknown request type will throw `src.fractalthorns_exceptions.UnknownRequestTypeError` when making the request
+- Support for splashes
+  - Submitting splashes requires an API key to be given through `SPLASH_API_KEY` in .env
 
 #### Changed
 
@@ -19,6 +36,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Logging to a non-existent directory will now create it instead of giving an error
 - Symlinks to the log file are now resolved before it is modified
 - Default log location is now `./bot_logs/discord.log`
+- Sketches now utilize the new single_sketch endpoint
+  - Various parts have been restructured to work with this
+  - This includes the cache, meaning that cached sketches will fail to load
+- Record and record text requests now technically support giving no arguments, but this is not currently used by the bot
+
+#### Fixed
+
+- Fixed slight oversight regarding logging in fractalthorns_api
+  - fractalthorns_api is no longer automatically instantiated in src.fractalthorns_api
+  - In this project, it is now being instantiated in main in fractalrhomb
+- Fixed oversight with caching images and sketches without a name argument
 
 ## [0.10.1] - 2025-07-30
 

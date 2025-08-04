@@ -1,0 +1,287 @@
+# Copyright (C) 2024 McAwesome (https://github.com/McAwesome123)
+# This script is licensed under the GNU Affero General Public License version 3 or later.
+# For more information, view the LICENSE file provided with this project
+# or visit: https://www.gnu.org/licenses/agpl-3.0.en.html
+
+# fractalthorns is a website created by Pierce Smith (https://github.com/pierce-smith1).
+# View it here: https://fractalthorns.com
+
+"""Splash cog for the bot."""
+
+import asyncio
+import datetime as dt
+import logging
+from math import ceil
+
+import aiohttp.client_exceptions as client_exc
+import discord
+from aiohttp.web import HTTPForbidden, HTTPTooManyRequests, HTTPUnauthorized
+
+import src.fractalrhomb_globals as frg
+import src.fractalthorns_dataclasses as ftd
+from src.fractalthorns_api import fractalthorns_api
+
+
+class Splash(discord.Cog):
+	"""Class defining the splash cog."""
+
+	def __init__(self, bot: discord.Bot) -> "Splash":
+		"""Initialize the cog."""
+		self.bot: discord.Bot = bot
+		self.logger = logging.getLogger("fractalrhomb.cogs.splash")
+
+	class SplashModal(discord.ui.Modal):
+		"""A modal for submitting a splash."""
+
+		def __init__(
+			self,
+			*args: tuple[discord.ui.InputText],
+			**kwargs: dict[str, str | float | None],
+		) -> None:
+			"""Initialize the modal."""
+			super().__init__(*args, title="Submit Splash", timeout=180.0, **kwargs)
+
+			self.splash_text = ""
+			self.add_item(
+				discord.ui.InputText(
+					label="Splash",
+					style=discord.InputTextStyle.short,
+					placeholder="Enter splash text",
+					min_length=1,
+					max_length=80,
+				)
+			)
+
+			self.submit_interaction: discord.Interaction | None = None
+
+		async def callback(self, interaction: discord.Interaction) -> None:
+			"""Set the submit interaction when the modal is submitted."""
+			self.submit_interaction = interaction
+
+	class ResendSplashView(discord.ui.View):
+		"""A view for resending the submitted splash."""
+
+		def __init__(self) -> "Splash.ResendSplashView":
+			"""Create a resend splash view."""
+			super().__init__(disable_on_timeout=True)
+			self.value = False
+
+		async def finish_callback(
+			self, button: discord.ui.Button, interaction: discord.Interaction
+		) -> None:
+			"""Finish a callback after pressing a button."""
+			button.style = discord.ButtonStyle.success
+
+			self.disable_all_items()
+			await interaction.response.edit_message(view=self)
+
+			self.stop()
+
+		@discord.ui.button(
+			emoji="📝", label="Send to DMs", style=discord.ButtonStyle.primary
+		)
+		async def confirm_button_callback(
+			self, button: discord.ui.Button, interaction: discord.Interaction
+		) -> None:
+			"""Give True if the button is clicked."""
+			self.value = True
+
+			await self.finish_callback(button, interaction)
+
+	splash_group: discord.SlashCommandGroup = discord.SlashCommandGroup(
+		"splash", "Fractalthorns splash commands"
+	)
+
+	@splash_group.command(name="view")
+	async def current_splash(self, ctx: discord.ApplicationContext) -> None:
+		"""Show the current splash."""
+		self.logger.info("Current splash command used")
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		try:
+			response = await fractalthorns_api.get_current_splash(frg.session)
+
+			response = response.format(include_ordinal=False)
+
+			await frg.send_message(ctx, response, "\n")
+
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CURRENT_SPLASH
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* (TimeoutError, client_exc.ClientError) as exc:
+			await frg.standard_exception_handler(
+				ctx, self.logger, exc, "Splash.current_splash"
+			)
+
+	@splash_group.command(name="page")
+	@discord.option(
+		"page",
+		int,
+		description="Which page to view (1 is newest)",
+	)
+	async def paged_splashes(self, ctx: discord.ApplicationContext, page: int) -> None:
+		"""Show a page of splashes."""
+		self.logger.info("Paged splashes command used (page=%s)", page)
+
+		if not await frg.bot_channel_warning(ctx):
+			return
+
+		try:
+			response = await fractalthorns_api.get_paged_splashes(frg.session, page)
+
+			response = response.format()
+			responses = frg.split_message([response], "")
+
+			if not await frg.message_length_warning(ctx, responses, 1000):
+				return
+
+			ping_user = True
+			for i in responses:
+				if not await frg.send_message(ctx, i, "\n", ping_user=ping_user):
+					break
+				ping_user = False
+
+			tasks = set()
+			async with asyncio.TaskGroup() as tg:
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.SPLASH_PAGES
+					)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+		except* (TimeoutError, client_exc.ClientError) as exc:
+			await frg.standard_exception_handler(
+				ctx, self.logger, exc, "Splash.paged_splashes"
+			)
+
+	@splash_group.command(
+		name="submit", description="Submit a splash to fractalthorns (24h cooldown)."
+	)
+	async def submit_splash(self, ctx: discord.ApplicationContext) -> None:
+		"""Submit a splash to fractalthorns."""
+		self.logger.info("Submit splash command used")
+
+		splash_modal = self.SplashModal()
+		await ctx.send_modal(splash_modal)
+
+		if not await splash_modal.wait():
+			await ctx.respond("splash submission cancelled", ephemeral=True)
+			return
+
+		splash_text = splash_modal.children[0].value
+		splash_interaction = splash_modal.submit_interaction
+		splash = ftd.Splash(splash_text, None)
+
+		if splash_interaction is None:
+			await ctx.respond("splash submission cancelled (timed out)", ephemeral=True)
+			return
+
+		user_name = ctx.author.global_name
+		user_id = str(ctx.author.id)
+
+		try:
+			try:
+				await fractalthorns_api.post_submit_discord_splash(
+					frg.session, splash_text, user_name, user_id
+				)
+
+			except* client_exc.ClientResponseError as exc:
+				max_loop = 1000
+
+				while isinstance(exc, ExceptionGroup):
+					max_loop -= 1
+					if max_loop < 0:
+						self.logger.warning(
+							"Loop running for too long.", stack_info=True
+						)
+						break
+
+					exc = exc.exceptions[0]
+
+				if isinstance(exc, client_exc.ClientResponseError):
+					if exc.status == HTTPTooManyRequests.status_code:
+						retry_after = float(exc.headers["Retry-After"])
+						time = dt.datetime.now(dt.UTC).timestamp()
+						retry_time = ceil(time + retry_after)
+
+						try:
+							await ctx.send(
+								f"you're sending splashes too quickly. try again <t:{retry_time}:R>"
+							)
+						except discord.errors.Forbidden:
+							await ctx.respond(
+								f"you're sending splashes too quickly. try again <t:{retry_time}:R>",
+								ephemeral=True,
+							)
+					elif exc.status == HTTPUnauthorized.status_code:
+						try:
+							await ctx.send(
+								"cannot submit a splash. bot is missing an api key"
+							)
+						except discord.errors.Forbidden:
+							await ctx.respond(
+								"cannot submit a splash. bot is missing an api key",
+								ephemeral=True,
+							)
+					elif exc.status == HTTPForbidden.status_code:
+						try:
+							await ctx.send(
+								"cannot submit a splash. bot has an invalid api key"
+							)
+						except discord.errors.Forbidden:
+							await ctx.respond(
+								"cannot submit a splash. bot has an invalid api key",
+								ephemeral=True,
+							)
+					else:
+						raise
+				else:
+					raise
+
+				await splash_interaction.respond(
+					f"could not submit splash:\n{splash.format()}", ephemeral=True
+				)
+
+			else:
+				try:
+					await ctx.send("splash submitted")
+				except discord.errors.Forbidden:
+					await ctx.respond("splash submitted", ephemeral=True)
+
+				resend_splash = self.ResendSplashView()
+				await splash_interaction.respond(
+					f"splash submitted:\n{splash.format()}",
+					view=resend_splash,
+					ephemeral=True,
+				)
+
+				await resend_splash.wait()
+				if resend_splash.value:
+					await ctx.author.send(f"splash submitted:\n{splash.format()}")
+
+		except* (TimeoutError, client_exc.ClientError) as exc:
+			await splash_interaction.respond(
+				f"could not submit splash:\n{splash.format()}", ephemeral=True
+			)
+			await frg.standard_exception_handler(
+				ctx,
+				self.logger,
+				exc,
+				"Splash.submit_splash",
+			)
+
+
+def setup(bot: discord.Bot) -> None:
+	"""Set up the cog."""
+	bot.add_cog(Splash(bot))
