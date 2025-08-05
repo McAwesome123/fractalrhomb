@@ -10,6 +10,7 @@
 
 import json
 from dataclasses import dataclass
+from typing import Literal
 
 import aiohttp
 
@@ -30,10 +31,12 @@ class Request:
 
 	__endpoint_url -- The API endpoint
 	__request_arguments -- List of allowed arguments
+	__request_type -- The type of request
 	"""
 
 	__endpoint_url: str
 	__request_arguments: list[RequestArgument] | None
+	__request_type: Literal["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
 
 	async def make_request(
 		self,
@@ -44,7 +47,7 @@ class Request:
 		strictly_match_request_arguments: bool = True,
 		headers: dict[str, str] | None = None,
 	) -> aiohttp.client._RequestContextManager:
-		"""Make a GET request to the predefined endpoint and return the response.
+		"""Make a request of a predefined type to the predefined endpoint and return the response.
 
 		Arguments:
 		---------
@@ -81,28 +84,57 @@ class Request:
 		if self.__request_arguments is not None and request_payload is not None:
 			arguments = json.dumps(request_payload)
 
-		return session.get(
-			final_url, params={"body": arguments}, timeout=30.0, headers=headers
-		)
+		match self.__request_type.upper():
+			case "GET":
+				return session.get(
+					final_url, params={"body": arguments}, timeout=30.0, headers=headers
+				)
+			case "HEAD":
+				return session.head(
+					final_url, params={"body": arguments}, timeout=30.0, headers=headers
+				)
+			case "POST":
+				return session.post(
+					final_url, params={"body": arguments}, timeout=30.0, headers=headers
+				)
+			case "PUT":
+				return session.put(
+					final_url, params={"body": arguments}, timeout=30.0, headers=headers
+				)
+			case "DELETE":
+				return session.delete(
+					final_url, params={"body": arguments}, timeout=30.0, headers=headers
+				)
+			case "OPTIONS":
+				return session.options(
+					final_url, params={"body": arguments}, timeout=30.0, headers=headers
+				)
+			case "PATCH":
+				return session.patch(
+					final_url, params={"body": arguments}, timeout=30.0, headers=headers
+				)
+			case _:
+				msg = f"Unknown request type: {self.__request_type}."
+				raise fte.UnknownRequestTypeError(msg)
 
 	def __check_arguments(self, request_payload: dict[str, str] | None) -> None:
 		"""Raise a ParameterError if request_payload contains undefined arguments."""
 		if self.__request_arguments is None and request_payload is not None:
-			exc = (
+			msg = (
 				"Too many request arguments specified"
 				f"(expected: 0, got {len(request_payload)})."
 			)
-			raise fte.ParameterError(exc)
+			raise fte.ParameterError(msg)
 
 		if request_payload is not None:
 			for i in request_payload:
 				arguments = [i.name for i in self.__request_arguments]
 				if i not in arguments:
-					exc = (
+					msg = (
 						"Too many request arguments specified"
 						f"(expected: {len(arguments)}, got {len(request_payload)})."
 					)
-					raise fte.ParameterError(exc)
+					raise fte.ParameterError(msg)
 
 
 @dataclass(frozen=True)

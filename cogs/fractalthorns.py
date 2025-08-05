@@ -459,16 +459,16 @@ class Fractalthorns(discord.Cog):
 			)
 
 	@staticmethod
-	async def single_sketch_name(_: discord.AutocompleteContext) -> list[str]:
+	async def single_sketch_name(_: discord.AutocompleteContext) -> dict[str]:
 		"""Give available sketch names."""
 		sketches = fractalthorns_api.get_cached_items(
 			fractalthorns_api.CacheTypes.SKETCHES, ignore_stale=True
 		)
 
 		if sketches is None:
-			return []
+			return {}
 
-		return list(sketches[0].keys())
+		return list(sketches.keys())
 
 	@staticmethod
 	async def single_sketch_show(ctx: discord.AutocompleteContext) -> list[str]:
@@ -652,6 +652,14 @@ class Fractalthorns(discord.Cog):
 			async with asyncio.TaskGroup() as tg:
 				task = tg.create_task(
 					fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.SKETCHES)
+				)
+				tasks.add(task)
+				task.add_done_callback(tasks.discard)
+
+				task = tg.create_task(
+					fractalthorns_api.save_cache(
+						fractalthorns_api.CacheTypes.CACHE_METADATA
+					)
 				)
 				tasks.add(task)
 				task.add_done_callback(tasks.discard)
@@ -933,7 +941,7 @@ class Fractalthorns(discord.Cog):
 		"type",
 		str,
 		description="What type of search",
-		choices=["image", "episodic-item", "episodic-line"],
+		choices=["image", "sketch", "episodic-item", "episodic-line"],
 		parameter_name="type_",
 	)
 	@discord.option(

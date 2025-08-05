@@ -26,8 +26,9 @@ import discord.utils
 from dotenv import load_dotenv
 
 import src.fractalrhomb_globals as frg
+import src.fractalthorns_api as fta
 from src.fractalrhomb_globals import FRACTALRHOMB_VERSION_FULL, bot
-from src.fractalthorns_api import FractalthornsAPI, fractalthorns_api
+from src.fractalthorns_api import FractalthornsAPI
 from src.fractalthorns_dataclasses import NewsEntry
 from src.fractalthorns_exceptions import CachePurgeError
 
@@ -36,6 +37,8 @@ load_dotenv()
 discord_logger = logging.getLogger("discord")
 fractalrhomb_logger = logging.getLogger("fractalrhomb")
 root_logger = logging.getLogger()
+
+__supress_splash_warning = None
 
 
 @bot.event
@@ -267,7 +270,7 @@ async def purge(
 	cache = FractalthornsAPI.CacheTypes(cache)
 
 	if force:
-		fractalthorns_api.purge_cache(cache, force_purge=True)
+		fta.fractalthorns_api.purge_cache(cache, force_purge=True)
 
 		fractalrhomb_logger.info('"%s" force purged by %s.', cache.value, ctx.author.id)
 
@@ -288,7 +291,7 @@ async def purge(
 			await frg.send_message(ctx, response)
 			return
 	try:
-		fractalthorns_api.purge_cache(cache)
+		fta.fractalthorns_api.purge_cache(cache)
 
 	except CachePurgeError as exc:
 		if exc.allowed_time is not None:
@@ -327,7 +330,7 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 			}:
 				continue
 
-			fractalthorns_api.purge_cache(cache, force_purge=True)
+			fta.fractalthorns_api.purge_cache(cache, force_purge=True)
 
 		fractalrhomb_logger.info("All caches force purged by %s.", user)
 
@@ -358,7 +361,7 @@ async def purge_all(ctx: discord.ApplicationContext, *, force: bool) -> None:
 				continue
 
 		try:
-			fractalthorns_api.purge_cache(cache)
+			fta.fractalthorns_api.purge_cache(cache)
 		except CachePurgeError as exc:
 			if exc.allowed_time is not None:
 				cooldown.update({cache: exc.allowed_time.timestamp()})
@@ -615,10 +618,10 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 			return
 
 	try:
-		fractalthorns_api.purge_cache(
-			fractalthorns_api.CacheTypes.NEWS_ITEMS, force_purge=True
+		fta.fractalthorns_api.purge_cache(
+			fta.fractalthorns_api.CacheTypes.NEWS_ITEMS, force_purge=True
 		)
-		news = await fractalthorns_api.get_all_news(frg.session)
+		news = await fta.fractalthorns_api.get_all_news(frg.session)
 		news = news[0]
 
 		if test:
@@ -635,14 +638,16 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 		tasks = set()
 		async with asyncio.TaskGroup() as tg:
 			task = tg.create_task(
-				fractalthorns_api.save_cache(fractalthorns_api.CacheTypes.NEWS_ITEMS)
+				fta.fractalthorns_api.save_cache(
+					fta.fractalthorns_api.CacheTypes.NEWS_ITEMS
+				)
 			)
 			tasks.add(task)
 			task.add_done_callback(tasks.discard)
 
 			task = tg.create_task(
-				fractalthorns_api.save_cache(
-					fractalthorns_api.CacheTypes.CACHE_METADATA
+				fta.fractalthorns_api.save_cache(
+					fta.fractalthorns_api.CacheTypes.CACHE_METADATA
 				)
 			)
 			tasks.add(task)
@@ -759,6 +764,11 @@ def parse_arguments() -> None:
 		help="set a log level for logging messages to file. does nothing if used with --no-log-file. if not set, logs everything.",
 		default="notset",
 	)
+	parser.add_argument(
+		"--supress-splash-warning",
+		action="store_true",
+		help="supress the warning when a splash api key is not provided",
+	)
 	args = parser.parse_args()
 
 	if args.verbose:
@@ -805,7 +815,7 @@ def parse_arguments() -> None:
 	)
 
 	if args.log_to_file:
-		log_file_name = getenv("LOG_FILE_NAME", "discord.log")
+		log_file_name = getenv("LOG_FILE_NAME", "bot_logs/discord.log")
 		log_file_when = getenv("LOG_FILE_WHEN", "midnight")
 		log_file_interval = getenv("LOG_FILE_INTERVAL", "1")
 		log_file_backup_count = getenv("LOG_FILE_BACKUP_COUNT", "7")
@@ -816,8 +826,12 @@ def parse_arguments() -> None:
 		log_file_utc = "Z" in log_file_at_time
 		log_file_at_time = dt.time.fromisoformat(log_file_at_time)
 
+		log_file_path = Path(log_file_name)
+		log_file_path = log_file_path.resolve()
+		log_file_path.parent.mkdir(parents=True, exist_ok=True)
+
 		log_file_handler = logging.handlers.TimedRotatingFileHandler(
-			filename=log_file_name,
+			filename=log_file_path,
 			when=log_file_when,
 			interval=log_file_interval,
 			backupCount=log_file_backup_count,
@@ -837,10 +851,14 @@ def parse_arguments() -> None:
 		log_stream_handler.setLevel(args.console_log_level.upper())
 		root_logger.addHandler(log_stream_handler)
 
+	__supress_splash_warning = args.supress_splash_warning
+
 
 async def main() -> None:
 	"""Do main."""
 	parse_arguments()
+
+	fta.fractalthorns_api = FractalthornsAPI()
 
 	try:
 		await frg.bot_data.load(frg.BOT_DATA_PATH)
@@ -863,6 +881,12 @@ async def main() -> None:
 			or Path("aetol/word_dictionary.tsv").exists()
 		):
 			bot.load_extension("cogs.aetol")
+
+		bot.load_extension("cogs.splash")
+		if getenv("SPLASH_API_KEY") is None and not __supress_splash_warning:
+			fractalrhomb_logger.warning(
+				"Missing splash API key, submit splash command will not work."
+			)
 
 		token = getenv("DISCORD_BOT_TOKEN")
 		async with bot:

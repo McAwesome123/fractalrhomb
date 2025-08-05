@@ -9,46 +9,131 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.11.0] - 2025-08-05
+
+### Functionality
+
+#### Added
+
+- Support for splashes!
+  - This includes viewing the current splash, viewing a list of previously shown splashes, and submitting a new splash
+  - Submitting a splash requires that the bot has an API key. If it doesn't, attempting to submit one will give an error message.
+  - When submitting a splash, the splash text is not shown to anyone but yourself. If the bot can send messages in the channel, it will simply say "splash submitted".
+
+#### Changed
+
+- Domain search can now be used for sketches
+
+### Technical
+
+#### Added
+
+- Support for request types besides GET
+  - Trying to use an unknown request type will throw `src.fractalthorns_exceptions.UnknownRequestTypeError` when making the request
+- Splash submission
+  - This requires an API key to be given through `SPLASH_API_KEY` in .env
+
+#### Changed
+
+- Split changelog into functionality and technical sections
+  - This is a retroactive change and includes previous versions mentioned in the changelog
+  - Functionality refers mainly to changes the end user is likely to encounter
+  - Technical refers mainly to changes that may affect a bot admin, but are unlikely to concern a typical end user
+- Added missing dependencies to requirements.txt
+- Logging to a non-existent directory will now create it instead of giving an error
+- Symlinks to the log file are now resolved before it is modified
+- Default log location is now `./bot_logs/discord.log`
+- Sketches now utilize the new single_sketch endpoint
+  - Various parts have been restructured to work with this
+  - This includes the cache, meaning that cached sketches will fail to load
+- Record and record text requests now technically support giving no arguments, but this is not currently used by the bot
+
+#### Fixed
+
+- Fixed slight oversight regarding logging in fractalthorns_api
+  - fractalthorns_api is no longer automatically instantiated in src.fractalthorns_api
+  - In this project, it is now being instantiated in main in fractalrhomb
+- Fixed oversight with caching images and sketches without a name argument
+
 ## [0.10.1] - 2025-07-30
 
-### Fixed
+### Functionality
+
+#### Fixed
+
 - Image commands no longer trigger empty message errors despite sending an image
+
+### Technical
+
+#### Security
+
+- Updated dependencies in requirements file (most notably aiohttp)
 
 ## [0.10.0] - 2025-06-01
 
-### Added
+### Functionality
+
+#### Added
+
 - Records can now show linked puzzles
   - Old caches may fail to load as a result; this is not an issue.
 - Unsolved records link to linked puzzles or the discovery page by default
 
-### Changed
+#### Changed
+
 - `/chapter` now requires specifying a chapter
   - You can still put in "(latest)" to get the latest chapter
 - Unsolved records now show their title (website API change)
 - Text changed in a few commands
 
-### Removed
+### Technical
+
+#### Removed
+
 - SSE support (this is a fractalthorns change)
 
 ## [0.9.2] - 2024-05-12
 
-### Changed
+### Functionality
+
+#### Changed
+
 - Reduced most cache times and cooldowns
 
-### Fixed
+#### Fixed
+
 - Requesting a chapter that doesn't exist now gives an explanation rather than having the interaction fail
+
+### Technical
+
+#### Fixed
+
 - Unhandled command exceptions should now be logged properly
 - Added error handling for a command attempting to send an empty message
 
 ## [0.9.1] - 2024-05-11
 
-### Changed
+### Technical
+
+#### Changed
+
 - Record name can no longer be None (API change)
 - Record formatting now checks for None rather than the record being solved
 
 ## [0.9.0] - 2024-05-03
 
-### Added
+### Functionality
+
+#### Changed
+
+- Images and sketches now require entering a name
+  - This is so the argument is auto selected when using the command, meaning you can just enter the name
+  - The latest image or sketch can still be obtained by putting in "(latest)" or "." as the name
+
+### Technical
+
+#### Added
+
 - Some scripts for starting the bot (don't worry, you can still make your own)
   - Any command line arguments given to the provided script will be passed to the bot
   - Note for making your own script: the logging library will create log files in the **current working directory** (which may not be the same as where the script is located)
@@ -67,7 +152,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An admin command to manually make a news post to news channels
 - Logging for if an exception kills the bot
 
-### Changed
+#### Changed
+
 - Logs for bot functions now use a "fractalrhomb" logger instead of the "discord" logger
   - Log level for the "discord" logger is now controlled with `--discord-verbose`/`-dv`, `--discord-more-verbose`/`-dvv`, and `--discord-log-level`
   - Log level for the "fractalrhomb" logger is controlled with `--bot-verbose`/`-bv`, `--bot-more-verbose`/`-bvv`, and `--bot-log-level`
@@ -76,13 +162,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bash scripts now use `python` instead of `python3`
   - I'm not a Linux user, so this may or may not break things. But if you are a Linux user, you should be able to fix them
 - Limited `/restart-notification-listener` to bot dms
-- Images and sketches now require entering a name
-  - This is so the argument is auto selected when using the command, meaning you can just enter the name
-  - The latest image or sketch can still be obtained by putting in "(latest)" or "." as the name
 - Default user agent is now `fractalrhomb/{VERSION_SHORT}`
 - Slightly increased name consistency
 
-### Fixed
+#### Fixed
+
 - Notifications listener should no longer get stuck waiting to reconnect for absurd amounts of time
 - Several fixes regarding the restarting the notifications listener:
   - Will now force it out of waiting when trying to reconnect
@@ -94,24 +178,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.0] - 2024-12-01
 
-### Added
+### Functionality
+
+#### Added
 
 - An info command for Aetol
-- Changing the status now saves it
 - The ability for the bot to work when user installed
 
-### Changed
+### Technical
+
+#### Added
+
+- Changing the status now saves it
+
+#### Changed
 
 - All the `if not ctx.response.is_done(): ... else: ...` message sends are now handled by a dedicated function instead of copy pasting the same code everywhere
   - This function also handles user installs because they cannot use `ctx.send()`
 
-### Security
+#### Security
 
 - Updated dependencies in requirements file (most notably aiohttp)
 
 ## [0.7.0] - 2024-09-29
 
-### Added
+### Functionality
+
+#### Added
+- Commands relating to aetol if an aetol dictionary is found
+  - Particles and words can be searched using `/aetol search`
+  - Idioms are displayed separately using `/aetol idioms`
+  - Alphabet can be displayed using `/aetol alphabet`
+
+#### Changed
+
+- Reworked bot channel commands to also work for other channel types (currently news)
+  - Command group renamed to `channel` (from `botchannel`)
+  - Subcommands renamed to `set`, `clear`, and `clearall` (from `add`, `remove`, and `removeall`)
+
+#### Fixed
+
+- Channel parameter description on /channel commands
+
+### Technical
+
+#### Added
 
 - aiohttp-sse-client2 (0.3.0) and RapidFuzz (3.10.0) as dependencies
   - RapidFuzz requires Visual C++ 2019 (:cvheadache:)
@@ -126,92 +237,116 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Expected word format: `name`, `meaning`, `as verb`, `as noun`, `formation`, `category`
     - Expected idiom format: `name`, `meaning`
     - Dictionaries not included at this time(?)
-  - Particles and words can be searched using `/aetol search`
-  - Idioms are displayed separately using `/aetol idioms`
-  - Alphabet can be displayed using `/aetol alphabet`
 - Bot admin command to save and reload bot data
 
-### Changed
-- Reworked bot channel commands to also work for other channel types (currently news)
-  - Command group renamed to `channel` (from `botchannel`)
-  - Subcommands renamed to `set`, `clear`, and `clearall` (from `add`, `remove`, and `removeall`)
+#### Changed
+
 - All "bot admin" or otherwise restricted commands now use the `BOT_ADMIN_USERS` environment variable
 - All mentions of the version are now sourced from `src.fractalrhomb_globals`
 - Default user agent now includes the short version
 - Bot data should be slightly easier to read
 
-### Fixed
-- Channel parameter description on /channel commands
+#### Fixed
+
 - Logging now has proper formatting rather than using f-strings
 
 ## [0.6.2] - 2024-09-22
 
-### Fixed
+### Functionality
+
+#### Fixed
 
 - Sketch links should now properly link to the sketches
 
 ## [0.6.1] - 2024-09-05
 
-### Fixed
+### Functionality
+
+#### Fixed
 
 - Description of `/search records` and `/search text`
 - Description of the `limit` parameter of `/search records` and `/search text`
 
 ## [0.6.0] - 2024-09-04
 
-### Added
+### Functionality
+
+#### Added
+- Commands for getting sketches
+- Commands for a random image, record, record line
+- Commands for searching images, records, record lines
+
+#### Changed
+
+- Increased required message length for warning for chapters
+- Purge commands are now a single command
+- Lowered cache duration and purge cooldown for full record contents
+
+#### Removed
+
+- "Taking too long" message for searches
+
+### Technical
+
+#### Added
 
 - API coroutines for getting sketches
 - API coroutine for searching images, records, record lines
 - `Sketch` and `MatchResult` dataclasses
 - `ItemsUngatheredError` and `SketchNotFoundError` exceptions
 - `format_text` to `RecordLine` (removes random whitespace)
-- Commands for getting sketches
-- Commands for a random image, record, record line
-- Commands for searching images, records, record lines
 
-### Changed
+#### Changed
 
-- Increased required message length for warning for chapters
-- Purge commands are now a single command
-- Lowered cache duration and purge cooldown for full record contents
 - Renamed `NSIRP_EMOJIS` to `NSIRP_EMOJI`
 
-### Removed
-
-- "Taking too long" message for searches
-
-### Fixed
+#### Fixed
 
 - Image contents cache not being saved
 
 ## [0.5.0] - 2024-08-28
 
-### Added
+### Functionality
+
+#### Added
+
+- Image and record related requests now include links to the images and records
+
+#### Fixed
+
+- Setting the `image` parameter to `none` for `/image` no longer gives an exception
+
+### Technical
+
+#### Added
 
 - Image and record related requests now include links to the images and records
   - Those will need to be passed as a parameter to `from_obj()`
   - Deleting `.apicache` is recommended as the old cache will cause errors when loading.
 
-### Changed
+#### Changed
 
 - Emojis are now used through environment variables (because they won't be the same for every bot)
 - `from_obj()` methods no longer require adding arbitrary keys to the objects; those keys have been turned into parameters for `from_obj()`
 
-### Fixed
-
-- Setting the `image` parameter to `none` for `/image` no longer gives an exception
-
 ## [0.4.0] - 2024-08-27
 
-### Added
+### Functionality
+
+#### Added
+- Discord status
+
+### Technical
+
+#### Added
 
 - A few private commands (-say, -status)
-- Discord status
 
 ## [0.3.1] - 2024-08-17
 
-### Fixed
+### Technical
+
+#### Fixed
 
 - The bot should no longer make a very high amount of concurrent requests, leading the server to think it's getting DDOSed (limited concurrent connections to 6 per host)
 - The bot's standard exception handler should now work with exception groups correctly
@@ -219,20 +354,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2024-08-17
 
-### Added
+### Functional
+
+#### Changed
+
+- Search results are now grouped by records
+
+#### Fixed
+
+- Domain search results should no longer spit out entire records for a single search result.
+
+### Technical
+
+#### Added
 
 - Logging for the fractalthorns API handler (mostly info logs regarding cache access (not part of the discord logger; require `-rv` to be logged))
 - `FractalthornsAPI.save_all_caches()` method
 - Some protection against redundant cache saves
 
-### Changed
+#### Changed
 
 - File IO is now done with Aiofiles
 - Requests are now done with Aiohttp
 - All related functions (and some others) are now async and must be awaited
 - All functions that make requests now expect an aiohttp.ClientSession as the first parameter and return an async request context manager
 - `FractalthornsAPI.get_cached_items()` now returns a direct copy of the cache with an added expiry time rather than just the stored items
-- Search results can now be grouped by records
 - API cache save and load are no longer private methods
 - Saving cache to disk is no longer the API handler's responsibility (to avoid saving to disk 50 times for one request)
 - Functions that use API should call `FractalthornsAPI.save_cache()` for the respective cache(s)
@@ -240,32 +386,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Timeout for requests increased to 30s (to prevent high amounts of parallel async requests from timing out)
 - Cache folder renamed to `.apicache` (from `__apicache__`)
 
-### Removed
+#### Removed
 
 - Requests (2.32.3) dependency
 
-### Fixed
-
-- Domain search results should no longer spit out entire records for a single search result.
+#### Fixed
 - Root logger should now log properly
 
-### Security
+#### Security
 
 - Updated `aiohttp` to 3.10.3
 
 ## [0.2.0] - 2024-08-13
 
-### Added
+### Functionality
+
+#### Added
 
 - Discord bot functionality
   - Includes the following fractalthorns slash commands: /news, /image, /description, /all_images, /chapter, /record, /record_text, /domain_search
   - As well as some miscellaneous slash commands: /license, /purge, /botchannel
+
+#### Fixed
+
+- A few discord formatting issues
+
+### Technical
+
+#### Added
+
 - `DISCORD_BOT_TOKEN` to .env file (and setup)
 - Retrieving cached items (`FractalthornsAPI.get_cached_items()`)
 - A `CacheFetchError` if the above fails
 - Title to ImageDescription objects
 
-### Changed
+#### Changed
 
 - **Replaced Discord.py (2.4.0) with Py-cord (2.6.0)**
 - `NEWS_ITEMS` value is now `"news"` instead of `"news items"`
@@ -277,16 +432,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FractalthornsAPI.__get_all_images()` now purges the images cache
 - `FractalthornsAPI.__get_full_episodic()` now purges the chapters and records caches
 
-### Fixed
+#### Fixed
 
 - Return type hinting for `FractalthornsAPI.get_single_image()`
 - `FractalthornsAPI.__get_all_images()` no longer returns the `None` image
 - `NewsEntry.from_obj()` making items `None` if it doesn't exist
-- A few discord formatting issues
 
 ## [0.1.0] - 2024-07-31
 
-### Added
+### Technical
+
+#### Added
 
 - Setup file for Linux
 - This changelog
@@ -296,7 +452,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A persistent cache (this is mainly dev qol)
 - `primary_color` and `secondary_color` from `single_image`
 
-### Changed
+#### Changed
 
 - Moved .env out of src
 - Moved some parts of the readme to wiki

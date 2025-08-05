@@ -17,6 +17,7 @@ from copy import deepcopy
 from dataclasses import asdict
 from enum import Enum, StrEnum
 from io import BytesIO
+from os import getenv
 from pathlib import Path
 from typing import ClassVar, Literal
 
@@ -44,11 +45,15 @@ class FractalthornsAPI(API):
 		SINGLE_IMAGE = "single_image"
 		IMAGE_DESCRIPTION = "image_description"
 		ALL_IMAGES = "all_images"
+		SINGLE_SKETCH = "single_sketch"
 		ALL_SKETCHES = "all_sketches"
 		FULL_EPISODIC = "full_episodic"
 		SINGLE_RECORD = "single_record"
 		RECORD_TEXT = "record_text"
 		DOMAIN_SEARCH = "domain_search"
+		CURRENT_SPLASH = "current_splash"
+		PAGED_SPLASHES = "paged_splashes"
+		SUBMIT_DISCORD_SPLASH = "submit_discord_splash"
 
 	class InvalidPurgeReasons(StrEnum):
 		"""An enum containing reasons for not allowing a purge."""
@@ -69,6 +74,8 @@ class FractalthornsAPI(API):
 		RECORDS = "records"
 		RECORD_CONTENTS = "record contents"
 		SEARCH_RESULTS = "search results"
+		CURRENT_SPLASH = "current splash"
+		SPLASH_PAGES = "splash pages"
 		FULL_RECORD_CONTENTS = "full record contents"
 		FULL_IMAGE_DESCRIPTIONS = "full image descriptions"
 		CACHE_METADATA = "cache metadata"
@@ -77,32 +84,42 @@ class FractalthornsAPI(API):
 		"""Initialize the API handler."""
 		self.logger = logging.getLogger("fractalthorns_api")
 
-		all_news = Request(self.ValidRequests.ALL_NEWS.value, None)
+		all_news = Request(self.ValidRequests.ALL_NEWS.value, None, "GET")
 
 		single_image = Request(
 			self.ValidRequests.SINGLE_IMAGE.value,
 			[RequestArgument("name", optional=True)],
+			"GET",
 		)
 
 		image_description = Request(
 			self.ValidRequests.IMAGE_DESCRIPTION.value,
 			[RequestArgument("name", optional=False)],
+			"GET",
 		)
 
-		all_images = Request(self.ValidRequests.ALL_IMAGES.value, None)
+		all_images = Request(self.ValidRequests.ALL_IMAGES.value, None, "GET")
 
-		all_sketches = Request(self.ValidRequests.ALL_SKETCHES.value, None)
+		single_sketch = Request(
+			self.ValidRequests.SINGLE_SKETCH.value,
+			[RequestArgument("name", optional=True)],
+			"GET",
+		)
 
-		full_episodic = Request(self.ValidRequests.FULL_EPISODIC.value, None)
+		all_sketches = Request(self.ValidRequests.ALL_SKETCHES.value, None, "GET")
+
+		full_episodic = Request(self.ValidRequests.FULL_EPISODIC.value, None, "GET")
 
 		single_record = Request(
 			self.ValidRequests.SINGLE_RECORD.value,
-			[RequestArgument("name", optional=False)],
+			[RequestArgument("name", optional=True)],
+			"GET",
 		)
 
 		record_text = Request(
 			self.ValidRequests.RECORD_TEXT.value,
-			[RequestArgument("name", optional=False)],
+			[RequestArgument("name", optional=True)],
+			"GET",
 		)
 
 		domain_search = Request(
@@ -111,6 +128,25 @@ class FractalthornsAPI(API):
 				RequestArgument("term", optional=False),
 				RequestArgument("type", optional=False),
 			],
+			"GET",
+		)
+
+		current_splash = Request(self.ValidRequests.CURRENT_SPLASH.value, None, "GET")
+
+		paged_splashes = Request(
+			self.ValidRequests.PAGED_SPLASHES.value,
+			[RequestArgument("page", optional=False)],
+			"GET",
+		)
+
+		submit_discord_splash = Request(
+			self.ValidRequests.SUBMIT_DISCORD_SPLASH.value,
+			[
+				RequestArgument("text", optional=False),
+				RequestArgument("submitter_display_name", optional=False),
+				RequestArgument("submitter_user_id", optional=False),
+			],
+			"POST",
 		)
 
 		requests_list = {
@@ -118,13 +154,19 @@ class FractalthornsAPI(API):
 			self.ValidRequests.SINGLE_IMAGE.value: single_image,
 			self.ValidRequests.IMAGE_DESCRIPTION.value: image_description,
 			self.ValidRequests.ALL_IMAGES.value: all_images,
+			self.ValidRequests.SINGLE_SKETCH.value: single_sketch,
 			self.ValidRequests.ALL_SKETCHES.value: all_sketches,
 			self.ValidRequests.FULL_EPISODIC.value: full_episodic,
 			self.ValidRequests.SINGLE_RECORD.value: single_record,
 			self.ValidRequests.RECORD_TEXT.value: record_text,
 			self.ValidRequests.DOMAIN_SEARCH.value: domain_search,
+			self.ValidRequests.CURRENT_SPLASH.value: current_splash,
+			self.ValidRequests.PAGED_SPLASHES.value: paged_splashes,
+			self.ValidRequests.SUBMIT_DISCORD_SPLASH.value: submit_discord_splash,
 		}
 
+		# For testing purposes
+		# super().__init__("https://test.fractalthorns.com", "/api/v1/", requests_list)
 		super().__init__("https://fractalthorns.com", "/api/v1/", requests_list)
 		self.__BASE_IMAGE_URL = f"{self._base_url}/image/"
 		self.__BASE_SKETCH_URL = f"{self._base_url}/sketch/"
@@ -139,7 +181,7 @@ class FractalthornsAPI(API):
 		self.__cached_image_descriptions: dict[
 			str, tuple[ftd.ImageDescription, dt.datetime]
 		] = {}
-		self.__cached_sketches: tuple[dict[str, ftd.Sketch], dt.datetime] | None = None
+		self.__cached_sketches: dict[str, tuple[ftd.Sketch, dt.datetime]] = {}
 		self.__cached_sketch_contents: dict[
 			str, tuple[tuple[Image.Image, Image.Image], dt.datetime]
 		] = {}
@@ -153,9 +195,11 @@ class FractalthornsAPI(API):
 			],
 		] = {}
 		self.__cached_search_results: dict[
-			tuple[str, Literal["image", "episodic-item", "episodic-line"]],
+			tuple[str, Literal["image", "sketch", "episodic-item", "episodic-line"]],
 			tuple[list[ftd.SearchResult], dt.datetime],
 		] = {}
+		self.__cached_current_splash: tuple[ftd.Splash, dt.datetime] | None = None
+		self.__cached_splash_pages: dict[int, tuple[ftd.SplashPage, dt.datetime]] = {}
 		self.__cached_full_record_contents: (
 			tuple[dict[str, ftd.RecordText], dt.datetime] | None
 		) = None
@@ -163,12 +207,20 @@ class FractalthornsAPI(API):
 			tuple[dict[str, ftd.ImageDescription], dt.datetime] | None
 		) = None
 		self.__last_all_images_cache: dt.datetime | None = None
+		self.__last_all_sketches_cache: dt.datetime | None = None
 		self.__last_full_episodic_cache: dt.datetime | None = None
-		self.__last_cache_purge: dict[self.CacheTypes, dt.datetime] = {}
+		self.__last_cache_purge: dict[FractalthornsAPI.CacheTypes, dt.datetime] = {}
 
-		asyncio.run(self.load_all_caches())
+		try:
+			loop = asyncio.get_running_loop()
+			background_tasks = set()
+			task = loop.create_task(self.load_all_caches())
+			background_tasks.add(task)
+			task.add_done_callback(background_tasks.discard)
+		except RuntimeError:
+			asyncio.run(self.load_all_caches())
 
-		self.__cache_saved: dict[self.CacheTypes, bool] = dict.fromkeys(
+		self.__cache_saved: dict[FractalthornsAPI.CacheTypes, bool] = dict.fromkeys(
 			self.CacheTypes, True
 		)
 
@@ -183,6 +235,8 @@ class FractalthornsAPI(API):
 		CacheTypes.RECORDS: dt.timedelta(hours=4),
 		CacheTypes.RECORD_CONTENTS: dt.timedelta(hours=12),
 		CacheTypes.SEARCH_RESULTS: dt.timedelta(hours=4),
+		CacheTypes.CURRENT_SPLASH: dt.timedelta(minutes=5),
+		CacheTypes.SPLASH_PAGES: dt.timedelta(minutes=5),
 		CacheTypes.FULL_RECORD_CONTENTS: dt.timedelta(hours=24),
 		CacheTypes.FULL_IMAGE_DESCRIPTIONS: dt.timedelta(hours=24),
 	}
@@ -197,9 +251,14 @@ class FractalthornsAPI(API):
 		CacheTypes.RECORDS: dt.timedelta(minutes=20),
 		CacheTypes.RECORD_CONTENTS: dt.timedelta(minutes=60),
 		CacheTypes.SEARCH_RESULTS: dt.timedelta(minutes=20),
+		CacheTypes.CURRENT_SPLASH: dt.timedelta(minutes=5),
+		CacheTypes.SPLASH_PAGES: dt.timedelta(minutes=5),
 		CacheTypes.FULL_RECORD_CONTENTS: dt.timedelta(minutes=120),
 		CacheTypes.FULL_IMAGE_DESCRIPTIONS: dt.timedelta(minutes=120),
 	}
+
+	__SPLASH_API_KEY_HEADER = "X-Fractalthorns-Api-Key"
+	__SPLASH_API_KEY = getenv("SPLASH_API_KEY")
 
 	__REQUEST_TIMEOUT: float = 10.0
 	__DEFAULT_HEADERS: ClassVar[dict[str, str]] = {
@@ -223,6 +282,7 @@ class FractalthornsAPI(API):
 		*,
 		strictly_match_request_arguments: bool = True,
 		headers: dict[str, str] | None = None,
+		use_default_headers: bool = True,
 	) -> aiohttp.client._RequestContextManager:
 		"""Make a request at one of the predefined endpoints.
 
@@ -243,15 +303,19 @@ class FractalthornsAPI(API):
 		fractalthorns_exceptions.ParameterError (from Request.__check_arguments) -- Unexpected request argument
 		aiohttp.client_exceptions.ClientError (from Request._make_request) -- A client error occurred
 		"""
-		if headers is None:
-			headers = self.__DEFAULT_HEADERS
+		request_headers = {}
+		if use_default_headers:
+			request_headers = self.__DEFAULT_HEADERS
+
+		if headers is not None:
+			request_headers.update(headers)
 
 		return await super()._make_request(
 			session,
 			endpoint,
 			request_payload,
 			strictly_match_request_arguments=strictly_match_request_arguments,
-			headers=headers,
+			headers=request_headers,
 		)
 
 	def purge_cache(self, cache: CacheTypes, *, force_purge: bool = False) -> None:
@@ -296,6 +360,11 @@ class FractalthornsAPI(API):
 				self.__cached_image_contents = {}
 			case self.CacheTypes.IMAGE_DESCRIPTIONS:
 				self.__cached_image_descriptions = {}
+			case self.CacheTypes.SKETCHES:
+				self.__cached_images = {}
+				self.__last_all_sketches_cache = None
+			case self.CacheTypes.SKETCH_CONTENTS:
+				self.__cached_image_contents = {}
 			case self.CacheTypes.CHAPTERS:
 				self.__cached_chapters = None
 				self.__last_full_episodic_cache = None
@@ -305,6 +374,10 @@ class FractalthornsAPI(API):
 				self.__cached_record_contents = {}
 			case self.CacheTypes.SEARCH_RESULTS:
 				self.__cached_search_results = {}
+			case self.CacheTypes.CURRENT_SPLASH:
+				self.__cached_current_splash = None
+			case self.CacheTypes.SPLASH_PAGES:
+				self.__cached_splash_pages = {}
 			case self.CacheTypes.FULL_RECORD_CONTENTS:
 				self.__cached_full_record_contents = None
 			case self.CacheTypes.FULL_IMAGE_DESCRIPTIONS:
@@ -314,7 +387,7 @@ class FractalthornsAPI(API):
 					"Purge failed: %s", self.InvalidPurgeReasons.INVALID_CACHE.value
 				)
 
-				msg = f"{self.InvalidPurgeReasons.INVALID_CACHE.value}: {cache}"
+				msg = f"{self.InvalidPurgeReasons.INVALID_CACHE.value}: {cache.value}"
 				raise fte.CachePurgeError(msg)
 
 		self.__last_cache_purge.update({cache: dt.datetime.now(dt.UTC)})
@@ -328,14 +401,16 @@ class FractalthornsAPI(API):
 		| dict[str, tuple[ftd.Image, dt.datetime, dt.datetime]]
 		| dict[str, tuple[tuple[Image.Image, Image.Image], dt.datetime, dt.datetime]]
 		| dict[str, tuple[ftd.ImageDescription, dt.datetime, dt.datetime]]
-		| tuple[dict[str, ftd.Sketch], dt.datetime, dt.datetime]
+		| dict[str, tuple[ftd.Sketch, dt.datetime, dt.datetime]]
 		| tuple[dict[str, ftd.Chapter], dt.datetime, dt.datetime]
 		| dict[str, tuple[ftd.Record, dt.datetime, dt.datetime]]
 		| dict[str, tuple[ftd.RecordText, dt.datetime, dt.datetime]]
 		| dict[
-			tuple[str, Literal["image", "episodic-item", "episodic-line"]],
+			tuple[str, Literal["image", "sketch", "episodic-item", "episodic-line"]],
 			tuple[list[ftd.SearchResult], dt.datetime, dt.datetime],
 		]
+		| tuple[ftd.Splash, dt.datetime, dt.datetime]
+		| dict[int, tuple[ftd.SplashPage, dt.datetime, dt.datetime]]
 		| tuple[dict[str, ftd.RecordText], dt.datetime, dt.datetime]
 		| tuple[dict[str, ftd.ImageDescription], dt.datetime, dt.datetime]
 		| dict[
@@ -361,12 +436,14 @@ class FractalthornsAPI(API):
 		IMAGES -- {Name: (Image, Cache Time, Expiry Time)}
 		IMAGE_CONTENTS -- {Name: ((Main Image, Thumbnail), Cache Time, Expiry Time)}
 		IMAGE_DESCRIPTION -- {Name: (Description, Cache Time, Expiry Time)}
-		SKETCHES -- ({Name: Sketch}, Cache Time, Expiry Time) | None
+		SKETCHES -- {Name: (Sketch, Cache Time, Expiry Time)} | None
 		SKETCH_CONTENTS -- {Name: ((Main Image, Thumbnail), Cache Time, Expiry Time)}
 		CHAPTERS -- ({Name: Chapter}, Cache Time, Expiry Time) | None
 		RECORDS -- {Name: (Record, Cache Time, Expiry Time)}
 		RECORD_CONTENTS -- {Name: (Record Text, Cache Time, Expiry Time)}
 		SEARCH_RESULTS -- {(Search Term, Search Type): (Record, Cache Time, Expiry Time)}
+		CURRENT_SPLASH -- (Splash, Cache Time, Expiry Time) | None
+		PAGED_SPLASHES -- {Page: (Splash Page, Cache Time, Expiry Time)}
 		FULL_RECORD_CONTENTS -- ({Name: Record Texts}, Cache Time, Expiry Time) | None
 		FULL_IMAGE_DESCRIPTIONS -- ({Name: Description}, Cache Time, Expiry Time) | None
 		CACHE_METADATA -- {
@@ -417,6 +494,12 @@ class FractalthornsAPI(API):
 			case self.CacheTypes.SEARCH_RESULTS:
 				cached_items = deepcopy(self.__cached_search_results)
 
+			case self.CacheTypes.CURRENT_SPLASH:
+				cached_items = deepcopy(self.__cached_current_splash)
+
+			case self.CacheTypes.SPLASH_PAGES:
+				cached_items = deepcopy(self.__cached_splash_pages)
+
 			case self.CacheTypes.FULL_RECORD_CONTENTS:
 				cached_items = deepcopy(self.__cached_full_record_contents)
 
@@ -425,6 +508,7 @@ class FractalthornsAPI(API):
 
 			case self.CacheTypes.CACHE_METADATA:
 				last_full_images_cache = deepcopy(self.__last_all_images_cache)
+				last_full_sketches_cache = deepcopy(self.__last_all_sketches_cache)
 				last_full_episodic_cache = deepcopy(self.__last_full_episodic_cache)
 				last_cache_purge = deepcopy(self.__last_cache_purge)
 				cached_items = {
@@ -432,6 +516,11 @@ class FractalthornsAPI(API):
 						last_full_images_cache,
 						last_full_images_cache
 						+ self.__CACHE_DURATION[self.CacheTypes.IMAGES],
+					),
+					"last_all_sketches_cache": (
+						last_full_sketches_cache,
+						last_full_sketches_cache
+						+ self.__CACHE_DURATION[self.CacheTypes.SKETCHES],
 					),
 					"last_full_episodic_cache": (
 						last_full_episodic_cache,
@@ -453,8 +542,8 @@ class FractalthornsAPI(API):
 
 		if cache in {
 			self.CacheTypes.NEWS_ITEMS,
-			self.CacheTypes.SKETCHES,
 			self.CacheTypes.CHAPTERS,
+			self.CacheTypes.CURRENT_SPLASH,
 			self.CacheTypes.FULL_RECORD_CONTENTS,
 			self.CacheTypes.FULL_IMAGE_DESCRIPTIONS,
 		}:
@@ -470,10 +559,12 @@ class FractalthornsAPI(API):
 			self.CacheTypes.IMAGES,
 			self.CacheTypes.IMAGE_CONTENTS,
 			self.CacheTypes.IMAGE_DESCRIPTIONS,
+			self.CacheTypes.SKETCHES,
 			self.CacheTypes.SKETCH_CONTENTS,
 			self.CacheTypes.RECORDS,
 			self.CacheTypes.RECORD_CONTENTS,
 			self.CacheTypes.SEARCH_RESULTS,
+			self.CacheTypes.SPLASH_PAGES,
 		}:
 			for i, j in cached_items.items():
 				if not ignore_stale and now > j[1] + self.__CACHE_DURATION[cache]:
@@ -548,6 +639,25 @@ class FractalthornsAPI(API):
 		"""
 		return await self.__get_all_images(session)
 
+	async def get_single_sketch(
+		self, session: aiohttp.ClientSession, name: str | None = None
+	) -> tuple[ftd.Sketch, tuple[Image.Image, Image.Image]]:
+		"""Get all sketches from fractalthorns.
+
+		Arguments:
+		---------
+		session -- The session to use.
+
+		Raises:
+		------
+		aiohttp.client_exceptions.ClientError (from __get_all_sketches and __get_sketch_contents) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_all_sketches and __get_sketch_contents) -- A client error occurred
+		"""
+		sketch = await self.__get_single_sketch(session, name)
+		images = await self.__get_sketch_contents(session, name)
+
+		return (sketch, images)
+
 	async def get_all_sketches(
 		self, session: aiohttp.ClientSession
 	) -> list[ftd.Sketch]:
@@ -564,33 +674,6 @@ class FractalthornsAPI(API):
 		"""
 		sketches = await self.__get_all_sketches(session)
 		return list(sketches.values())
-
-	async def get_single_sketch(
-		self, session: aiohttp.ClientSession, name: str | None = None
-	) -> tuple[ftd.Sketch, tuple[Image.Image, Image.Image]]:
-		"""Get all sketches from fractalthorns.
-
-		Arguments:
-		---------
-		session -- The session to use.
-
-		Raises:
-		------
-		aiohttp.client_exceptions.ClientError (from __get_all_sketches and __get_sketch_contents) -- A client error occurred
-		aiohttp.client_exceptions.ClientResponseError (from __get_all_sketches and __get_sketch_contents) -- A client error occurred
-		"""
-		sketches = await self.__get_all_sketches(session)
-		if name is None:
-			sketch = next(iter(sketches.values()))
-			name = sketch.name
-		elif name in sketches:
-			sketch = sketches[name]
-		else:
-			raise fte.SketchNotFoundError
-
-		images = await self.__get_sketch_contents(session, name)
-
-		return (sketch, images)
 
 	async def get_full_episodic(
 		self, session: aiohttp.ClientSession
@@ -609,7 +692,7 @@ class FractalthornsAPI(API):
 		return await self.__get_full_episodic(session)
 
 	async def get_single_record(
-		self, session: aiohttp.ClientSession, name: str
+		self, session: aiohttp.ClientSession, name: str | None
 	) -> ftd.Record:
 		"""Get a record from fractalthorns.
 
@@ -626,7 +709,7 @@ class FractalthornsAPI(API):
 		return await self.__get_single_record(session, name)
 
 	async def get_record_text(
-		self, session: aiohttp.ClientSession, name: str
+		self, session: aiohttp.ClientSession, name: str | None
 	) -> ftd.RecordText:
 		"""Get the contents of a record from fractalthorns.
 
@@ -646,7 +729,7 @@ class FractalthornsAPI(API):
 		self,
 		session: aiohttp.ClientSession,
 		term: str,
-		type_: Literal["image", "episodic-item", "episodic-line"],
+		type_: Literal["image", "sketch", "episodic-item", "episodic-line"],
 	) -> list[ftd.SearchResult]:
 		"""Get domain search results from fractalthorns.
 
@@ -654,7 +737,7 @@ class FractalthornsAPI(API):
 		---------
 		session -- The session to use.
 		term -- The term to search for.
-		type_ -- Type of search (valid: "image", "episodic-item", "episodic-line").
+		type_ -- Type of search (valid: "image", "sketch", "episodic-item", "episodic-line").
 
 		Raises:
 		------
@@ -663,6 +746,65 @@ class FractalthornsAPI(API):
 		aiohttp.client_exceptions.ClientResponseError (from __get_domain_search) -- A client error occurred
 		"""
 		return await self.__get_domain_search(session, term, type_)
+
+	async def get_current_splash(
+		self,
+		session: aiohttp.ClientSession,
+	) -> ftd.Splash:
+		"""Get current splash from fractalthorns.
+
+		Arguments:
+		---------
+		session -- The session to use.
+
+		Raises:
+		------
+		aiohttp.client_exceptions.ClientError (from __get_domain_search) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_domain_search) -- A client error occurred
+		"""
+		return await self.__get_current_splash(session)
+
+	async def get_paged_splashes(
+		self, session: aiohttp.ClientSession, page: int
+	) -> ftd.SplashPage:
+		"""Get current splash from fractalthorns.
+
+		Arguments:
+		---------
+		session -- The session to use.
+		page -- The page of splashes to get.
+
+		Raises:
+		------
+		aiohttp.client_exceptions.ClientError (from __get_domain_search) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_domain_search) -- A client error occurred
+		"""
+		return await self.__get_paged_splashes(session, page)
+
+	async def post_submit_discord_splash(
+		self,
+		session: aiohttp.ClientSession,
+		text: str,
+		submitter_display_name: str,
+		submitter_user_id: str,
+	) -> list[ftd.SplashPage]:
+		"""Get current splash from fractalthorns.
+
+		Arguments:
+		---------
+		session -- The session to use.
+		text -- The splash text.
+		submitter_display_name -- The submitter's current discord display name.
+		submitter_user_id -- The submitter's user id.
+
+		Raises:
+		------
+		aiohttp.client_exceptions.ClientError (from __get_domain_search) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from __get_domain_search) -- A client error occurred
+		"""
+		return await self.__post_submit_discord_splash(
+			session, text, submitter_display_name, submitter_user_id
+		)
 
 	async def get_full_record_contents(
 		self,
@@ -1236,6 +1378,15 @@ class FractalthornsAPI(API):
 					)
 				}
 			)
+			if image is None:
+				self.__cached_image_contents.update(
+					{
+						self.__cached_images[image][0].name: (
+							(image_contents, image_thumbnail),
+							dt.datetime.now(dt.UTC),
+						)
+					}
+				)
 
 			self.__cache_saved[self.CacheTypes.IMAGE_CONTENTS] = False
 
@@ -1382,6 +1533,81 @@ class FractalthornsAPI(API):
 
 		return [j[0] for i, j in self.__cached_images.items() if i is not None]
 
+	async def __get_single_sketch(
+		self, session: aiohttp.ClientSession, sketch: str | None
+	) -> ftd.Sketch:
+		"""Get a single sketch.
+
+		Raises
+		------
+		aiohttp.client_exceptions.ClientError (from _make_request) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
+		"""
+		if (
+			sketch not in self.__cached_sketches
+			or dt.datetime.now(dt.UTC)
+			> self.__cached_sketches[sketch][1]
+			+ self.__CACHE_DURATION[self.CacheTypes.SKETCHES]
+		):
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SKETCHES.value,
+				sketch,
+				self.__STALE_CACHE_MESSAGE,
+			)
+
+			r = await self._make_request(
+				session, self.ValidRequests.SINGLE_SKETCH.value, {"name": sketch}
+			)
+			async with r as resp:
+				resp.raise_for_status()
+				sketch_metadata = json.loads(await resp.text())
+
+			sketch_metadata["image_url"] = (
+				f"{self._base_url}{sketch_metadata['image_url']}"
+			)
+			sketch_metadata["thumb_url"] = (
+				f"{self._base_url}{sketch_metadata['thumb_url']}"
+			)
+			sketch_link = f"{self.__BASE_SKETCH_URL}{sketch_metadata['name']}"
+
+			self.__cached_sketches.update(
+				{
+					sketch: (
+						ftd.Sketch.from_obj(sketch_link, sketch_metadata),
+						dt.datetime.now(dt.UTC),
+					)
+				}
+			)
+			if sketch is None:
+				self.__cached_sketches.update(
+					{
+						self.__cached_sketches[sketch][0].name: (
+							ftd.Sketch.from_obj(sketch_link, sketch_metadata),
+							dt.datetime.now(dt.UTC),
+						)
+					}
+				)
+
+			self.__cache_saved[self.CacheTypes.SKETCHES] = False
+
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SKETCHES.value,
+				sketch,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
+
+		else:
+			self.logger.info(
+				self.__ONE_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SKETCHES.value,
+				sketch,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
+
+		return self.__cached_sketches[sketch][0]
+
 	async def __get_all_sketches(
 		self, session: aiohttp.ClientSession
 	) -> dict[str, ftd.Sketch]:
@@ -1393,9 +1619,9 @@ class FractalthornsAPI(API):
 		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
 		"""
 		if (
-			self.__cached_sketches is None
+			self.__last_all_sketches_cache is None
 			or dt.datetime.now(dt.UTC)
-			> self.__cached_sketches[1]
+			> self.__last_all_sketches_cache
 			+ self.__CACHE_DURATION[self.CacheTypes.SKETCHES]
 		):
 			self.logger.info(
@@ -1411,17 +1637,28 @@ class FractalthornsAPI(API):
 				resp.raise_for_status()
 				sketches = json.loads(await resp.text())["sketches"]
 
-			sketches_dict = {}
+			cache_time = dt.datetime.now(dt.UTC)
+
+			self.purge_cache(self.CacheTypes.SKETCHES, force_purge=True)
 
 			for sketch in sketches:
 				sketch["image_url"] = f"{self._base_url}{sketch['image_url']}"
 				sketch["thumb_url"] = f"{self._base_url}{sketch['thumb_url']}"
 				sketch_link = f"{self.__BASE_SKETCH_URL}{sketch['name']}"
-				sketches_dict.update(
-					{sketch["name"]: ftd.Sketch.from_obj(sketch_link, sketch)}
+				self.__cached_sketches.update(
+					{
+						sketch["name"]: (
+							ftd.Sketch.from_obj(sketch_link, sketch),
+							cache_time,
+						)
+					}
 				)
 
-			self.__cached_sketches = (sketches_dict, dt.datetime.now(dt.UTC))
+			self.__cached_sketches.update(
+				{None: next(iter(self.__cached_sketches.values()))}
+			)
+
+			self.__last_all_sketches_cache = cache_time
 
 			self.__cache_saved[self.CacheTypes.SKETCHES] = False
 
@@ -1438,7 +1675,7 @@ class FractalthornsAPI(API):
 				self.__ALREADY_CACHED_MESSAGE,
 			)
 
-		return self.__cached_sketches[0]
+		return {i: j[0] for i, j in self.__cached_sketches.items()}
 
 	async def __get_sketch_contents(
 		self, session: aiohttp.ClientSession, sketch: str
@@ -1464,11 +1701,7 @@ class FractalthornsAPI(API):
 				self.__STALE_CACHE_MESSAGE,
 			)
 
-			sketch_metadata = await self.__get_all_sketches(session)
-			if sketch not in sketch_metadata:
-				raise fte.SketchNotFoundError
-
-			sketch_metadata = sketch_metadata[sketch]
+			sketch_metadata = await self.__get_single_sketch(session, sketch)
 
 			async with asyncio.TaskGroup() as tg:
 				image_req = tg.create_task(
@@ -1510,6 +1743,15 @@ class FractalthornsAPI(API):
 					)
 				}
 			)
+			if sketch is None:
+				self.__cached_sketch_contents.update(
+					{
+						self.__cached_sketches[sketch][0].name: (
+							(image_contents, image_thumbnail),
+							dt.datetime.now(dt.UTC),
+						)
+					}
+				)
 
 			self.__cache_saved[self.CacheTypes.SKETCH_CONTENTS] = False
 
@@ -1575,10 +1817,11 @@ class FractalthornsAPI(API):
 
 			for chapter in chapters.values():
 				for record in chapter.records:
-					if record.solved:
-						self.__cached_records.update(
-							{record.name: (record, cache_time)}
-						)
+					self.__cached_records.update({record.name: (record, cache_time)})
+
+			self.__cached_records.update(
+				{None: next(iter(self.__cached_records.values()))}
+			)
 
 			self.__last_full_episodic_cache = cache_time
 
@@ -1602,7 +1845,7 @@ class FractalthornsAPI(API):
 		return list(self.__cached_chapters[0].values())
 
 	async def __get_single_record(
-		self, session: aiohttp.ClientSession, name: str
+		self, session: aiohttp.ClientSession, name: str | None
 	) -> ftd.Record:
 		"""Get a single record.
 
@@ -1650,6 +1893,15 @@ class FractalthornsAPI(API):
 					)
 				}
 			)
+			if name is None:
+				self.__cached_records.update(
+					{
+						self.__cached_records[name][0].name: (
+							ftd.Record.from_obj(record_link, puzzle_links, record),
+							dt.datetime.now(dt.UTC),
+						)
+					}
+				)
 
 			self.__cache_saved[self.CacheTypes.RECORDS] = False
 
@@ -1671,7 +1923,7 @@ class FractalthornsAPI(API):
 		return self.__cached_records[name][0]
 
 	async def __get_record_text(
-		self, session: aiohttp.ClientSession, name: str
+		self, session: aiohttp.ClientSession, name: str | None
 	) -> ftd.RecordText:
 		"""Get a record's contents.
 
@@ -1712,6 +1964,17 @@ class FractalthornsAPI(API):
 					)
 				}
 			)
+			if name is None:
+				self.__cached_record_contents.update(
+					{
+						self.__cached_records[name][0].name: (
+							ftd.RecordText.from_obj(
+								record_title, record_link, record_contents
+							),
+							dt.datetime.now(dt.UTC),
+						)
+					}
+				)
 
 			self.__cache_saved[self.CacheTypes.RECORD_CONTENTS] = False
 
@@ -1736,7 +1999,7 @@ class FractalthornsAPI(API):
 		self,
 		session: aiohttp.ClientSession,
 		term: str,
-		type_: Literal["image", "episodic-item", "episodic-line"],
+		type_: Literal["image", "sketch", "episodic-item", "episodic-line"],
 	) -> list[ftd.SearchResult]:
 		"""Get a domain search.
 
@@ -1746,7 +2009,7 @@ class FractalthornsAPI(API):
 		aiohttp.client_exceptions.ClientError (from _make_request) -- A client error occurred
 		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
 		"""
-		if type_ not in {"image", "episodic-item", "episodic-line"}:
+		if type_ not in {"image", "sketch", "episodic-item", "episodic-line"}:
 			msg = "Invalid search type"
 			raise fte.InvalidSearchTypeError(msg)
 
@@ -1781,6 +2044,15 @@ class FractalthornsAPI(API):
 						i["image"]["thumb_url"] = (
 							f"{self._base_url}{i['image']['thumb_url']}"
 						)
+			elif type_ == "sketch":
+				for i in search_results:
+					if i.get("sketch") is not None:
+						i["sketch"]["image_url"] = (
+							f"{self._base_url}{i['sketch']['image_url']}"
+						)
+						i["sketch"]["thumb_url"] = (
+							f"{self._base_url}{i['sketch']['thumb_url']}"
+						)
 			elif type_ == "episodic-line":
 				record_text_tasks = []
 				async with asyncio.TaskGroup() as tg:
@@ -1804,6 +2076,7 @@ class FractalthornsAPI(API):
 						[
 							ftd.SearchResult.from_obj(
 								self.__BASE_IMAGE_URL,
+								self.__BASE_SKETCH_URL,
 								self.__BASE_RECORD_URL,
 								self.__BASE_DISCOVERY_URL,
 								i,
@@ -1836,6 +2109,145 @@ class FractalthornsAPI(API):
 			)
 
 		return self.__cached_search_results[term, type_][0]
+
+	async def __get_current_splash(
+		self,
+		session: aiohttp.ClientSession,
+	) -> ftd.Splash:
+		"""Get the current splash, if there is one.
+
+		Raises
+		------
+		aiohttp.client_exceptions.ClientError (from _make_request) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
+		"""
+		if (
+			self.__cached_current_splash is None
+			or dt.datetime.now(dt.UTC)
+			> self.__cached_current_splash[1]
+			+ self.__CACHE_DURATION[self.CacheTypes.CURRENT_SPLASH]
+		):
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.CURRENT_SPLASH.value,
+				self.__STALE_CACHE_MESSAGE,
+			)
+
+			r = await self._make_request(
+				session, self.ValidRequests.CURRENT_SPLASH.value, None
+			)
+			async with r as resp:
+				resp.raise_for_status()
+				current_splash = json.loads(await resp.text())
+
+			current_splash = ftd.Splash.from_obj(current_splash)
+
+			self.__cached_current_splash = (
+				current_splash,
+				dt.datetime.now(dt.UTC),
+			)
+
+			self.__cache_saved[self.CacheTypes.CURRENT_SPLASH] = False
+
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.CURRENT_SPLASH.value,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
+
+		else:
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.CURRENT_SPLASH.value,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
+
+		return self.__cached_current_splash[0]
+
+	async def __get_paged_splashes(
+		self,
+		session: aiohttp.ClientSession,
+		page: int,
+	) -> ftd.SplashPage:
+		"""Get the specified page of splashes.
+
+		Raises
+		------
+		aiohttp.client_exceptions.ClientError (from _make_request) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
+		"""
+		if (
+			page not in self.__cached_splash_pages
+			or dt.datetime.now(dt.UTC)
+			> self.__cached_splash_pages[page][1]
+			+ self.__CACHE_DURATION[self.CacheTypes.SPLASH_PAGES]
+		):
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SPLASH_PAGES.value,
+				self.__STALE_CACHE_MESSAGE,
+			)
+
+			r = await self._make_request(
+				session, self.ValidRequests.PAGED_SPLASHES.value, {"page": page}
+			)
+			async with r as resp:
+				resp.raise_for_status()
+				splash_page = json.loads(await resp.text())
+
+			splash_page = ftd.SplashPage.from_obj(splash_page)
+
+			self.__cached_splash_pages = {page: (splash_page, dt.datetime.now(dt.UTC))}
+
+			self.__cache_saved[self.CacheTypes.SPLASH_PAGES] = False
+
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SPLASH_PAGES.value,
+				self.__RENEWED_CACHE_MESSAGE,
+			)
+
+		else:
+			self.logger.info(
+				self.__NO_PARAMETER_CACHE_MESSAGE,
+				self.CacheTypes.SPLASH_PAGES.value,
+				self.__ALREADY_CACHED_MESSAGE,
+			)
+
+		return self.__cached_splash_pages[page][0]
+
+	async def __post_submit_discord_splash(
+		self,
+		session: aiohttp.ClientSession,
+		text: str,
+		submitter_display_name: str,
+		submitter_user_id: str,
+	) -> None:
+		"""Submit a discord splash.
+
+		Raises
+		------
+		aiohttp.client_exceptions.ClientError (from _make_request) -- A client error occurred
+		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
+		"""
+		self.logger.info('User %s is trying to submit a splash"', submitter_user_id)
+		self.logger.debug('Submitted splash: "%s"', text)
+
+		r = await self._make_request(
+			session,
+			self.ValidRequests.SUBMIT_DISCORD_SPLASH,
+			{
+				"text": text,
+				"submitter_display_name": submitter_display_name,
+				"submitter_user_id": submitter_user_id,
+			},
+			headers={self.__SPLASH_API_KEY_HEADER: self.__SPLASH_API_KEY},
+		)
+
+		async with r as resp:
+			resp.raise_for_status()
+
+		self.logger.info("splash submission successful")
 
 	async def __get_full_record_contents(
 		self, session: aiohttp.ClientSession, *, gather: bool | None = None
@@ -2111,13 +2523,13 @@ class FractalthornsAPI(API):
 						}
 						self.__cached_image_descriptions = cache_contents
 					case self.CacheTypes.SKETCHES:
-						cache_contents = (
-							{
-								i: ftd.Sketch.from_obj(j["sketch_link"], j)
-								for i, j in cache_contents[0].items()
-							},
-							dt.datetime.fromtimestamp(cache_contents[1], tz=dt.UTC),
-						)
+						cache_contents = {
+							(i if i != "__None__" else None): (
+								ftd.Sketch.from_obj(j[0]["sketch_link"], j[0]),
+								dt.datetime.fromtimestamp(j[1], tz=dt.UTC),
+							)
+							for i, j in cache_contents.items()
+						}
 						self.__cached_sketches = cache_contents
 					case self.CacheTypes.CHAPTERS:
 						cache_contents = (
@@ -2132,7 +2544,7 @@ class FractalthornsAPI(API):
 						self.__cached_chapters = cache_contents
 					case self.CacheTypes.RECORDS:
 						cache_contents = {
-							i: (
+							(i if i != "__None__" else None): (
 								ftd.Record.from_obj(
 									j[0]["record_link"], j[0]["puzzle_links"], j[0]
 								),
@@ -2143,7 +2555,7 @@ class FractalthornsAPI(API):
 						self.__cached_records = cache_contents
 					case self.CacheTypes.RECORD_CONTENTS:
 						cache_contents = {
-							i: (
+							(i if i != "__None__" else None): (
 								ftd.RecordText.from_obj(
 									j[0]["title"], j[0]["record_link"], j[0]
 								),
@@ -2158,6 +2570,7 @@ class FractalthornsAPI(API):
 								[
 									ftd.SearchResult.from_obj(
 										self.__BASE_IMAGE_URL,
+										self.__BASE_SKETCH_URL,
 										self.__BASE_RECORD_URL,
 										self.__BASE_DISCOVERY_URL,
 										k,
@@ -2169,6 +2582,21 @@ class FractalthornsAPI(API):
 							for i, j in cache_contents.items()
 						}
 						self.__cached_search_results = cache_contents
+					case self.CacheTypes.CURRENT_SPLASH:
+						cache_contents = (
+							ftd.Splash.from_obj(cache_contents[0]),
+							dt.datetime.fromtimestamp(cache_contents[1], tz=dt.UTC),
+						)
+						self.__cached_current_splash = cache_contents
+					case self.CacheTypes.SPLASH_PAGES:
+						cache_contents = {
+							int(i): (
+								ftd.SplashPage.from_obj(j[0]),
+								dt.datetime.fromtimestamp(j[1], tz=dt.UTC),
+							)
+							for i, j in cache_contents.items()
+						}
+						self.__cached_splash_pages = cache_contents
 					case self.CacheTypes.FULL_RECORD_CONTENTS:
 						cache_contents = (
 							{
@@ -2195,6 +2623,9 @@ class FractalthornsAPI(API):
 						self.__last_all_images_cache = cache_contents.get(
 							"__last_all_images_cache"
 						)
+						self.__last_all_sketches_cache = cache_contents.get(
+							"__last_all_sketches_cache"
+						)
 						self.__last_full_episodic_cache = cache_contents.get(
 							"__last_full_episodic_cache"
 						)
@@ -2206,6 +2637,10 @@ class FractalthornsAPI(API):
 							self.__last_all_images_cache = dt.datetime.fromtimestamp(
 								self.__last_all_images_cache, tz=dt.UTC
 							)
+						if self.__last_all_sketches_cache is not None:
+							self.__last_all_sketches_cache = dt.datetime.fromtimestamp(
+								self.__last_all_sketches_cache, tz=dt.UTC
+							)
 						if self.__last_full_episodic_cache is not None:
 							self.__last_full_episodic_cache = dt.datetime.fromtimestamp(
 								self.__last_full_episodic_cache, tz=dt.UTC
@@ -2214,6 +2649,10 @@ class FractalthornsAPI(API):
 							self.CacheTypes(i): dt.datetime.fromtimestamp(j, tz=dt.UTC)
 							for i, j in self.__last_cache_purge.items()
 						}
+
+				self.logger.debug(
+					"Loaded cache contents (%s):\n%s", cache.value, cache_contents
+				)
 
 		except Exception:
 			self.logger.exception("Failed to load cache! (%s)", cache.value)
@@ -2321,10 +2760,13 @@ class FractalthornsAPI(API):
 						}
 					case self.CacheTypes.SKETCHES:
 						cache_contents = self.__cached_sketches
-						cache_contents = (
-							{i: asdict(j) for i, j in cache_contents[0].items()},
-							cache_contents[1].timestamp(),
-						)
+						cache_contents = {
+							(i if i is not None else "__None__"): (
+								asdict(j[0]),
+								j[1].timestamp(),
+							)
+							for i, j in cache_contents.items()
+						}
 					case self.CacheTypes.CHAPTERS:
 						cache_contents = self.__cached_chapters
 						cache_contents = (
@@ -2334,13 +2776,19 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.RECORDS:
 						cache_contents = self.__cached_records
 						cache_contents = {
-							i: (asdict(j[0]), j[1].timestamp())
+							(i if i is not None else "__None__"): (
+								asdict(j[0]),
+								j[1].timestamp(),
+							)
 							for i, j in cache_contents.items()
 						}
 					case self.CacheTypes.RECORD_CONTENTS:
 						cache_contents = self.__cached_record_contents
 						cache_contents = {
-							i: (asdict(j[0]), j[1].timestamp())
+							(i if i is not None else "__None__"): (
+								asdict(j[0]),
+								j[1].timestamp(),
+							)
 							for i, j in cache_contents.items()
 						}
 					case self.CacheTypes.SEARCH_RESULTS:
@@ -2348,6 +2796,21 @@ class FractalthornsAPI(API):
 						cache_contents = {
 							f"{i[0]}|{i[1]}": (
 								[asdict(k) for k in j[0]],
+								j[1].timestamp(),
+							)
+							for i, j in cache_contents.items()
+						}
+					case self.CacheTypes.CURRENT_SPLASH:
+						cache_contents = self.__cached_current_splash
+						cache_contents = (
+							asdict(cache_contents[0]),
+							cache_contents[1].timestamp(),
+						)
+					case self.CacheTypes.SPLASH_PAGES:
+						cache_contents = self.__cached_splash_pages
+						cache_contents = {
+							i: (
+								asdict(j[0]),
 								j[1].timestamp(),
 							)
 							for i, j in cache_contents.items()
@@ -2372,6 +2835,12 @@ class FractalthornsAPI(API):
 									"__last_all_images_cache": self.__last_all_images_cache.timestamp()
 								}
 							)
+						if self.__last_all_sketches_cache is not None:
+							cache_contents.update(
+								{
+									"__last_all_sketches_cache": self.__last_all_sketches_cache.timestamp()
+								}
+							)
 						if self.__last_full_episodic_cache is not None:
 							cache_contents.update(
 								{
@@ -2390,6 +2859,10 @@ class FractalthornsAPI(API):
 				async with aiofiles.open(cache_path, "w", encoding="utf-8") as f:
 					await f.write(json.dumps(cache_contents, indent=4))
 
+				self.logger.debug(
+					"Saved cache contents (%s):\n%s", cache.value, cache_contents
+				)
+
 			self.__cache_saved[cache] = True
 
 		except Exception:
@@ -2405,7 +2878,7 @@ class FractalthornsAPI(API):
 				task.add_done_callback(tasks.discard)
 
 
-fractalthorns_api = FractalthornsAPI()
+fractalthorns_api: FractalthornsAPI = None
 
 # fmt: off
 if __name__ == "__main__":

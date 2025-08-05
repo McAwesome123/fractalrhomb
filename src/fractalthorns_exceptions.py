@@ -44,3 +44,7 @@ class ItemsUngatheredError(APIError):
 
 class SketchNotFoundError(APIError):
 	"""The requested sketch was not found."""
+
+
+class UnknownRequestTypeError(APIError):
+	"""The set request type is unknown."""
