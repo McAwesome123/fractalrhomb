@@ -30,34 +30,6 @@ class Splash(discord.Cog):
 		self.bot: discord.Bot = bot
 		self.logger = logging.getLogger("fractalrhomb.cogs.splash")
 
-	class SplashModal(discord.ui.Modal):
-		"""A modal for submitting a splash."""
-
-		def __init__(
-			self,
-			*args: tuple[discord.ui.InputText],
-			**kwargs: dict[str, str | float | None],
-		) -> None:
-			"""Initialize the modal."""
-			super().__init__(*args, title="Submit Splash", timeout=180.0, **kwargs)
-
-			self.splash_text = ""
-			self.add_item(
-				discord.ui.InputText(
-					label="Splash",
-					style=discord.InputTextStyle.short,
-					placeholder="Enter splash text",
-					min_length=1,
-					max_length=80,
-				)
-			)
-
-			self.submit_interaction: discord.Interaction | None = None
-
-		async def callback(self, interaction: discord.Interaction) -> None:
-			"""Set the submit interaction when the modal is submitted."""
-			self.submit_interaction = interaction
-
 	class ResendSplashView(discord.ui.View):
 		"""A view for resending the submitted splash."""
 
@@ -168,27 +140,24 @@ class Splash(discord.Cog):
 	@splash_group.command(
 		name="submit", description="Submit a splash to fractalthorns (24h cooldown)."
 	)
-	async def submit_splash(self, ctx: discord.ApplicationContext) -> None:
+	@discord.option(
+		"splash",
+		str,
+		description="The splash text (max 80 characters)",
+		min_length=1,
+		max_length=80,
+		parameter_name="splash_text",
+	)
+	async def submit_splash(
+		self, ctx: discord.ApplicationContext, splash_text: str
+	) -> None:
 		"""Submit a splash to fractalthorns."""
 		self.logger.info("Submit splash command used")
 
-		splash_modal = self.SplashModal()
-		await ctx.send_modal(splash_modal)
-
-		if not await splash_modal.wait():
-			await ctx.respond("splash submission cancelled", ephemeral=True)
-			return
-
-		splash_text = splash_modal.children[0].value
-		splash_interaction = splash_modal.submit_interaction
-		splash = ftd.Splash(splash_text, None)
-
-		if splash_interaction is None:
-			await ctx.respond("splash submission cancelled (timed out)", ephemeral=True)
-			return
-
 		user_name = ctx.author.global_name
 		user_id = str(ctx.author.id)
+
+		splash = ftd.Splash(splash_text, None)
 
 		try:
 			try:
@@ -197,6 +166,10 @@ class Splash(discord.Cog):
 				)
 
 			except* client_exc.ClientResponseError as exc:
+				await ctx.respond(
+					f"could not submit splash:\n{splash.format()}", ephemeral=True
+				)
+
 				max_loop = 1000
 
 				while isinstance(exc, ExceptionGroup):
@@ -249,29 +222,25 @@ class Splash(discord.Cog):
 				else:
 					raise
 
-				await splash_interaction.respond(
-					f"could not submit splash:\n{splash.format()}", ephemeral=True
-				)
-
 			else:
-				try:
-					await ctx.send("splash submitted")
-				except discord.errors.Forbidden:
-					await ctx.respond("splash submitted", ephemeral=True)
-
 				resend_splash = self.ResendSplashView()
-				await splash_interaction.respond(
+				await ctx.respond(
 					f"splash submitted:\n{splash.format()}",
 					view=resend_splash,
 					ephemeral=True,
 				)
+
+				try:
+					await ctx.send("splash submitted")
+				except discord.errors.Forbidden:
+					await ctx.respond("splash submitted", ephemeral=True)
 
 				await resend_splash.wait()
 				if resend_splash.value:
 					await ctx.author.send(f"splash submitted:\n{splash.format()}")
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
-			await splash_interaction.respond(
+			await ctx.respond(
 				f"could not submit splash:\n{splash.format()}", ephemeral=True
 			)
 			await frg.standard_exception_handler(

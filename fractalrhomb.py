@@ -638,7 +638,9 @@ async def manual_news_post(ctx: discord.ApplicationContext, *, test: bool) -> No
 		tasks = set()
 		async with asyncio.TaskGroup() as tg:
 			task = tg.create_task(
-				fta.fractalthorns_api.save_cache(fta.fractalthorns_api.CacheTypes.NEWS_ITEMS)
+				fta.fractalthorns_api.save_cache(
+					fta.fractalthorns_api.CacheTypes.NEWS_ITEMS
+				)
 			)
 			tasks.add(task)
 			task.add_done_callback(tasks.discard)

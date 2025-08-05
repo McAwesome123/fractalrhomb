@@ -7,15 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Nothing so far
+
+## [0.11.0] - 2025-08-05
+
 ### Functionality
 
 #### Added
 
 - Support for splashes!
   - This includes viewing the current splash, viewing a list of previously shown splashes, and submitting a new splash
-  - Submitting a splash requires that the bot has an API key. If it doesn't attempting to submit one will give an error message.
-  - When submitting a splash, you will be prompted to enter it in a separate modal window.
-  - The splash text is not shown to anyone but yourself. If the bot can send messages in the channel, it will simply say "splash submitted".
+  - Submitting a splash requires that the bot has an API key. If it doesn't, attempting to submit one will give an error message.
+  - When submitting a splash, the splash text is not shown to anyone but yourself. If the bot can send messages in the channel, it will simply say "splash submitted".
+
+#### Changed
+
+- Domain search can now be used for sketches
 
 ### Technical
 
@@ -23,8 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support for request types besides GET
   - Trying to use an unknown request type will throw `src.fractalthorns_exceptions.UnknownRequestTypeError` when making the request
-- Support for splashes
-  - Submitting splashes requires an API key to be given through `SPLASH_API_KEY` in .env
+- Splash submission
+  - This requires an API key to be given through `SPLASH_API_KEY` in .env
 
 #### Changed
 

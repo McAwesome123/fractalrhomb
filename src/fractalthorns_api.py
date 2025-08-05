@@ -166,8 +166,8 @@ class FractalthornsAPI(API):
 		}
 
 		# For testing purposes
-		super().__init__("https://test.fractalthorns.com", "/api/v1/", requests_list)
-		# super().__init__("https://fractalthorns.com", "/api/v1/", requests_list)
+		# super().__init__("https://test.fractalthorns.com", "/api/v1/", requests_list)
+		super().__init__("https://fractalthorns.com", "/api/v1/", requests_list)
 		self.__BASE_IMAGE_URL = f"{self._base_url}/image/"
 		self.__BASE_SKETCH_URL = f"{self._base_url}/sketch/"
 		self.__BASE_RECORD_URL = f"{self._base_url}/episodic/"
@@ -195,7 +195,7 @@ class FractalthornsAPI(API):
 			],
 		] = {}
 		self.__cached_search_results: dict[
-			tuple[str, Literal["image", "episodic-item", "episodic-line"]],
+			tuple[str, Literal["image", "sketch", "episodic-item", "episodic-line"]],
 			tuple[list[ftd.SearchResult], dt.datetime],
 		] = {}
 		self.__cached_current_splash: tuple[ftd.Splash, dt.datetime] | None = None
@@ -406,7 +406,7 @@ class FractalthornsAPI(API):
 		| dict[str, tuple[ftd.Record, dt.datetime, dt.datetime]]
 		| dict[str, tuple[ftd.RecordText, dt.datetime, dt.datetime]]
 		| dict[
-			tuple[str, Literal["image", "episodic-item", "episodic-line"]],
+			tuple[str, Literal["image", "sketch", "episodic-item", "episodic-line"]],
 			tuple[list[ftd.SearchResult], dt.datetime, dt.datetime],
 		]
 		| tuple[ftd.Splash, dt.datetime, dt.datetime]
@@ -729,7 +729,7 @@ class FractalthornsAPI(API):
 		self,
 		session: aiohttp.ClientSession,
 		term: str,
-		type_: Literal["image", "episodic-item", "episodic-line"],
+		type_: Literal["image", "sketch", "episodic-item", "episodic-line"],
 	) -> list[ftd.SearchResult]:
 		"""Get domain search results from fractalthorns.
 
@@ -737,7 +737,7 @@ class FractalthornsAPI(API):
 		---------
 		session -- The session to use.
 		term -- The term to search for.
-		type_ -- Type of search (valid: "image", "episodic-item", "episodic-line").
+		type_ -- Type of search (valid: "image", "sketch", "episodic-item", "episodic-line").
 
 		Raises:
 		------
@@ -1999,7 +1999,7 @@ class FractalthornsAPI(API):
 		self,
 		session: aiohttp.ClientSession,
 		term: str,
-		type_: Literal["image", "episodic-item", "episodic-line"],
+		type_: Literal["image", "sketch", "episodic-item", "episodic-line"],
 	) -> list[ftd.SearchResult]:
 		"""Get a domain search.
 
@@ -2009,7 +2009,7 @@ class FractalthornsAPI(API):
 		aiohttp.client_exceptions.ClientError (from _make_request) -- A client error occurred
 		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
 		"""
-		if type_ not in {"image", "episodic-item", "episodic-line"}:
+		if type_ not in {"image", "sketch", "episodic-item", "episodic-line"}:
 			msg = "Invalid search type"
 			raise fte.InvalidSearchTypeError(msg)
 
@@ -2044,6 +2044,15 @@ class FractalthornsAPI(API):
 						i["image"]["thumb_url"] = (
 							f"{self._base_url}{i['image']['thumb_url']}"
 						)
+			elif type_ == "sketch":
+				for i in search_results:
+					if i.get("sketch") is not None:
+						i["sketch"]["image_url"] = (
+							f"{self._base_url}{i['sketch']['image_url']}"
+						)
+						i["sketch"]["thumb_url"] = (
+							f"{self._base_url}{i['sketch']['thumb_url']}"
+						)
 			elif type_ == "episodic-line":
 				record_text_tasks = []
 				async with asyncio.TaskGroup() as tg:
@@ -2067,6 +2076,7 @@ class FractalthornsAPI(API):
 						[
 							ftd.SearchResult.from_obj(
 								self.__BASE_IMAGE_URL,
+								self.__BASE_SKETCH_URL,
 								self.__BASE_RECORD_URL,
 								self.__BASE_DISCOVERY_URL,
 								i,
@@ -2560,6 +2570,7 @@ class FractalthornsAPI(API):
 								[
 									ftd.SearchResult.from_obj(
 										self.__BASE_IMAGE_URL,
+										self.__BASE_SKETCH_URL,
 										self.__BASE_RECORD_URL,
 										self.__BASE_DISCOVERY_URL,
 										k,

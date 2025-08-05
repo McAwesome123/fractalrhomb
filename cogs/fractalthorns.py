@@ -941,7 +941,7 @@ class Fractalthorns(discord.Cog):
 		"type",
 		str,
 		description="What type of search",
-		choices=["image", "episodic-item", "episodic-line"],
+		choices=["image", "sketch", "episodic-item", "episodic-line"],
 		parameter_name="type_",
 	)
 	@discord.option(

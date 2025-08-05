@@ -1082,6 +1082,7 @@ class SearchResult:
 
 	type: str
 	image: Image | None
+	sketch: Sketch | None
 	record: Record | None
 	record_line: RecordLine | None
 	record_matched_text: str | None
@@ -1091,6 +1092,7 @@ class SearchResult:
 		str,
 		str
 		| Image.ImageType
+		| Sketch.SketchType
 		| Record.RecordType
 		| RecordLine.RecordLineType
 		| RecordLine
@@ -1100,14 +1102,20 @@ class SearchResult:
 
 	@staticmethod
 	def from_obj(
-		image_base: str, record_base: str, puzzle_base: str, obj: SearchResultType
+		image_base: str,
+		sketch_base: str,
+		record_base: str,
+		puzzle_base: str,
+		obj: SearchResultType,
 	) -> "SearchResult":
 		"""Create a SearchResult from an object.
 
 		Arguments:
 		---------
-		record_base -- The base URL for records.
 		image_base -- The base URL for images.
+		sketch_base -- The base URL for sketches.
+		record_base -- The base URL for records.
+		puzzle_base -- The base URL for puzzles.
 		obj -- The object to create a SearchResult from.
 		(Expected: an item from domain_search["results"].
 		search_results needs to be converted from json first.
@@ -1117,10 +1125,13 @@ class SearchResult:
 			obj["record_line"] = RecordLine.from_obj(obj["record_line"])
 
 		image_link = None
+		sketch_link = None
 		record_link = None
 		puzzle_links = None
 		if obj.get("image") is not None:
 			image_link = f"{image_base}{obj['image']['name']}"
+		if obj.get("sketch") is not None:
+			sketch_link = f"{sketch_base}{obj['sketch']['name']}"
 		if obj.get("record") is not None:
 			if obj["record"]["solved"]:
 				record_link = f"{record_base}{obj['record']['name']}"
@@ -1134,6 +1145,9 @@ class SearchResult:
 			None
 			if obj.get("image") is None
 			else Image.from_obj(image_link, obj["image"]),
+			None
+			if obj.get("sketch") is None
+			else Sketch.from_obj(sketch_link, obj["sketch"]),
 			None
 			if obj.get("record") is None
 			else Record.from_obj(record_link, puzzle_links, obj["record"]),
@@ -1150,6 +1164,7 @@ class SearchResult:
 			(
 				f"type: {self.type}",
 				f"image: {self.image}",
+				f"sketch: {self.sketch}",
 				f"record: {self.record}",
 				f"record_line: {self.record_line}",
 				f"record_matched_text: {self.record_matched_text}",
@@ -1166,6 +1181,9 @@ class SearchResult:
 		match self.type:
 			case "image":
 				return self.image.format_inline()
+
+			case "sketch":
+				return self.sketch.format_inline()
 
 			case "episodic-item":
 				return self.record.format_inline(show_puzzles=not self.record.solved)
