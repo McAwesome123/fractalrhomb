@@ -23,6 +23,9 @@ import aiohttp
 import aiohttp.client_exceptions as client_exc
 import discord
 import discord.utils
+from dotenv import load_dotenv
+
+load_dotenv()
 
 intents = discord.Intents.default()
 
@@ -50,14 +53,19 @@ MAX_MESSAGE_LENGTH = 1950
 USER_BOT_WARN_MESSAGE_LENGTH = MAX_MESSAGE_LENGTH * 4
 EMPTY_MESSAGE = "give me something to show"
 NO_ITEMS_MATCH_SEARCH = "no items match the requested parameters"
+BOT_AUTH_URL = os.getenv("BOT_AUTH_URL")
+BOT_ISSUE_URL = os.getenv("BOT_ISSUE_URL")
+BOT_CREATOR_ID = os.getenv("BOT_CREATOR_ID")
+DISCORD_PROFILE_LINK = "discord://-/users/"
 INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE = 40094
+CANNOT_SEND_MESSAGE_TO_USER_ERROR_CODE = 50007
 
 # The full version number including anything extra.
-FRACTALRHOMB_VERSION_FULL = "0.11.0"
+FRACTALRHOMB_VERSION_FULL = "0.12.0"
 # Version number with only Major, Minor, and Patch version.
-FRACTALRHOMB_VERSION_LONG = "0.11.0"
+FRACTALRHOMB_VERSION_LONG = "0.12.0"
 # Verison number with only Major and Minor version.
-FRACTALRHOMB_VERSION_SHORT = "0.11"
+FRACTALRHOMB_VERSION_SHORT = "0.12"
 
 FRACTALTHORNS_USER_AGENT = os.getenv(
 	"FRACTALTHORNS_USER_AGENT", "Fractal-RHOMB/{VERSION_SHORT}"

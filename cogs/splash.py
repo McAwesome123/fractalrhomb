@@ -42,7 +42,7 @@ class Splash(discord.Cog):
 			self, button: discord.ui.Button, interaction: discord.Interaction
 		) -> None:
 			"""Finish a callback after pressing a button."""
-			button.style = discord.ButtonStyle.success
+			button.style = discord.ButtonStyle.secondary
 
 			self.disable_all_items()
 			await interaction.response.edit_message(view=self)
@@ -137,6 +137,69 @@ class Splash(discord.Cog):
 				ctx, self.logger, exc, "Splash.paged_splashes"
 			)
 
+	async def resend_splash(
+		self,
+		ctx: discord.ApplicationContext,
+		splash: ftd.Splash,
+		resend_splash: ResendSplashView,
+		resend_message: discord.Interaction | discord.WebhookMessage,
+		attempt: int,
+	) -> None:
+		"""Resend a splash to a user."""
+		max_attempts = 5
+
+		await resend_splash.wait()
+
+		if resend_splash.value:
+			try:
+				await ctx.author.send(f"splash submitted:\n{splash.format()}")
+			except discord.errors.Forbidden as exc:
+				retry_resend = False
+
+				if exc.code == frg.CANNOT_SEND_MESSAGE_TO_USER_ERROR_CODE:
+					add_bot_to_account = "add the bot to your account"
+					if frg.BOT_AUTH_URL is not None:
+						add_bot_to_account = (
+							f"{add_bot_to_account} (<{frg.BOT_AUTH_URL}>)"
+						)
+
+					response = (
+						"could not resend splash because you do not allow receiving messages from the bot (or have blocked it)\n"
+						f"allow direct messages from server members or {add_bot_to_account}"
+					)
+
+					if attempt < max_attempts:
+						retry_resend = True
+						response += " and try again"
+						new_resend_splash = self.ResendSplashView()
+
+				else:
+					self.logger.exception(
+						"An error occurred when resending a splash message"
+					)
+
+					report_issue = "report this"
+					bot_creator = "the bot creator"
+					if frg.BOT_ISSUE_URL is not None:
+						report_issue = f"[{report_issue}](<{frg.BOT_ISSUE_URL}>)"
+					if frg.BOT_CREATOR_ID is not None:
+						bot_creator = f"[{bot_creator}](<{frg.DISCORD_PROFILE_LINK}{frg.BOT_CREATOR_ID}>)"
+
+					response = f"could not resend splash due to an unknown error. please {report_issue} to {bot_creator}"
+
+				resend_splash.children[0].style = discord.ButtonStyle.red
+				await resend_message.edit(view=resend_splash)
+
+				if retry_resend:
+					new_resend_message = await ctx.respond(response, view=new_resend_splash, ephemeral=True)
+					await self.resend_splash(ctx, splash, new_resend_splash, new_resend_message, attempt + 1)
+				else:
+					await ctx.respond(response, ephemeral=True)
+
+			else:
+				resend_splash.children[0].style = discord.ButtonStyle.success
+				await resend_message.edit(view=resend_splash)
+
 	@splash_group.command(
 		name="submit", description="Submit a splash to fractalthorns (24h cooldown)."
 	)
@@ -224,7 +287,7 @@ class Splash(discord.Cog):
 
 			else:
 				resend_splash = self.ResendSplashView()
-				await ctx.respond(
+				resend_message = await ctx.respond(
 					f"splash submitted:\n{splash.format()}",
 					view=resend_splash,
 					ephemeral=True,
@@ -235,9 +298,7 @@ class Splash(discord.Cog):
 				except discord.errors.Forbidden:
 					await ctx.respond("splash submitted", ephemeral=True)
 
-				await resend_splash.wait()
-				if resend_splash.value:
-					await ctx.author.send(f"splash submitted:\n{splash.format()}")
+				await self.resend_splash(ctx, splash, resend_splash, resend_message, 0)
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
 			await ctx.respond(

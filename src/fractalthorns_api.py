@@ -2230,7 +2230,7 @@ class FractalthornsAPI(API):
 		aiohttp.client_exceptions.ClientError (from _make_request) -- A client error occurred
 		aiohttp.client_exceptions.ClientResponseError (from aiohttp.ClientResponse.raise_for_status) -- A client error occurred
 		"""
-		self.logger.info('User %s is trying to submit a splash"', submitter_user_id)
+		self.logger.info("User %s is trying to submit a splash", submitter_user_id)
 		self.logger.debug('Submitted splash: "%s"', text)
 
 		r = await self._make_request(
@@ -2247,7 +2247,7 @@ class FractalthornsAPI(API):
 		async with r as resp:
 			resp.raise_for_status()
 
-		self.logger.info("splash submission successful")
+		self.logger.info("Splash submission successful")
 
 	async def __get_full_record_contents(
 		self, session: aiohttp.ClientSession, *, gather: bool | None = None
