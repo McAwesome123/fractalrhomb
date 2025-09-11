@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.12.0] - 2025-09-11
+
+### Functionality
+
+#### Changed
+
+- Attempting to resend a splash to DMs now gives a proper error message if it fails
+  - The button also turns green or red depending on whether it succeeded or failed
+
+### Technical
+
+#### Added
+
+- A few optional environment variables:
+  - `BOT_AUTH_URL` for a link to add the bot to a server/account
+  - `BOT_ISSUE_URL` for a link to the github issues page
+  - `BOT_CREATOR_ID` for the bot creator's discord ID to link to a profile
+
+#### Fixed
+
+- Fixed some typoes in splash logs
+- Possibly fixed some issues regarding dotenv loading?
+
 ## [0.11.0] - 2025-08-05
 
 ### Functionality
