@@ -191,8 +191,12 @@ class Splash(discord.Cog):
 				await resend_message.edit(view=resend_splash)
 
 				if retry_resend:
-					new_resend_message = await ctx.respond(response, view=new_resend_splash, ephemeral=True)
-					await self.resend_splash(ctx, splash, new_resend_splash, new_resend_message, attempt + 1)
+					new_resend_message = await ctx.respond(
+						response, view=new_resend_splash, ephemeral=True
+					)
+					await self.resend_splash(
+						ctx, splash, new_resend_splash, new_resend_message, attempt + 1
+					)
 				else:
 					await ctx.respond(response, ephemeral=True)
 

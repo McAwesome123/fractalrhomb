@@ -172,3 +172,4 @@ bot_data.*
 *.log*
 .apicache/
 /aetol
+/quiz
