@@ -61,9 +61,9 @@ INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE = 40094
 CANNOT_SEND_MESSAGE_TO_USER_ERROR_CODE = 50007
 
 # The full version number including anything extra.
-FRACTALRHOMB_VERSION_FULL = "0.12.0"
+FRACTALRHOMB_VERSION_FULL = "0.12.1"
 # Version number with only Major, Minor, and Patch version.
-FRACTALRHOMB_VERSION_LONG = "0.12.0"
+FRACTALRHOMB_VERSION_LONG = "0.12.1"
 # Verison number with only Major and Minor version.
 FRACTALRHOMB_VERSION_SHORT = "0.12"
 

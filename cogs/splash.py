@@ -217,7 +217,7 @@ class Splash(discord.Cog):
 		"""Submit a splash to fractalthorns."""
 		self.logger.info("Submit splash command used")
 
-		user_name = ctx.author.global_name
+		user_name = ctx.author.display_name
 		user_id = str(ctx.author.id)
 
 		splash = ftd.Splash(splash_text, None)
