@@ -191,8 +191,12 @@ class Splash(discord.Cog):
 				await resend_message.edit(view=resend_splash)
 
 				if retry_resend:
-					new_resend_message = await ctx.respond(response, view=new_resend_splash, ephemeral=True)
-					await self.resend_splash(ctx, splash, new_resend_splash, new_resend_message, attempt + 1)
+					new_resend_message = await ctx.respond(
+						response, view=new_resend_splash, ephemeral=True
+					)
+					await self.resend_splash(
+						ctx, splash, new_resend_splash, new_resend_message, attempt + 1
+					)
 				else:
 					await ctx.respond(response, ephemeral=True)
 
@@ -217,7 +221,7 @@ class Splash(discord.Cog):
 		"""Submit a splash to fractalthorns."""
 		self.logger.info("Submit splash command used")
 
-		user_name = ctx.author.global_name
+		user_name = ctx.author.display_name
 		user_id = str(ctx.author.id)
 
 		splash = ftd.Splash(splash_text, None)
