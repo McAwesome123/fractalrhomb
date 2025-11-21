@@ -27,7 +27,7 @@ class MissingRequiredQuestionError(Exception):
 
 @dataclass
 class Requirement:
-	"""A requirement for a result."""
+	"""A requirement for a result or effect."""
 
 	class Type(Enum):
 		"""Types of requirements."""
@@ -919,7 +919,7 @@ class Result:
 
 	name: str
 	description: str
-	image: str | None
+	image: Path | None
 	show_variables: list[str] | bool
 	__requirements: list[Requirement]
 
@@ -930,7 +930,10 @@ class Result:
 
 	@staticmethod
 	def build_result(
-		input_dict: ResultType, logger: logging.Logger, context: str
+		input_dict: ResultType,
+		logger: logging.Logger,
+		context: str,
+		image_base: Path | None = None,
 	) -> tuple["Result | None", int, int]:
 		"""Build a result from a dictionary.
 
@@ -992,14 +995,26 @@ class Result:
 				logger.error(msg)  # noqa: TRY400 # (shut the fuck up)
 				num_errors += 1
 
-		if image is not None and not isinstance(image, str):
+		if image is not None:
+			if not isinstance(image, str):
+				try:
+					image = str(image)
+					msg = f"Result image is not a string ({context})"
+					logger.warning(msg)
+					num_warnings += 1
+				except ValueError:
+					msg = f"Could not convert result image to string ({context})"
+					logger.error(msg)  # noqa: TRY400 # (shut the fuck up)
+					num_errors += 1
+			if isinstance(image, str):
+				if image_base is not None:
+					image = Path(image_base).joinpath(image)
+				image = image.resolve()
+
 			try:
-				image = str(image)
-				msg = f"Result image is not a string ({context})"
-				logger.warning(msg)
-				num_warnings += 1
-			except ValueError:
-				msg = f"Could not convert result image to string ({context})"
+				Image.open(image)
+			except FileNotFoundError:
+				msg = f"Image does not exist: '{image!s}' ({context})"
 				logger.error(msg)  # noqa: TRY400 # (shut the fuck up)
 				num_errors += 1
 
@@ -1091,7 +1106,7 @@ class Result:
 
 	def format(
 		self, *, name: bool = True, description: bool = True, image: bool = True
-	) -> tuple[str | None, str | None, Image.Image | None]:
+	) -> tuple[str | None, str | None, Path | None]:
 		"""Format the result into a name, description, and/or image."""
 		name_text = None
 		description_text = None
@@ -1104,22 +1119,28 @@ class Result:
 			description_text = f"_{self.description}_"
 
 		if image and self.image is not None:
-			image_path = Path(self.image).resolve()
-			image_content = Image.open(image_path.read_bytes())
+			image_content = self.image
 
 		return (name_text, description_text, image_content)
 
 
 @dataclass
 class Quiz:
-	"""A quiz containing multiple questions, answers, and results."""
+	"""A quiz containing multiple questions, answers, and results.
+
+	Quiz objects are not reusable; either build a new quiz for each use or make a deepcopy.
+	"""
 
 	name: str
+	title: str
 	description: str
 	questions: list[Question]
 	results: list[Result]
 	variables: dict[str, float]
 	show_variables: list[str] | bool
+	prev_text: str | None
+	next_text: str | None
+	clear_text: str | None
 	submit_text: str | None
 	results_title: str | None
 	results_subtitle: str | None
@@ -1128,11 +1149,15 @@ class Quiz:
 	type QuizType = dict[
 		Literal[
 			"name",
+			"title",
 			"description",
 			"questions",
 			"results",
 			"variables",
 			"show_variables",
+			"prev_text",
+			"next_text",
+			"clear_text",
 			"submit_text",
 			"results_title",
 			"results_subtitle",
@@ -1152,7 +1177,7 @@ class Quiz:
 		"""Get a question."""
 		return self.questions[which]
 
-	def get_question_answers(self, which: int) -> list[Option]:
+	def get_question_options(self, which: int) -> list[Option]:
 		"""Get the answers of a question."""
 		return self.questions[which].options
 
@@ -1168,20 +1193,21 @@ class Quiz:
 
 	def finish(self) -> list[tuple[Result, dict[str, float]]]:
 		"""Finish the current quiz."""
+		logger = logging.getLogger("quiz_builder")
+
 		effects: list[Effect] = []
-		for i in range(len(self.questions)):
-			if self.questions[i].required and i not in self.selected_answers:
+		for question_num, question in enumerate(self.questions):
+			if question.required and question_num not in self.selected_answers:
 				raise MissingRequiredQuestionError
 
-			if i in self.selected_answers:
-				effects.extend(self.selected_answers[i].effects)
+			if question_num in self.selected_answers:
+				effects.extend(self.selected_answers[question_num].effects)
 
-		effects.sort(key=lambda effect: effect.priority)
+		effects.sort(key=lambda effect: effect.priority, reverse=True)
 
 		for effect in effects:
 			effect.run(self.variables)
 
-		shown_variables = None
 		if self.show_variables is not False:
 			variables = {}
 			if self.show_variables is not True:
@@ -1195,11 +1221,23 @@ class Quiz:
 		results = []
 
 		for result in results_raw:
-			if self.show_variables is not False and result.show_variables is not False:
-				if self.show_variables is True and result.show_variables is True:
-					shown_variables = self.variables.copy()
-				else:
-					shown_variables = variables.copy()
+			logger.debug(
+				"Show variables state: %s, %s",
+				self.show_variables,
+				result.show_variables,
+			)
+			shown_variables = None
+			if self.show_variables is False or result.show_variables is False:
+				logger.debug("Skipping variables")
+
+			elif self.show_variables is True and result.show_variables is True:
+				logger.debug("Showing all variables")
+				shown_variables = self.variables.copy()
+
+			else:
+				logger.debug("Showing some variables")
+				shown_variables = variables.copy()
+				if result.show_variables is not True:
 					for variable in result.show_variables:
 						if variable not in shown_variables:
 							shown_variables.update(
@@ -1212,7 +1250,9 @@ class Quiz:
 
 	@staticmethod
 	def build_quiz(
-		input_dict: QuizType, logger: logging.Logger | None = None
+		input_dict: QuizType,
+		logger: logging.Logger | None = None,
+		image_base: Path | None = None,
 	) -> "Quiz | None":
 		"""Build a quiz from a dictionary."""
 		if logger is None:
@@ -1234,20 +1274,23 @@ class Quiz:
 		input_dict = formatted_dict
 
 		name = input_dict.get("name")
+		title = input_dict.get("title")
 		description = input_dict.get("description")
 		questions_raw = input_dict.get("questions")
 		results_raw = input_dict.get("results")
 		variables_raw = input_dict.get("variables")
 		show_variables_raw = input_dict.get("show_variables")
+		prev_text = input_dict.get("prev_text")
+		next_text = input_dict.get("next_text")
+		clear_text = input_dict.get("clear_text")
 		submit_text = input_dict.get("submit_text")
 		results_title = input_dict.get("results_title")
 		results_subtitle = input_dict.get("results_subtitle")
 
 		if name is None:
 			msg = "Missing quiz name"
-			logger.warning(msg)
-			num_warnings += 1
-			name = ""
+			logger.error(msg)
+			num_errors += 1
 		elif not isinstance(name, str):
 			try:
 				name = str(name)
@@ -1256,6 +1299,22 @@ class Quiz:
 				num_warnings += 1
 			except ValueError:
 				msg = "Could not convert quiz name to string"
+				logger.error(msg)  # noqa: TRY400 # (shut the fuck up)
+				num_errors += 1
+
+		if title is None:
+			msg = "Missing quiz title"
+			logger.warning(msg)
+			num_warnings += 1
+			title = ""
+		elif not isinstance(title, str):
+			try:
+				title = str(title)
+				msg = "Quiz title is not a string"
+				logger.warning(msg)
+				num_warnings += 1
+			except ValueError:
+				msg = "Could not convert quiz title to string"
 				logger.error(msg)  # noqa: TRY400 # (shut the fuck up)
 				num_errors += 1
 
@@ -1308,6 +1367,7 @@ class Quiz:
 					result_raw,
 					logger,
 					f"result {result_num}",
+					image_base,
 				)
 				if result[0] is not None:
 					results.append(result[0])
@@ -1391,6 +1451,39 @@ class Quiz:
 				logger.error(msg)
 				num_errors += 1
 
+		if prev_text is not None and not isinstance(prev_text, str):
+			try:
+				prev_text = str(prev_text)
+				msg = "Quiz prev text is not a string"
+				logger.warning(msg)
+				num_warnings += 1
+			except ValueError:
+				msg = "Could not convert quiz prev text to string"
+				logger.error(msg)  # noqa: TRY400 # (shut the fuck up)
+				num_errors += 1
+
+		if next_text is not None and not isinstance(next_text, str):
+			try:
+				next_text = str(next_text)
+				msg = "Quiz next text is not a string"
+				logger.warning(msg)
+				num_warnings += 1
+			except ValueError:
+				msg = "Could not convert quiz next text to string"
+				logger.error(msg)  # noqa: TRY400 # (shut the fuck up)
+				num_errors += 1
+
+		if clear_text is not None and not isinstance(clear_text, str):
+			try:
+				clear_text = str(clear_text)
+				msg = "Quiz clear text is not a string"
+				logger.warning(msg)
+				num_warnings += 1
+			except ValueError:
+				msg = "Could not convert quiz clear text to string"
+				logger.error(msg)  # noqa: TRY400 # (shut the fuck up)
+				num_errors += 1
+
 		if submit_text is not None and not isinstance(submit_text, str):
 			try:
 				submit_text = str(submit_text)
@@ -1427,11 +1520,15 @@ class Quiz:
 		for i in input_dict:
 			if i not in {
 				"name",
+				"title",
 				"description",
 				"questions",
 				"results",
 				"variables",
 				"show_variables",
+				"prev_text",
+				"next_text",
+				"clear_text",
 				"submit_text",
 				"results_title",
 				"results_subtitle",
@@ -1444,15 +1541,19 @@ class Quiz:
 		if num_errors < 1:
 			try:
 				quiz = Quiz(
-					name,
-					description,
-					questions,
-					results,
-					variables,
-					show_variables,
-					submit_text,
-					results_title,
-					results_subtitle,
+					name=name,
+					title=title,
+					description=description,
+					questions=questions,
+					results=results,
+					variables=variables,
+					show_variables=show_variables,
+					prev_text=prev_text,
+					next_text=next_text,
+					clear_text=clear_text,
+					submit_text=submit_text,
+					results_title=results_title,
+					results_subtitle=results_subtitle,
 				)
 			except Exception:
 				msg = "Could not create quiz"
@@ -1477,10 +1578,24 @@ class Quiz:
 
 		return quiz
 
+	def format_title(self) -> str:
+		"""Format the quiz title and description into text."""
+		text_lines = []
+		if self.title.strip():
+			text_lines.append(f"## {self.title}")
+
+		if self.description.strip():
+			text_lines.append(self.description)
+
+		return "\n".join(text_lines)
+
 	def format_result(
 		self, results: list[tuple[Result, dict[str, float]]]
-	) -> tuple[str, Image.Image]:
-		"""Format the given quiz result into text and an image."""
+	) -> tuple[str, Path | None]:
+		"""Format the given quiz result into text and an image.
+
+		The result should come from this quiz.
+		"""
 		text_lines = []
 		result = None
 		if len(results) > 0:
@@ -1538,9 +1653,52 @@ def main() -> None:
 	root_logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
 	quiz_file = Path(args.filename)
-	quiz_contents = json.load(quiz_file.open("r", encoding="utf-8"))
+	image_base = Path(args.filename).with_suffix("")
+	with quiz_file.open("r", encoding="utf-8") as file:
+		quiz_contents = json.load(file)
 
-	quiz = Quiz.build_quiz(quiz_contents)
+	quiz = Quiz.build_quiz(quiz_contents, image_base=image_base)
+
+	if quiz is None or not args.run:
+		return
+
+	print(quiz.format_title())
+	print()
+
+	for question_num, question in enumerate(quiz.questions):
+		options = quiz.get_question_options(question_num)
+		print(question.format(question_num + 1))
+		for option_num, option in enumerate(options):
+			print(option.format(option_num + 1))
+
+		input_msg = f"Enter answer{' (required)' if question.required else ''}: "
+		while True:
+			answer = input(input_msg).strip()
+			print()
+
+			if not answer:
+				if question.required:
+					print("Question is required")
+					continue
+				break
+
+			try:
+				answer = int(answer) - 1
+			except ValueError:
+				print("Answer is not a number")
+				continue
+
+			if answer not in range(len(options)):
+				print("Answer does not exist")
+				continue
+
+			quiz.pick_answer(question_num, answer)
+			break
+
+	quiz_results = quiz.finish()
+	formatted_results = quiz.format_result(quiz_results)
+	print(formatted_results[0])
+	print(f"Image: {formatted_results[1]}")
 
 
 if __name__ == "__main__":

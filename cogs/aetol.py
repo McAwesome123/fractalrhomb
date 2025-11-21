@@ -10,13 +10,11 @@
 
 import csv
 import logging
-import logging.handlers
 import operator
 from dataclasses import dataclass
 from pathlib import Path
 
 import discord
-import discord.utils
 import rapidfuzz
 
 import src.fractalrhomb_globals as frg

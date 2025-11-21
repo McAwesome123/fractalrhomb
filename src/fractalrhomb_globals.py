@@ -12,17 +12,14 @@ import datetime as dt
 import inspect
 import json
 import logging
-import logging.handlers
 import math
 import os
 from dataclasses import asdict, dataclass
-from pathlib import Path
 
-import aiofiles
 import aiohttp
 import aiohttp.client_exceptions as client_exc
+import anyio
 import discord
-import discord.utils
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -57,6 +54,7 @@ BOT_AUTH_URL = os.getenv("BOT_AUTH_URL")
 BOT_ISSUE_URL = os.getenv("BOT_ISSUE_URL")
 BOT_CREATOR_ID = os.getenv("BOT_CREATOR_ID")
 DISCORD_PROFILE_LINK = "discord://-/users/"
+UNKNOWN_INTERACTION_ERROR_CODE = 40094
 INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE = 40094
 CANNOT_SEND_MESSAGE_TO_USER_ERROR_CODE = 50007
 
@@ -100,11 +98,12 @@ class BotData:
 		"""Load data from file."""
 		fractalrhomb_logger.info("Loading bot data.")
 
-		if not Path(fp).exists():
+		data_file = anyio.Path(fp)
+		if not await data_file.exists():
 			fractalrhomb_logger.info("Did not find saved bot data.")
 			return
 
-		async with aiofiles.open(fp) as f:
+		async with await data_file.open(encoding="utf-8") as f:
 			data = json.loads(await f.read())
 			if data.get("bot_channels") is not None:
 				fractalrhomb_logger.info("Loaded saved bot channels.")
@@ -126,11 +125,11 @@ class BotData:
 		"""Save data to file."""
 		fractalrhomb_logger.info("Saving bot data.")
 
-		if Path(fp).exists():
-			backup = f"{fp}.bak"
-			await aiofiles.os.replace(fp, backup)
+		data_file = anyio.Path(fp)
+		if data_file.exists():
+			await data_file.replace(f"{fp}.bak")
 			fractalrhomb_logger.info("Backed up old bot data file.")
-		async with aiofiles.open(fp, "w") as f:
+		async with await data_file.open("w", encoding="utf-8") as f:
 			await f.write(json.dumps(asdict(self), indent=4))
 			fractalrhomb_logger.info("Saved bot data.")
 
@@ -452,3 +451,10 @@ async def send_message(
 			raise
 
 	return True
+
+
+def value_or_default[T](value: T | None, default: T) -> T:
+	"""Return value if it's not None, otherwise return default."""
+	if value is None:
+		return default
+	return value

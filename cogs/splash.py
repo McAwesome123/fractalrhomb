@@ -210,9 +210,8 @@ class Splash(discord.Cog):
 	@discord.option(
 		"splash",
 		str,
-		description="The splash text (max 80 characters)",
+		description="The splash text (max 80 characters, server emojis count as 2)",
 		min_length=1,
-		max_length=80,
 		parameter_name="splash_text",
 	)
 	async def submit_splash(

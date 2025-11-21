@@ -11,7 +11,6 @@
 import asyncio
 import datetime as dt
 import logging
-import logging.handlers
 import random
 import re
 from io import BytesIO

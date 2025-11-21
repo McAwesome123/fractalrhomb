@@ -7,7 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Nothing so far
+### Functionality
+
+#### Added
+
+- Quiz functionality
+
+#### Changed
+
+- Splashes are no longer strictly limited to 80 characters due to emojis
+- Splashes no longer filter out special characters (and formatting) when displayed
+- If the bot times out on a response, it should give an appropriate response rather than a generic exception response(?)
+
+### Technical
+
+#### Added
+
+- Anyio dependency
+
+#### Changed
+
+- File IO in async functions is now done with anyio (instead of a mix of pathlib and aiofiles)
+- Default Discord log level is now warning instead of unset
+
+#### Fixed
+
+- Bash scripts should now properly have unix line endings
+
+#### Removed
+
+- Aiofiles dependency
 
 ## [0.12.0] - 2025-09-11
 
