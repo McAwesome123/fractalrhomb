@@ -49,6 +49,7 @@ To view command line parameters, add `-h` to the end.
 - [Python (3.12.4)](https://www.python.org/downloads/)
 - [Aiohttp (3.13.2)](https://pypi.org/project/aiohttp/3.13.2/)
 - [Anyio (4.11.0)](https://pypi.org/project/anyio/4.11.0/)
+- [Num2alpha (1.0.1)](https://pypi.org/project/num2alpha/1.0.1/)
 - [Pillow (12.0.0)](https://pypi.org/project/pillow/12.0.0/)
 - [Py-cord (2.6.1)](https://pypi.org/project/py-cord/2.6.1/)
 - [Python-dotenv (1.2.1)](https://pypi.org/project/python-dotenv/1.2.1/)

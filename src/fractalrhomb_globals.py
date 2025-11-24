@@ -47,6 +47,7 @@ bot = discord.Bot(
 )
 
 MAX_MESSAGE_LENGTH = 1950
+MAX_COMMON_INTERACTION_TEXT_LENGHT = 100
 USER_BOT_WARN_MESSAGE_LENGTH = MAX_MESSAGE_LENGTH * 4
 EMPTY_MESSAGE = "give me something to show"
 NO_ITEMS_MATCH_SEARCH = "no items match the requested parameters"
@@ -59,11 +60,11 @@ INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE = 40094
 CANNOT_SEND_MESSAGE_TO_USER_ERROR_CODE = 50007
 
 # The full version number including anything extra.
-FRACTALRHOMB_VERSION_FULL = "0.12.0"
+FRACTALRHOMB_VERSION_FULL = "0.13.0-pre"
 # Version number with only Major, Minor, and Patch version.
-FRACTALRHOMB_VERSION_LONG = "0.12.0"
+FRACTALRHOMB_VERSION_LONG = "0.13.0"
 # Verison number with only Major and Minor version.
-FRACTALRHOMB_VERSION_SHORT = "0.12"
+FRACTALRHOMB_VERSION_SHORT = "0.13"
 
 FRACTALTHORNS_USER_AGENT = os.getenv(
 	"FRACTALTHORNS_USER_AGENT", "Fractal-RHOMB/{VERSION_SHORT}"
@@ -126,7 +127,7 @@ class BotData:
 		fractalrhomb_logger.info("Saving bot data.")
 
 		data_file = anyio.Path(fp)
-		if data_file.exists():
+		if await data_file.exists():
 			await data_file.replace(f"{fp}.bak")
 			fractalrhomb_logger.info("Backed up old bot data file.")
 		async with await data_file.open("w", encoding="utf-8") as f:
@@ -180,7 +181,9 @@ def get_formatting(show: list[str] | tuple[str] | None) -> dict[str, bool] | Non
 	return formatting
 
 
-def split_message(message: list[str], join_str: str) -> list[str]:
+def split_message(
+	message: list[str], join_str: str, max_length: int = MAX_MESSAGE_LENGTH
+) -> list[str]:
 	"""Split a message that's too long into multiple messages.
 
 	Tries to split by items, then newlines, then spaces, and finally, characters.
@@ -198,11 +201,11 @@ def split_message(message: list[str], join_str: str) -> list[str]:
 			msg = "Loop running for too long."
 			raise RuntimeError(msg)
 
-		if len(message[i]) <= MAX_MESSAGE_LENGTH:
+		if len(message[i]) <= max_length:
 			i += 1
 			continue
 
-		max_message_length_formatting = MAX_MESSAGE_LENGTH
+		max_message_length_formatting = max_length
 		if message[i].rfind("\n", 0, max_message_length_formatting) != -1:
 			message.insert(
 				i + 1,
@@ -230,7 +233,7 @@ def split_message(message: list[str], join_str: str) -> list[str]:
 		i += 1
 
 	for i in range(len(message)):
-		if len(message_current) + len(message[i]) + len(join_str) > MAX_MESSAGE_LENGTH:
+		if len(message_current) + len(message[i]) + len(join_str) > max_length:
 			split_messages.append(message_current)
 			message_current = ""
 

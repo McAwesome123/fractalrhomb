@@ -23,6 +23,7 @@ import aiohttp
 import aiohttp.client_exceptions as client_exc
 import anyio
 import discord
+import discord.ext.commands.errors
 from dotenv import load_dotenv
 
 import src.fractalrhomb_globals as frg
@@ -187,6 +188,16 @@ async def on_application_command_error(
 			f"<@{ctx.author.id}> took too long to respond (try using the command again)"
 		)
 		await ctx.send(response, delete_after=30.0, silent=True)
+		return
+
+	if isinstance(error, discord.ext.commands.errors.CommandOnCooldown):
+		retry_after = error.retry_after
+		time = dt.datetime.now(dt.UTC).timestamp()
+		retry_time = ceil(time + retry_after)
+		await ctx.respond(
+			f"you're using this command too much. try again <t:{retry_time}:R>",
+			ephemeral=True,
+		)
 		return
 
 	try:

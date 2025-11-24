@@ -24,11 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Added
 
 - Anyio dependency
+- Num2alpha dependency
+- Check and message for command cooldown errors in `on_application_command_error`
 
 #### Changed
 
 - File IO in async functions is now done with anyio (instead of a mix of pathlib and aiofiles)
 - Default Discord log level is now warning instead of unset
+- `fractalrhomb_globals.split_message` can now split messages to an arbitrary length (defaulting to `MAX_MESSAGE_LENGTH`)
 
 #### Fixed
 
