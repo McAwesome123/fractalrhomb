@@ -1054,23 +1054,24 @@ class Result:
 				num_errors += 1
 
 		requirements = []
-		if not isinstance(requirements_raw, (list, tuple)):
-			msg = f"Result requirements is not a list ({context})"
-			logger.error(msg)
-			num_errors += 1
-		elif requirements_raw is not None:
-			for requirement_num, requirement_raw in enumerate(
-				requirements_raw, start=1
-			):
-				requirement = Requirement.build_requirement(
-					requirement_raw,
-					logger,
-					context + f", requirement {requirement_num}",
-				)
-				if requirement[0] is not None:
-					requirements.append(requirement[0])
-				num_errors += requirement[1]
-				num_warnings += requirement[2]
+		if requirements_raw is not None:
+			if not isinstance(requirements_raw, (list, tuple)):
+				msg = f"Result requirements is not a list ({context})"
+				logger.error(msg)
+				num_errors += 1
+			else:
+				for requirement_num, requirement_raw in enumerate(
+					requirements_raw, start=1
+				):
+					requirement = Requirement.build_requirement(
+						requirement_raw,
+						logger,
+						context + f", requirement {requirement_num}",
+					)
+					if requirement[0] is not None:
+						requirements.append(requirement[0])
+					num_errors += requirement[1]
+					num_warnings += requirement[2]
 
 		for i in input_dict:
 			if i not in {
@@ -1104,21 +1105,14 @@ class Result:
 		"""Check if requirements are met for the result."""
 		return all(req.is_met(variables) for req in self.__requirements)
 
-	def format(
-		self, *, name: bool = True, description: bool = True, image: bool = True
-	) -> tuple[str | None, str | None, Path | None]:
-		"""Format the result into a name, description, and/or image."""
-		name_text = None
-		description_text = None
+	def format(self) -> tuple[str, str, Path | None]:
+		"""Format the result into a name, description, and image."""
+		name_text = f"**{self.name}**"
+
+		description_text = f"_{self.description}_"
+
 		image_content = None
-
-		if name:
-			name_text = f"**{self.name}**"
-
-		if description:
-			description_text = f"_{self.description}_"
-
-		if image and self.image is not None:
+		if self.image is not None:
 			image_content = self.image
 
 		return (name_text, description_text, image_content)
