@@ -13,6 +13,8 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 
+from src.fractalrhomb_globals import value_or_default
+
 
 @dataclass
 class NewsEntry:
@@ -318,16 +320,16 @@ class Image:
 				image_join_list.append(speedpaint)
 
 			if format_ == "primary_color" and not secondary_color_done:
-				colors = f"> primary color: {self.primary_color if self.primary_color is not None else 'none'}"
+				colors = (
+					f"> primary color: {value_or_default(self.primary_color, 'none')}"
+				)
 
 				if "secondary_color" in formatting:
 					colors = "".join(
 						(
 							colors,
 							", secondary color: ",
-							self.secondary_color
-							if self.secondary_color is not None
-							else "none",
+							value_or_default(self.secondary_color, "none"),
 						)
 					)
 
@@ -335,16 +337,14 @@ class Image:
 				primary_color_done = True
 
 			if format_ == "secondary_color" and not primary_color_done:
-				colors = f"> secondary color: {self.secondary_color if self.secondary_color is not None else 'none'}"
+				colors = f"> secondary color: {value_or_default(self.secondary_color, 'none')}"
 
 				if "primary_color" in formatting:
 					colors = "".join(
 						(
 							colors,
 							", primary color: ",
-							self.primary_color
-							if self.primary_color is not None
-							else "none",
+							value_or_default(self.primary_color, "none"),
 						)
 					)
 
@@ -364,7 +364,7 @@ class Image:
 		else:
 			speedpaint_video_url = f"[speedpaint video](<{self.speedpaint_video_url}>)"
 
-		return f"> **[{self.title}](<{self.image_link}>)** (_{self.name}, #{self.ordinal}, canon: {self.canon if self.canon is not None else 'none'}, {speedpaint_video_url}_)"
+		return f"> **[{self.title}](<{self.image_link}>)** (_{self.name}, #{self.ordinal}, canon: {value_or_default(self.canon, 'none')}, {speedpaint_video_url}_)"
 
 
 @dataclass
@@ -1381,7 +1381,6 @@ class Splash:
 			return "...then there was silence"
 
 		text = self.text
-		text = re.sub(r"([`~#*()\-_=\[\]<>\\])", r"\\\1", text)
 		text = text.replace("\n", "\n> ")
 
 		if include_ordinal and self.ordinal is not None:

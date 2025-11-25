@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.13.0] - 2025-11-25
+
+### Functionality
+
+#### Added
+
+- Quiz functionality
+
+#### Changed
+
+- Splashes are no longer strictly limited to 80 characters due to emojis
+- Splashes no longer filter out special characters (and formatting) when displayed
+- If the bot times out on a response, it should give an appropriate response rather than a generic exception response(?)
+
+#### Fixed
+
+- Purging the sketch caches no longer incorrectly purges the image caches instead
+
+### Technical
+
+#### Added
+
+- Anyio dependency
+- Num2alpha dependency
+- Check and message for command cooldown errors in `on_application_command_error`
+- `src.fractalrhomb_globals.value_or_default` that returns the variable if it's not `None` or a default value otherwise
+
+#### Changed
+
+- Updated dependencies
+- File IO in async functions is now done with anyio (instead of a mix of pathlib and aiofiles)
+- Default Discord log level is now warning instead of unset
+- `src.fractalrhomb_globals.split_message` can now split messages to an arbitrary length (defaulting to `MAX_MESSAGE_LENGTH`)
+
+#### Fixed
+
+- Bash scripts should now properly have unix line endings
+
+#### Removed
+
+- Aiofiles dependency
+
 ## [0.12.1] - 2025-10-28
 
 ### Technical

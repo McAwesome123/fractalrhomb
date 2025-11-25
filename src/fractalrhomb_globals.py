@@ -12,17 +12,14 @@ import datetime as dt
 import inspect
 import json
 import logging
-import logging.handlers
 import math
 import os
 from dataclasses import asdict, dataclass
-from pathlib import Path
 
-import aiofiles
 import aiohttp
 import aiohttp.client_exceptions as client_exc
+import anyio
 import discord
-import discord.utils
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -50,6 +47,7 @@ bot = discord.Bot(
 )
 
 MAX_MESSAGE_LENGTH = 1950
+MAX_COMMON_INTERACTION_TEXT_LENGHT = 100
 USER_BOT_WARN_MESSAGE_LENGTH = MAX_MESSAGE_LENGTH * 4
 EMPTY_MESSAGE = "give me something to show"
 NO_ITEMS_MATCH_SEARCH = "no items match the requested parameters"
@@ -57,15 +55,16 @@ BOT_AUTH_URL = os.getenv("BOT_AUTH_URL")
 BOT_ISSUE_URL = os.getenv("BOT_ISSUE_URL")
 BOT_CREATOR_ID = os.getenv("BOT_CREATOR_ID")
 DISCORD_PROFILE_LINK = "discord://-/users/"
+UNKNOWN_INTERACTION_ERROR_CODE = 10062
 INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE = 40094
 CANNOT_SEND_MESSAGE_TO_USER_ERROR_CODE = 50007
 
 # The full version number including anything extra.
-FRACTALRHOMB_VERSION_FULL = "0.12.1"
+FRACTALRHOMB_VERSION_FULL = "0.13.0"
 # Version number with only Major, Minor, and Patch version.
-FRACTALRHOMB_VERSION_LONG = "0.12.1"
+FRACTALRHOMB_VERSION_LONG = "0.13.0"
 # Verison number with only Major and Minor version.
-FRACTALRHOMB_VERSION_SHORT = "0.12"
+FRACTALRHOMB_VERSION_SHORT = "0.13"
 
 FRACTALTHORNS_USER_AGENT = os.getenv(
 	"FRACTALTHORNS_USER_AGENT", "Fractal-RHOMB/{VERSION_SHORT}"
@@ -100,11 +99,12 @@ class BotData:
 		"""Load data from file."""
 		fractalrhomb_logger.info("Loading bot data.")
 
-		if not Path(fp).exists():
+		data_file = anyio.Path(fp)
+		if not await data_file.exists():
 			fractalrhomb_logger.info("Did not find saved bot data.")
 			return
 
-		async with aiofiles.open(fp) as f:
+		async with await data_file.open(encoding="utf-8") as f:
 			data = json.loads(await f.read())
 			if data.get("bot_channels") is not None:
 				fractalrhomb_logger.info("Loaded saved bot channels.")
@@ -126,11 +126,11 @@ class BotData:
 		"""Save data to file."""
 		fractalrhomb_logger.info("Saving bot data.")
 
-		if Path(fp).exists():
-			backup = f"{fp}.bak"
-			await aiofiles.os.replace(fp, backup)
+		data_file = anyio.Path(fp)
+		if await data_file.exists():
+			await data_file.replace(f"{fp}.bak")
 			fractalrhomb_logger.info("Backed up old bot data file.")
-		async with aiofiles.open(fp, "w") as f:
+		async with await data_file.open("w", encoding="utf-8") as f:
 			await f.write(json.dumps(asdict(self), indent=4))
 			fractalrhomb_logger.info("Saved bot data.")
 
@@ -181,7 +181,9 @@ def get_formatting(show: list[str] | tuple[str] | None) -> dict[str, bool] | Non
 	return formatting
 
 
-def split_message(message: list[str], join_str: str) -> list[str]:
+def split_message(
+	message: list[str], join_str: str, max_length: int = MAX_MESSAGE_LENGTH
+) -> list[str]:
 	"""Split a message that's too long into multiple messages.
 
 	Tries to split by items, then newlines, then spaces, and finally, characters.
@@ -199,11 +201,11 @@ def split_message(message: list[str], join_str: str) -> list[str]:
 			msg = "Loop running for too long."
 			raise RuntimeError(msg)
 
-		if len(message[i]) <= MAX_MESSAGE_LENGTH:
+		if len(message[i]) <= max_length:
 			i += 1
 			continue
 
-		max_message_length_formatting = MAX_MESSAGE_LENGTH
+		max_message_length_formatting = max_length
 		if message[i].rfind("\n", 0, max_message_length_formatting) != -1:
 			message.insert(
 				i + 1,
@@ -231,7 +233,7 @@ def split_message(message: list[str], join_str: str) -> list[str]:
 		i += 1
 
 	for i in range(len(message)):
-		if len(message_current) + len(message[i]) + len(join_str) > MAX_MESSAGE_LENGTH:
+		if len(message_current) + len(message[i]) + len(join_str) > max_length:
 			split_messages.append(message_current)
 			message_current = ""
 
@@ -452,3 +454,10 @@ async def send_message(
 			raise
 
 	return True
+
+
+def value_or_default[T](value: T | None, default: T) -> T:
+	"""Return value if it's not None, otherwise return default."""
+	if value is None:
+		return default
+	return value

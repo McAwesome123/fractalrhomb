@@ -21,8 +21,9 @@ from pathlib import Path
 
 import aiohttp
 import aiohttp.client_exceptions as client_exc
+import anyio
 import discord
-import discord.utils
+import discord.ext.commands.errors
 from dotenv import load_dotenv
 
 import src.fractalrhomb_globals as frg
@@ -178,6 +179,25 @@ async def on_application_command_error(
 ) -> None:
 	"""Do stuff when there's a command error."""
 	response = "an unhandled exception occurred"
+
+	if (
+		isinstance(error, discord.errors.NotFound)
+		and error.code == frg.UNKNOWN_INTERACTION_ERROR_CODE
+	):
+		response = f"<@{ctx.author.id}> bot took too long to respond (try using the command again)"
+		await ctx.send(response, delete_after=30.0, silent=True)
+		return
+
+	if isinstance(error, discord.ext.commands.errors.CommandOnCooldown):
+		retry_after = error.retry_after
+		time = dt.datetime.now(dt.UTC).timestamp()
+		retry_time = ceil(time + retry_after)
+		await ctx.respond(
+			f"you're using this command too much. try again <t:{retry_time}:R>",
+			ephemeral=True,
+		)
+		return
+
 	try:
 		await frg.send_message(ctx, response, is_deferred=True)
 	except discord.errors.NotFound:
@@ -731,8 +751,8 @@ def parse_arguments() -> None:
 	parser.add_argument(
 		"--discord-log-level",
 		choices=["none", "critical", "error", "warning", "info", "debug", "notset"],
-		help="set a log level for discord operations. overrides --discord-verbose and --discord-more-verbose. if not set, uses root log level.",
-		default=None,
+		help="set a log level for discord operations. overrides --discord-verbose and --discord-more-verbose. default: warning",
+		default="warning",
 	)
 	parser.add_argument(
 		"--bot-log-level",
@@ -876,9 +896,10 @@ async def main() -> None:
 
 	async with aiohttp.ClientSession(connector=conn) as frg.session:
 		bot.load_extension("cogs.fractalthorns")
+
 		if (
-			Path("aetol/particle_dictionary.tsv").exists()
-			or Path("aetol/word_dictionary.tsv").exists()
+			await anyio.Path("aetol/particle_dictionary.tsv").exists()
+			or await anyio.Path("aetol/word_dictionary.tsv").exists()
 		):
 			bot.load_extension("cogs.aetol")
 
@@ -887,6 +908,9 @@ async def main() -> None:
 			fractalrhomb_logger.warning(
 				"Missing splash API key, submit splash command will not work."
 			)
+
+		if await anyio.Path("quiz").exists():
+			bot.load_extension("cogs.quiz")
 
 		token = getenv("DISCORD_BOT_TOKEN")
 		async with bot:

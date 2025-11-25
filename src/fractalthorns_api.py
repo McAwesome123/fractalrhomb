@@ -18,19 +18,17 @@ from dataclasses import asdict
 from enum import Enum, StrEnum
 from io import BytesIO
 from os import getenv
-from pathlib import Path
 from typing import ClassVar, Literal
 
-import aiofiles
-import aiofiles.os
 import aiohttp
+import anyio
 from dotenv import load_dotenv
 from PIL import Image
 
 import src.fractalthorns_dataclasses as ftd
 import src.fractalthorns_exceptions as fte
 from src.api_access import API, Request, RequestArgument
-from src.fractalrhomb_globals import FRACTALTHORNS_USER_AGENT
+from src.fractalrhomb_globals import FRACTALTHORNS_USER_AGENT, value_or_default
 
 load_dotenv()
 
@@ -361,10 +359,10 @@ class FractalthornsAPI(API):
 			case self.CacheTypes.IMAGE_DESCRIPTIONS:
 				self.__cached_image_descriptions = {}
 			case self.CacheTypes.SKETCHES:
-				self.__cached_images = {}
+				self.__cached_sketches = {}
 				self.__last_all_sketches_cache = None
 			case self.CacheTypes.SKETCH_CONTENTS:
-				self.__cached_image_contents = {}
+				self.__cached_sketch_contents = {}
 			case self.CacheTypes.CHAPTERS:
 				self.__cached_chapters = None
 				self.__last_full_episodic_cache = None
@@ -2428,31 +2426,33 @@ class FractalthornsAPI(API):
 				self.CacheTypes.IMAGE_CONTENTS,
 				self.CacheTypes.SKETCH_CONTENTS,
 			}:
-				cache_path = "".join((self.__CACHE_PATH, cache.value.replace(" ", "_")))
+				cache_path = anyio.Path(
+					self.__CACHE_PATH + cache.value.replace(" ", "_")
+				)
 
-				if not Path(cache_path).exists():
+				if not await cache_path.exists():
 					return
 
-				cache_meta = f"{cache_path}{self.__CACHE_EXT}"
+				cache_meta = anyio.Path(cache_path.as_posix() + self.__CACHE_EXT)
 
-				if not Path(cache_meta).exists():
+				if not await cache_meta.exists():
 					return
 
-				async with aiofiles.open(cache_meta, encoding="utf-8") as f:
+				async with await cache_meta.open(encoding="utf-8") as f:
 					saved_images = json.loads(await f.read())
 
 				for i in saved_images:
 					timestamp = dt.datetime.fromtimestamp(saved_images[i], tz=dt.UTC)
 
-					image_path = f"{cache_path}/image_{i}.png"
-					thumb_path = f"{cache_path}/thumb_{i}.png"
+					image_path = cache_path.joinpath(f"image_{i}.png")
+					thumb_path = cache_path.joinpath(f"thumb_{i}.png")
 
-					if not (Path(image_path).exists() and Path(thumb_path).exists()):
+					if not (await image_path.exists() and await thumb_path.exists()):
 						continue
 
 					async with (
-						aiofiles.open(image_path, "rb") as image_file,
-						aiofiles.open(thumb_path, "rb") as thumb_file,
+						await image_path.open("rb") as image_file,
+						await thumb_path.open("rb") as thumb_file,
 						asyncio.TaskGroup() as tg,
 					):
 						image_bytes = tg.create_task(image_file.read())
@@ -2485,14 +2485,14 @@ class FractalthornsAPI(API):
 						)
 
 			else:
-				cache_path = "".join(
-					(self.__CACHE_PATH, cache.value.replace(" ", "_"), self.__CACHE_EXT)
+				cache_path = anyio.Path(
+					self.__CACHE_PATH + cache.value.replace(" ", "_") + self.__CACHE_EXT
 				)
 
-				if not Path(cache_path).exists():
+				if not await cache_path.exists():
 					return
 
-				async with aiofiles.open(cache_path, encoding="utf-8") as f:
+				async with await cache_path.open("r", encoding="utf-8") as f:
 					cache_contents = json.loads(await f.read())
 
 				match cache:
@@ -2679,9 +2679,11 @@ class FractalthornsAPI(API):
 				self.CacheTypes.IMAGE_CONTENTS,
 				self.CacheTypes.SKETCH_CONTENTS,
 			}:
-				cache_path = "".join((self.__CACHE_PATH, cache.value.replace(" ", "_")))
+				cache_path = anyio.Path(
+					self.__CACHE_PATH + cache.value.replace(" ", "_")
+				)
 
-				Path(cache_path).mkdir(parents=True, exist_ok=True)
+				await cache_path.mkdir(parents=True, exist_ok=True)
 
 				saved_images = {}
 
@@ -2694,16 +2696,22 @@ class FractalthornsAPI(API):
 					name = i
 					if name is None:
 						name = "__None__"
-					image, image_path = (j[0][0], f"{cache_path}/image_{name}.png")
-					thumb, thumb_path = (j[0][1], f"{cache_path}/thumb_{name}.png")
+					image, image_path = (
+						j[0][0],
+						cache_path.joinpath(f"image_{name}.png"),
+					)
+					thumb, thumb_path = (
+						j[0][1],
+						cache_path.joinpath(f"thumb_{name}.png"),
+					)
 
-					if Path(image_path).exists():
-						await aiofiles.os.replace(
-							image_path, f"{image_path}{self.__CACHE_BAK}"
+					if await image_path.exists():
+						await image_path.replace(
+							image_path.as_posix() + self.__CACHE_BAK
 						)
-					if Path(thumb_path).exists():
-						await aiofiles.os.replace(
-							thumb_path, f"{thumb_path}{self.__CACHE_BAK}"
+					if await thumb_path.exists():
+						await thumb_path.replace(
+							thumb_path.as_posix() + self.__CACHE_BAK
 						)
 
 					loop = asyncio.get_running_loop()
@@ -2714,27 +2722,23 @@ class FractalthornsAPI(API):
 
 					saved_images.update({name: j[1].timestamp()})
 
-				cache_meta = f"{cache_path}{self.__CACHE_EXT}"
+				cache_meta = anyio.Path(cache_path.as_posix() + self.__CACHE_EXT)
 
-				if Path(cache_meta).exists():
-					await aiofiles.os.replace(
-						cache_meta, f"{cache_meta}{self.__CACHE_BAK}"
-					)
+				if await cache_meta.exists():
+					await cache_meta.replace(cache_meta.as_posix() + self.__CACHE_BAK)
 
-				async with aiofiles.open(cache_meta, "w", encoding="utf-8") as f:
+				async with await cache_meta.open("w", encoding="utf-8") as f:
 					await f.write(json.dumps(saved_images, indent=4))
 
 			else:
-				cache_path = "".join(
-					(self.__CACHE_PATH, cache.value.replace(" ", "_"), self.__CACHE_EXT)
+				cache_path = anyio.Path(
+					self.__CACHE_PATH + cache.value.replace(" ", "_") + self.__CACHE_EXT
 				)
 
-				Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+				await cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-				if Path(cache_path).exists():
-					await aiofiles.os.replace(
-						cache_path, f"{cache_path}{self.__CACHE_BAK}"
-					)
+				if await cache_path.exists():
+					await cache_path.replace(cache_path.as_posix() + self.__CACHE_BAK)
 
 				match cache:
 					case self.CacheTypes.NEWS_ITEMS:
@@ -2746,7 +2750,7 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.IMAGES:
 						cache_contents = self.__cached_images
 						cache_contents = {
-							(i if i is not None else "__None__"): (
+							value_or_default(i, "__None__"): (
 								asdict(j[0]),
 								j[1].timestamp(),
 							)
@@ -2761,7 +2765,7 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.SKETCHES:
 						cache_contents = self.__cached_sketches
 						cache_contents = {
-							(i if i is not None else "__None__"): (
+							value_or_default(i, "__None__"): (
 								asdict(j[0]),
 								j[1].timestamp(),
 							)
@@ -2776,7 +2780,7 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.RECORDS:
 						cache_contents = self.__cached_records
 						cache_contents = {
-							(i if i is not None else "__None__"): (
+							value_or_default(i, "__None__"): (
 								asdict(j[0]),
 								j[1].timestamp(),
 							)
@@ -2785,7 +2789,7 @@ class FractalthornsAPI(API):
 					case self.CacheTypes.RECORD_CONTENTS:
 						cache_contents = self.__cached_record_contents
 						cache_contents = {
-							(i if i is not None else "__None__"): (
+							value_or_default(i, "__None__"): (
 								asdict(j[0]),
 								j[1].timestamp(),
 							)
@@ -2856,7 +2860,7 @@ class FractalthornsAPI(API):
 							}
 						)
 
-				async with aiofiles.open(cache_path, "w", encoding="utf-8") as f:
+				async with await cache_path.open("w", encoding="utf-8") as f:
 					await f.write(json.dumps(cache_contents, indent=4))
 
 				self.logger.debug(

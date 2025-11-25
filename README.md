@@ -47,14 +47,14 @@ To view command line parameters, add `-h` to the end.
 ## Requirements
 
 - [Python (3.12.4)](https://www.python.org/downloads/)
-- [Aiofiles (24.1.0)](https://pypi.org/project/aiofiles/24.1.0/)
-- [Aiohttp (3.11.8)](https://pypi.org/project/aiohttp/3.11.8/)
-- [Aiohttp-sse-client2 (0.3.0)](https://pypi.org/project/aiohttp-sse-client2/0.3.0/)
-- [Pillow (10.4.0)](https://pypi.org/project/pillow/10.4.0/)
-- [Py-cord (2.6.1)](https://pypi.org/project/py-cord/2.6.0/)
-- [Python-dotenv (1.0.1)](https://pypi.org/project/python-dotenv/1.0.1/)
-- [RapidFuzz (3.10.1)](https://pypi.org/project/RapidFuzz/3.10.0/)
-- [Visaul C++ 2019](https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads)
+- [Aiohttp (3.13.2)](https://pypi.org/project/aiohttp/3.13.2/)
+- [Anyio (4.11.0)](https://pypi.org/project/anyio/4.11.0/)
+- [Num2alpha (1.0.1)](https://pypi.org/project/num2alpha/1.0.1/)
+- [Pillow (12.0.0)](https://pypi.org/project/pillow/12.0.0/)
+- [Py-cord (2.6.1)](https://pypi.org/project/py-cord/2.6.1/)
+- [Python-dotenv (1.2.1)](https://pypi.org/project/python-dotenv/1.2.1/)
+- [RapidFuzz (3.14.3)](https://pypi.org/project/RapidFuzz/3.14.3/)
+- [Visual C++ 2019](https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads)
 
 	_(and any dependencies for the above)_
 
