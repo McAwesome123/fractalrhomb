@@ -55,12 +55,12 @@ BOT_AUTH_URL = os.getenv("BOT_AUTH_URL")
 BOT_ISSUE_URL = os.getenv("BOT_ISSUE_URL")
 BOT_CREATOR_ID = os.getenv("BOT_CREATOR_ID")
 DISCORD_PROFILE_LINK = "discord://-/users/"
-UNKNOWN_INTERACTION_ERROR_CODE = 40094
+UNKNOWN_INTERACTION_ERROR_CODE = 10062
 INTERACTION_TOO_MANY_FOLLOW_UP_MESSAGES_ERROR_CODE = 40094
 CANNOT_SEND_MESSAGE_TO_USER_ERROR_CODE = 50007
 
 # The full version number including anything extra.
-FRACTALRHOMB_VERSION_FULL = "0.13.0-pre"
+FRACTALRHOMB_VERSION_FULL = "0.13.0"
 # Version number with only Major, Minor, and Patch version.
 FRACTALRHOMB_VERSION_LONG = "0.13.0"
 # Verison number with only Major and Minor version.

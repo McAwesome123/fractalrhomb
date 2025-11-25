@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Nothing so far
+
+## [0.13.0] - 2025-11-25
+
 ### Functionality
 
 #### Added
@@ -19,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Splashes no longer filter out special characters (and formatting) when displayed
 - If the bot times out on a response, it should give an appropriate response rather than a generic exception response(?)
 
+#### Fixed
+
+- Purging the sketch caches no longer incorrectly purges the image caches instead
+
 ### Technical
 
 #### Added
@@ -26,12 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Anyio dependency
 - Num2alpha dependency
 - Check and message for command cooldown errors in `on_application_command_error`
+- `src.fractalrhomb_globals.value_or_default` that returns the variable if it's not `None` or a default value otherwise
 
 #### Changed
 
+- Updated dependencies
 - File IO in async functions is now done with anyio (instead of a mix of pathlib and aiofiles)
 - Default Discord log level is now warning instead of unset
-- `fractalrhomb_globals.split_message` can now split messages to an arbitrary length (defaulting to `MAX_MESSAGE_LENGTH`)
+- `src.fractalrhomb_globals.split_message` can now split messages to an arbitrary length (defaulting to `MAX_MESSAGE_LENGTH`)
 
 #### Fixed
 

@@ -359,10 +359,10 @@ class FractalthornsAPI(API):
 			case self.CacheTypes.IMAGE_DESCRIPTIONS:
 				self.__cached_image_descriptions = {}
 			case self.CacheTypes.SKETCHES:
-				self.__cached_images = {}
+				self.__cached_sketches = {}
 				self.__last_all_sketches_cache = None
 			case self.CacheTypes.SKETCH_CONTENTS:
-				self.__cached_image_contents = {}
+				self.__cached_sketch_contents = {}
 			case self.CacheTypes.CHAPTERS:
 				self.__cached_chapters = None
 				self.__last_full_episodic_cache = None
@@ -2705,11 +2705,11 @@ class FractalthornsAPI(API):
 						cache_path.joinpath(f"thumb_{name}.png"),
 					)
 
-					if image_path.exists():
+					if await image_path.exists():
 						await image_path.replace(
 							image_path.as_posix() + self.__CACHE_BAK
 						)
-					if thumb_path.exists():
+					if await thumb_path.exists():
 						await thumb_path.replace(
 							thumb_path.as_posix() + self.__CACHE_BAK
 						)
@@ -2724,7 +2724,7 @@ class FractalthornsAPI(API):
 
 				cache_meta = anyio.Path(cache_path.as_posix() + self.__CACHE_EXT)
 
-				if cache_meta.exists():
+				if await cache_meta.exists():
 					await cache_meta.replace(cache_meta.as_posix() + self.__CACHE_BAK)
 
 				async with await cache_meta.open("w", encoding="utf-8") as f:

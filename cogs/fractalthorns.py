@@ -464,8 +464,7 @@ class Fractalthorns(discord.Cog):
 			fractalthorns_api.CacheTypes.SKETCHES, ignore_stale=True
 		)
 
-		if sketches is None:
-			return {}
+		sketches.pop(None, None)
 
 		return list(sketches.keys())
 
