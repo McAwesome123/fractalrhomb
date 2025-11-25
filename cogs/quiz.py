@@ -384,6 +384,7 @@ class Quiz(discord.Cog):
 	)
 
 	@quiz_group.command(name="reload", contexts={discord.InteractionContextType.bot_dm})
+	@discord.ext.commands.cooldown(5, 300.0, discord.ext.commands.BucketType.default)
 	async def reload_quizzes(self, ctx: discord.ApplicationContext) -> None:
 		"""Reload all quizzes."""
 		self.logger.info("Reload quizzes command used")

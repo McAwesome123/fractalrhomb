@@ -192,6 +192,14 @@ async def on_application_command_error(
 		retry_after = error.retry_after
 		time = dt.datetime.now(dt.UTC).timestamp()
 		retry_time = ceil(time + retry_after)
+
+		fractalrhomb_logger.warning(
+			'User %s tried to use command "%s" too many times! Remaining cooldown: %s',
+			ctx.author.id,
+			ctx.command.qualified_name,
+			error.retry_after,
+		)
+
 		await ctx.respond(
 			f"you're using this command too much. try again <t:{retry_time}:R>",
 			ephemeral=True,
