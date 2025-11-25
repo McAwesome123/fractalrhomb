@@ -51,6 +51,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Aiofiles dependency
 
+## [0.12.1] - 2025-10-28
+
+### Technical
+
+#### Changed
+
+- Sending a splash now uses display name instead of global name
+
+#### Fixed
+
+- Splash submissions should no longer be able to send `null` as the display name and cause the server to `200 Internal Server Error`
+
 ## [0.12.0] - 2025-09-11
 
 ### Functionality
