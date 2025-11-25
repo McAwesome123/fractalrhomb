@@ -184,9 +184,7 @@ async def on_application_command_error(
 		isinstance(error, discord.errors.NotFound)
 		and error.code == frg.UNKNOWN_INTERACTION_ERROR_CODE
 	):
-		response = (
-			f"<@{ctx.author.id}> bot took too long to respond (try using the command again)"
-		)
+		response = f"<@{ctx.author.id}> bot took too long to respond (try using the command again)"
 		await ctx.send(response, delete_after=30.0, silent=True)
 		return
 
