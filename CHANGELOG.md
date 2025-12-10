@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.14.0] - 2025-12-10
+
+### Functionality
+
+#### Changed
+
+- Submitting a splash should now display a more helpful error message when getting a 400 bad request
+- The bot should now avoid leaking who failed to submit a splash
+- Message length warning for splash pages should be harder to trigger now
+
 ## [0.13.0] - 2025-11-25
 
 ### Functionality

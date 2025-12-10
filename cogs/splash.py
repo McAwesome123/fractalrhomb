@@ -10,12 +10,20 @@
 
 import asyncio
 import datetime as dt
+import json
 import logging
+import re
 from math import ceil
 
 import aiohttp.client_exceptions as client_exc
+import anyio
 import discord
-from aiohttp.web import HTTPForbidden, HTTPTooManyRequests, HTTPUnauthorized
+from aiohttp.web import (
+	HTTPBadRequest,
+	HTTPForbidden,
+	HTTPTooManyRequests,
+	HTTPUnauthorized,
+)
 
 import src.fractalrhomb_globals as frg
 import src.fractalthorns_dataclasses as ftd
@@ -113,7 +121,9 @@ class Splash(discord.Cog):
 			response = response.format()
 			responses = frg.split_message([response], "")
 
-			if not await frg.message_length_warning(ctx, responses, 1000):
+			if not await frg.message_length_warning(
+				ctx, responses, frg.MAX_MESSAGE_LENGTH
+			):
 				return
 
 			ping_user = True
@@ -236,57 +246,7 @@ class Splash(discord.Cog):
 					f"could not submit splash:\n{splash.format()}", ephemeral=True
 				)
 
-				max_loop = 1000
-
-				while isinstance(exc, ExceptionGroup):
-					max_loop -= 1
-					if max_loop < 0:
-						self.logger.warning(
-							"Loop running for too long.", stack_info=True
-						)
-						break
-
-					exc = exc.exceptions[0]
-
-				if isinstance(exc, client_exc.ClientResponseError):
-					if exc.status == HTTPTooManyRequests.status_code:
-						retry_after = float(exc.headers["Retry-After"])
-						time = dt.datetime.now(dt.UTC).timestamp()
-						retry_time = ceil(time + retry_after)
-
-						try:
-							await ctx.send(
-								f"you're sending splashes too quickly. try again <t:{retry_time}:R>"
-							)
-						except discord.errors.Forbidden:
-							await ctx.respond(
-								f"you're sending splashes too quickly. try again <t:{retry_time}:R>",
-								ephemeral=True,
-							)
-					elif exc.status == HTTPUnauthorized.status_code:
-						try:
-							await ctx.send(
-								"cannot submit a splash. bot is missing an api key"
-							)
-						except discord.errors.Forbidden:
-							await ctx.respond(
-								"cannot submit a splash. bot is missing an api key",
-								ephemeral=True,
-							)
-					elif exc.status == HTTPForbidden.status_code:
-						try:
-							await ctx.send(
-								"cannot submit a splash. bot has an invalid api key"
-							)
-						except discord.errors.Forbidden:
-							await ctx.respond(
-								"cannot submit a splash. bot has an invalid api key",
-								ephemeral=True,
-							)
-					else:
-						raise
-				else:
-					raise
+				await self.submit_splash_exception_handler(ctx, splash, exc)
 
 			else:
 				resend_splash = self.ResendSplashView()
@@ -304,15 +264,147 @@ class Splash(discord.Cog):
 				await self.resend_splash(ctx, splash, resend_splash, resend_message, 0)
 
 		except* (TimeoutError, client_exc.ClientError) as exc:
-			await ctx.respond(
-				f"could not submit splash:\n{splash.format()}", ephemeral=True
-			)
+			if not ctx.response.is_done():
+				await ctx.respond(
+					f"could not submit splash:\n{splash.format()}", ephemeral=True
+				)
+
 			await frg.standard_exception_handler(
 				ctx,
 				self.logger,
 				exc,
 				"Splash.submit_splash",
+				is_deferred=True,
 			)
+
+	async def submit_splash_exception_handler(
+		self,
+		ctx: discord.ApplicationContext,
+		splash: ftd.Splash,
+		exc: ExceptionGroup[client_exc.ClientResponseError],
+	) -> None:
+		"""Handle splash submission exceptions."""
+		max_loop = 1000
+
+		while isinstance(exc, ExceptionGroup):
+			max_loop -= 1
+			if max_loop < 0:
+				self.logger.warning("Loop running for too long.", stack_info=True)
+				break
+
+			exc = exc.exceptions[0]
+
+		if isinstance(exc, client_exc.ClientResponseError):
+			if exc.status == HTTPTooManyRequests.status_code:
+				retry_after = float(exc.headers["Retry-After"])
+				time = dt.datetime.now(dt.UTC).timestamp()
+				retry_time = ceil(time + retry_after)
+
+				try:
+					await ctx.send(
+						f"you're sending splashes too quickly. try again <t:{retry_time}:R>"
+					)
+				except discord.errors.Forbidden:
+					await ctx.respond(
+						f"you're sending splashes too quickly. try again <t:{retry_time}:R>",
+						ephemeral=True,
+					)
+			elif exc.status == HTTPUnauthorized.status_code:
+				try:
+					await ctx.send("cannot submit a splash. bot is missing an api key")
+				except discord.errors.Forbidden:
+					await ctx.respond(
+						"cannot submit a splash. bot is missing an api key",
+						ephemeral=True,
+					)
+			elif exc.status == HTTPForbidden.status_code:
+				try:
+					await ctx.send("cannot submit a splash. bot has an invalid api key")
+				except discord.errors.Forbidden:
+					await ctx.respond(
+						"cannot submit a splash. bot has an invalid api key",
+						ephemeral=True,
+					)
+			elif exc.status == HTTPBadRequest.status_code:
+				if (
+					len(
+						control_character_matches := re.findall(
+							r"[\x00-\x1F\x7F-\x9F]", splash.text
+						)
+					)
+					> 0
+				):
+					control_character_matches: list[str]
+					control_characters_list = [
+						i.encode("unicode_escape").decode("utf-8")
+						for i in control_character_matches
+					]
+					try:
+						await ctx.send(
+							f"your splash has invalid characters ({', '.join(control_characters_list)})"
+						)
+					except discord.errors.Forbidden:
+						await ctx.respond(
+							f"your splash has invalid characters ({', '.join(control_characters_list)})",
+							ephemeral=True,
+						)
+				elif (
+					splash_length := await self.get_splash_length(splash.text)
+				) > frg.MAX_SPLASH_LENGTH:
+					try:
+						await ctx.send(
+							f"your splash is too long (estimated length: {splash_length})"
+						)
+					except discord.errors.Forbidden:
+						await ctx.respond(
+							f"your splash is too long (estimated length: {splash_length})",
+							ephemeral=True,
+						)
+				else:
+					try:
+						await ctx.send(
+							"the server rejected your splash. it may be too long or have invalid characters"
+						)
+					except discord.errors.Forbidden:
+						await ctx.respond(
+							"the server rejected your splash. it may be too long or have invalid characters",
+							ephemeral=True,
+						)
+			else:
+				raise exc
+		else:
+			raise exc
+
+	async def get_splash_length(self, splash_text: str) -> int:
+		"""Get the actual length of a splash."""
+		valid_emojis = None
+
+		file_path = anyio.Path("fractalthorns/valid_emojis.json")
+		if await file_path.exists():
+			async with await file_path.open("r", encoding="utf-8") as f:
+				valid_emojis = json.loads(await f.read())
+
+		if valid_emojis is None:
+			return len(re.sub(r"<a?:\w+:\d+>", "::", splash_text))
+
+		self.logger.debug("Valid emojis: %r", valid_emojis)
+
+		sub_splash_text = re.sub(r"<a?:\w+:\d+>", "", splash_text)
+		self.logger.debug("Substituted splash text: %s", sub_splash_text)
+		splash_length = len(sub_splash_text)
+
+		for emoji in re.finditer(r"<a?:(?P<emoji_name>\w+):\d+>", splash_text):
+			self.logger.debug("Found emoji: %s", emoji.group())
+			self.logger.debug("Emoji name: %s", emoji.group("emoji_name"))
+			if emoji.group("emoji_name") in valid_emojis:
+				self.logger.debug("Valid fractalthorns emoji")
+				splash_length += 2
+			else:
+				self.logger.debug("Not a valid fractalthorns emoji")
+				splash_length += len(emoji.group("emoji_name"))
+
+		self.logger.debug("True splash length: %s", splash_length)
+		return splash_length
 
 
 def setup(bot: discord.Bot) -> None:
