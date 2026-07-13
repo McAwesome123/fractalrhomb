@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing so far
 
+## [0.14.1] - 2026-07-13
+
+### Technical
+
+#### Added
+
+- `pip-system-certs` as a requirement due to certificate bs
+
+#### Security
+
+- Updated dependencies in requirements file
+
 ## [0.14.0] - 2025-12-10
 
 ### Functionality
